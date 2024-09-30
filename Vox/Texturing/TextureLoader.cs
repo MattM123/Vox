@@ -7,8 +7,11 @@ using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
 using System.IO;
 using System.Drawing;
+using Vox.Model;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
 
-namespace Vox.Texture
+namespace Vox.Texturing
 {
     public class TextureLoader
     {
@@ -24,7 +27,6 @@ namespace Vox.Texture
         static TextureLoader()
         {
             Directory.CreateDirectory(assets + "Textures");
-            Directory.CreateDirectory(assets + "Models");
         }
 
         public static int LoadTextures()
@@ -33,6 +35,10 @@ namespace Vox.Texture
             width = 16;
             height = 16;
             numLayers = 3;
+
+            //========================
+            //Texture Setup
+            //========================
 
             //Create and bind texture array
             int texId = GL.GenTexture();
@@ -49,15 +55,36 @@ namespace Vox.Texture
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
 
+            //========================
+            //Load Assets
+            //========================
 
-            //If no custom textures provided, copies default textures into folder
+
+            //Copies textures into foler if not present
             string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
             if (Directory.EnumerateFiles(assets + "Textures").ToArray().Length == 0)
             {
-                Logger.Log("Reloading default textures");
+                Logger.Info("Reloading default textures");
                 for (int i = 0; i < projTex.Length; i++)
                     File.Copy(projTex[i], assets + "Textures\\" + Path.GetFileName(projTex[i]));
             }
+
+         //   for (int i = 0; i < model.GetElements().Count(); i++)
+         //   {
+         //       Logger.Debug("0: " + model.GetElements().ElementAt(i).ToString());
+         //   }
+         //   for (int i = 0; i < model.GetElements().Count(); i++)
+         //   {
+         //       Logger.Debug("90: " + model.RotateX(90).GetElements().ElementAt(i).ToString());
+         //   }
+         //   for (int i = 0; i < model.GetElements().Count(); i++)
+         //   {
+         //       Logger.Debug("180: " + model.RotateX(180).GetElements().ElementAt(i).ToString());
+         //   }
+         //   for (int i = 0; i < model.GetElements().Count(); i++)
+         //   {
+         //       Logger.Debug("270: " + model.RotateX(270).GetElements().ElementAt(i).ToString());
+         //   }
 
             // Upload texture sub-images to each layer
             string[] tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
@@ -75,7 +102,7 @@ namespace Vox.Texture
                     TextureTarget.Texture2DArray, //Target
                     0,                            //Level
                     0, 0, i,                      //XYZ offset
-                    width, height, 1,               //Width, height, depth
+                    width, height, 1,             //Width, height, depth
                     PixelFormat.Rgba,             //Pixel Format
                     PixelType.UnsignedByte,       //Pixel Type
                     subimageData);                //Image data

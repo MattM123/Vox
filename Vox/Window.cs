@@ -1,12 +1,14 @@
 ﻿using System.ComponentModel;
+using System.Reflection;
 using System.Text;
 using ImGuiNET;
-using OpenTK.Graphics.OpenGL4;
+using Newtonsoft.Json.Linq;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using Vox.GUI;
-using Vox.Texture;
+using Vox.Model;
+using Vox.Texturing;
 using Vox.World;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
@@ -27,6 +29,7 @@ namespace Vox
         ImGuiController _controller;
         public static readonly int screenWidth = Monitors.GetPrimaryMonitor().ClientArea.Size.X;
         public static readonly int screenHeight = Monitors.GetPrimaryMonitor().ClientArea.Size.Y - 100;
+       
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
         private static ShaderProgram? shaderProgram = null;
@@ -39,25 +42,28 @@ namespace Vox
         private static Matrix4 modelMatricRotate;
         private static Matrix4 viewMatrix;
         private static float fps = 0.0f;
+        public static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
+        private static BlockModel menuModel;
 
         protected override void OnLoad()
         {
             base.OnLoad();
 
             //Load textures
+            ModelLoader.LoadModels();
             TextureLoader.LoadTextures();
+
+            //Block that renders in the world selection screen
+            menuModel = ModelLoader.GetModel(BlockType.GRASS_BLOCK);
+            Logger.Debug(menuModel.ToString());
+
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
             _controller = new ImGuiController(ClientSize.X, ClientSize.Y);
             shaderProgram = new();
 
-            //ImFontPtr font = ImGui.GetIO().Fonts.AddFontFromFileTTF("C:\\Users\\mattm\\source\\repos\\Vox\\Vox\\Fonts\\minecraft_font.ttf", 15, config);   
-            //ImGui.GetIO().Fonts.Build();
-
-
             Directory.CreateDirectory(appFolder + "worlds");
-
             GL.Enable(EnableCap.DepthTest);
 
             //Enable primitive restart
@@ -69,15 +75,16 @@ namespace Vox
             //========================
 
             //Load the vertex shader from file
-            string vertexShaderSource = ShaderProgram.LoadShaderFromFile("C:\\Users\\mattm\\source\\repos\\Vox\\Vox\\Texture\\VertexShader.glsl");
+            string vertexShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\VertexShader.glsl");
             shaderProgram.CreateVertexShader(vertexShaderSource);
 
             // Load the fragment shader from file
-            string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("C:\\Users\\mattm\\source\\repos\\Vox\\Vox\\Texture\\FragShader.glsl");
+            string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\FragShader.glsl");
             shaderProgram.CreateFragmentShader(fragmentShaderSource);
 
             //Load Textures
             shaderProgram.UploadTexture("texture_sampler", 0);
+
 
             // Link the shader program
             shaderProgram.Link();
@@ -114,7 +121,7 @@ namespace Vox
                 Logger.Error(e, "Window.OnLoad");
             }
 
-            viewMatrix = Matrix4.LookAt(new Vector3(0.0f, 0.8f, -1.0f), new Vector3(0.0f, 0.0f, 0.0f), new Vector3(0.0f, 1.0f, 0.0f));
+            viewMatrix = Matrix4.LookAt(new Vector3(0.0f, 40f, 0f), new Vector3(8.0f, 0.0f, 8.0f), new Vector3(0.0f, 1.0f, 0.0f));
             try
             {
                 shaderProgram.CreateUniform("viewMatrix");
@@ -124,9 +131,6 @@ namespace Vox
             {
                 Logger.Error(e);
             }
-
-
-
 
         }
 
@@ -178,10 +182,15 @@ namespace Vox
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
             base.OnUpdateFrame(args);
-            modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(0.0f, 1.0f, 0.0f), angle);
-            Matrix4 menuMatrix = modelMatricRotate;
-            shaderProgram?.SetUniform("modelMatrix", menuMatrix);
+
+            if (IsMenuRendered())
+            {
+                modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(8f, 9f, 8f), angle);
+                Matrix4 menuMatrix = modelMatricRotate;
+                shaderProgram?.SetUniform("modelMatrix", menuMatrix);
+            }
         }
+       
         protected override void OnTextInput(TextInputEventArgs e)
         {
             base.OnTextInput(e);
@@ -282,6 +291,7 @@ namespace Vox
                             }
                         }
                     }
+                    ImGui.Text("FPS: " + ioptr.Framerate);
                 }
                 catch (Exception e2)
                 {
@@ -378,49 +388,64 @@ namespace Vox
 
         private static void RenderMenu()
         {
+
+            BlockModel model = menuModel;
+            BlockModel model90 = menuModel.RotateX(90);
+            BlockModel model180 = menuModel.RotateX(180);
+            BlockModel model270 = menuModel.RotateX(270);
+
+            Element modelEle = menuModel.GetElements().ToList().ElementAt(0);
+            Element modelEle90 = model90.GetElements().ToList().ElementAt(0);
+            Element modelEle180 = model180.GetElements().ToList().ElementAt(0);
+            Element modelEle270 = model270.GetElements().ToList().ElementAt(0);
+            
+          
+
             int vboID, vaoID, eboID;
-                       //  upsidedown - 0123
-               // rightsidfe up =
             Vector3 pos = GetPlayer().GetPosition();
 
             float[] vertices = {    
-                //Position (X, Y, Z)                       Color (R, G, B, A)    Texture Layer | Texture Coordinate Index
+                //Position (X, Y, Z)                                              Texture Layer | Texture Coordinate Index
                 // Front face
-                pos.X -0.5f, pos.Y -0.5f, pos.Z +0.5f,     1.0f, 0.0f, 0.0f, 1.0f,          1f, 3f, //top right
-                pos.X +0.5f, pos.Y -0.5f, pos.Z +0.5f,     1.0f, 0.0f, 0.0f, 1.0f,          1f, 2f, //top left
-                pos.X -0.5f, pos.Y +0.5f, pos.Z +0.5f,     1.0f, 0.0f, 0.0f, 1.0f,          1f, 1f, //bottom right
-                pos.X +0.5f, pos.Y +0.5f, pos.Z +0.5f,     1.0f, 0.0f, 0.0f, 1.0f,          1f, 0f, //bottom left
-                                                                                           
-                // Back face.Y                                                             
-                pos.X -0.5f, pos.Y -0.5f, pos.Z -0.5f,     0.0f, 1.0f, 0.0f, 1.0f,          1f, 3f,
-                pos.X +0.5f, pos.Y -0.5f, pos.Z -0.5f,     0.0f, 1.0f, 0.0f, 1.0f,          1f, 2f,        
-                pos.X -0.5f, pos.Y +0.5f, pos.Z -0.5f,     0.0f, 1.0f, 0.0f, 1.0f,          1f, 1f,
-                pos.X +0.5f, pos.Y +0.5f, pos.Z -0.5f,     0.0f, 1.0f, 0.0f, 1.0f,          1f, 0f,
-                                                                                           
-                // Left face.Y                                                             
-                pos.X -0.5f, pos.Y -0.5f, pos.Z -0.5f,     0.0f, 0.0f, 1.0f, 1.0f,          1f, 3f,
-                pos.X -0.5f, pos.Y +0.5f, pos.Z -0.5f,     0.0f, 0.0f, 1.0f, 1.0f,          1f, 1f,
-                pos.X -0.5f, pos.Y -0.5f, pos.Z +0.5f,     0.0f, 0.0f, 1.0f, 1.0f,          1f, 2f,
-                pos.X -0.5f, pos.Y +0.5f, pos.Z +0.5f,     0.0f, 0.0f, 1.0f, 1.0f,          1f, 0f,
-                                                                                           
-                // Right face                                                              
-                pos.X +0.5f, pos.Y -0.5f, pos.Z -0.5f,     1.0f, 1.0f, 0.0f, 1.0f,          1f, 3f,
-                pos.X +0.5f, pos.Y +0.5f, pos.Z -0.5f,     1.0f, 1.0f, 0.0f, 1.0f,          1f, 1f,
-                pos.X +0.5f, pos.Y -0.5f, pos.Z +0.5f,     1.0f, 1.0f, 0.0f, 1.0f,          1f, 2f,
-                pos.X +0.5f, pos.Y +0.5f, pos.Z +0.5f,     1.0f, 1.0f, 0.0f, 1.0f,          1f, 0f,
-                                                                                           
-                // Top face                                                                
-                pos.X -0.5f, pos.Y +0.5f, pos.Z -0.5f,     0.0f, 1.0f, 1.0f, 1.0f,          2f, 3f,
-                pos.X +0.5f, pos.Y +0.5f, pos.Z -0.5f,     0.0f, 1.0f, 1.0f, 1.0f,          2f, 2f,
-                pos.X -0.5f, pos.Y +0.5f, pos.Z +0.5f,     0.0f, 1.0f, 1.0f, 1.0f,          2f, 1f,
-                pos.X +0.5f, pos.Y +0.5f, pos.Z +0.5f,     0.0f, 1.0f, 1.0f, 1.0f,          2f, 0f,
-                                                                                           
-                // Bottom face                                                             
-                pos.X -0.5f, pos.Y -0.5f, pos.Z -0.5f,     1.0f, 0.0f, 1.0f, 1.0f,          0f, 3f,
-                pos.X +0.5f, pos.Y -0.5f, pos.Z -0.5f,     1.0f, 0.0f, 1.0f, 1.0f,          0f, 2f,
-                pos.X -0.5f, pos.Y -0.5f, pos.Z +0.5f,     1.0f, 0.0f, 1.0f, 1.0f,          0f, 1f,
-                pos.X +0.5f, pos.Y -0.5f, pos.Z +0.5f,     1.0f, 0.0f, 1.0f, 1.0f,          0f, 0f,
+                modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float) model90.GetTexture("south"), 3f, //top right                      
+                modelEle.x1, modelEle.y1, modelEle.z1,               (float) model.GetTexture("south"), 2f, //top left
+                modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float) model180.GetTexture("south"), 1f, //bottom right     
+                modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float) model270.GetTexture("south"), 0f, //bottom left
+                                                                                    
+                // Back face
+                modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float) model270.GetTexture("north"), 3f,
+                modelEle.x2, modelEle.y2, modelEle.z2,               (float) model.GetTexture("north"), 1f,
+                modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float) model180.GetTexture("north"), 2f,
+                modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float) model90.GetTexture("north"), 0f,
+                                                                                    
+                // Top face                                                    
+                modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float) model180.GetTexture("up"), 3f,
+                modelEle.x2, modelEle.y2, modelEle.z2,               (float) model.GetTexture("up"), 1f,
+                modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float) model270.GetTexture("up"), 2f,
+                modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float) model90.GetTexture("up"), 0f,
+                                                                                    
+                // Bottom face                                                       
+                modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float) model90.GetTexture("down"), 3f,
+                modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float) model270.GetTexture("down"), 1f,
+                modelEle.x1, modelEle.y1, modelEle.z1,               (float) model.GetTexture("down"), 2f,
+                modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float) model180.GetTexture("down"), 0f,
+                                                                                    
+                // Left face
+                modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float) model90.GetTexture("west"), 0f,
+                modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float) model270.GetTexture("west"), 1f,
+                modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float) model180.GetTexture("west"), 2f,
+                modelEle.x1, modelEle.y1, modelEle.z1,               (float) model.GetTexture("west"), 3f,
+                          
+                                
+                // Right face                                                      
+                modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float) model90.GetTexture("east"), 2f,
+                modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float) model270.GetTexture("east"), 3f,
+                modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float) model180.GetTexture("east"), 0f,
+                modelEle.x2, modelEle.y2, modelEle.z2,               (float) model.GetTexture("east"), 1f,
+
             };
+
+
 
             // Declares the Elements Array, where the indices to be drawn are stored
             int[] elementArray = {
@@ -469,33 +494,23 @@ namespace Vox
             Vertex attribute definitions for shaders
             ======================================*/
             int posSize = 3;
-            int colorSize = 4;
             int layerSize = 1;
             int coordSize = 1;
             int floatSizeBytes = 4;
-            int vertexSizeBytes = (posSize + colorSize + layerSize + coordSize) * floatSizeBytes;
+            int vertexSizeBytes = (posSize + layerSize + coordSize) * floatSizeBytes;
 
             //Position
             GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, vertexSizeBytes, 0);
             GL.EnableVertexAttribArray(0);
 
-            // Color
-            GL.VertexAttribPointer(1, colorSize, VertexAttribPointerType.Float, false, vertexSizeBytes, posSize * sizeof(float));
+            // Texture Layer
+            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize) * sizeof(float));
             GL.EnableVertexAttribArray(1);
 
-            // Texture Layer
-            GL.VertexAttribPointer(2, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + colorSize) * sizeof(float));
+            // Texture Coordinates
+            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize) * sizeof(float));
             GL.EnableVertexAttribArray(2);
 
-            // Texture Coordinates
-            GL.VertexAttribPointer(3, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + colorSize + layerSize) * sizeof(float));
-            GL.EnableVertexAttribArray(3);
-
-            /*==================================
-            Matrix setup
-            ====================================*/
-
-            
 
             /*==================================
             Drawing
@@ -788,6 +803,7 @@ namespace Vox
 
             shaderProgram?.Cleanup();
             TextureLoader.Unbind();
+            ModelLoader.Destroy();
         }
 
         protected override void OnResize(ResizeEventArgs e)
@@ -799,8 +815,6 @@ namespace Vox
             float FAR = 500.0f;
             float NEAR = 0.01f;
 
-            //   Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV,
-            //       2 / 1, NEAR, FAR);
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float) e.Width / e.Height, NEAR, FAR);
 
             shaderProgram?.SetUniform("projectionMatrix", pMatrix);
@@ -821,6 +835,7 @@ namespace Vox
                 Location = new Vector2i(0, 0),
                 ClientSize = new Vector2i(screenWidth, screenHeight),
                 APIVersion = new Version(4, 1) });
+
             wnd.Run();
         }
     }

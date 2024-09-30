@@ -1,6 +1,6 @@
 ﻿
 using OpenTK.Mathematics;
-using Vox.Texture;
+using Vox.Model;
 
 namespace Vox
 {

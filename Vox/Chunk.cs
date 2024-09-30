@@ -2,7 +2,7 @@
 using System.Drawing;
 using OpenTK.Mathematics;
 using Vox.Comparator;
-using Vox.Texture;
+using Vox.Model;
 using Vox.World;
 
 
@@ -97,7 +97,7 @@ namespace Vox
                     for (int y1 = (int)y; y1 <= heightMap[xCount, zCount]; y1++)
                     {
 
-                        Block c = new Block(x1, y1, z1, BlockType.DIRT);
+                        Block c = new Block(x1, y1, z1, BlockType.DIRT_BLOCK);
                         //    c.f = OpenSimplex.noise3_ImproveXZ(RegionManager.WORLD_SEED, x1 * 0.05, y1 * 0.05, z1 * 0.05);
                         //   if (c.f > 0.00)
                         blocks.Add(c);
@@ -252,10 +252,10 @@ namespace Vox
                         comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
 
                     //Adds base by default since that will always be visible and rendered
-                    if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT)))
+                    if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
                     {
-                        // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)), BlockType.DIRT));
-                        chunkBlocks.Add(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT));
+                        // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                        chunkBlocks.Add(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK));
                     }
 
 
@@ -269,9 +269,9 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT)))
-                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT));
+                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
+                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
 
                             }
                         }
@@ -285,9 +285,9 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT)))
-                                    //   chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT));
+                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
+                                    //   chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
 
                             }
                         }
@@ -301,9 +301,9 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT)))
-                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT));
+                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
+                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
 
                             }
                         }
@@ -317,9 +317,9 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT)))
-                                    // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT));
+                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
+                                    // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
 
                             }
                         }

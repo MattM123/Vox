@@ -1,9 +1,8 @@
 #version 410 core
 
 layout(location = 0) in vec3 position;
-layout(location = 1) in vec4 aColor;
-layout(location = 2) in float aTexLayer;
-layout(location = 3) in float aTexCoord;
+layout(location = 1) in float aTexLayer;
+layout(location = 2) in float aTexCoord;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
@@ -17,7 +16,6 @@ void main() {
     gl_Position = vec4(position, 1.0) *  modelMatrix * viewMatrix * projectionMatrix;
 
     //passthrough
-    fColor = aColor;
     fTexLayer = aTexLayer;
 
     vec2 texCoords[4] = vec2[4](

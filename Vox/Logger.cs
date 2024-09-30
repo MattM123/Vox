@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace Vox
 {
     internal class Logger
     {
         public Logger() { }
 
-        public static void Log(string message)
+        public static void Info(object message)
         {
-            Console.WriteLine("[LOG] " + DateTime.Now + " :: " + message);
+            Console.WriteLine("[INFO] " + DateTime.Now + " :: " + message.ToString());
         }
         public static void Error(Exception e)
         {
@@ -29,9 +24,12 @@ namespace Vox
         {
             Console.WriteLine("[WARN] " + DateTime.Now + " :: " + message);
         }
-        public static void Debug(string message)
+        public static void Debug(object message)
         {
-            Console.WriteLine("[DEBUG] " + DateTime.Now + " :: " + message);
+            if (message == null)
+                message = $"Object is null";
+
+            Console.WriteLine("[DEBUG] " + DateTime.Now + " :: " + message.ToString());
         }
     }
 }

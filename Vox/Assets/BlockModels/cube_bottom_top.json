@@ -1,5 +1,5 @@
 ﻿{
-    "parent": "block/cube",
+    "parent": "cube",
     "textures": {
         "particle": "#side",
         "down": "#bottom",
@@ -9,4 +9,4 @@
         "south": "#side",
         "west": "#side"
     }
-};
+}

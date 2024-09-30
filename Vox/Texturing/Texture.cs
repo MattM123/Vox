@@ -1,10 +1,10 @@
 ﻿
-namespace Vox.Texture
+namespace Vox.Texturing
 {
     public enum Texture
     {
         DIRT,
+        GRASS_FULL,
         GRASS_SIDE,
-        GRASS_FULL
     }
 }

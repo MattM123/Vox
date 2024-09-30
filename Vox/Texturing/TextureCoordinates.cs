@@ -1,5 +1,5 @@
 ﻿
-namespace Vox.Texture
+namespace Vox.Texturing
 {
 
     public class TextureCoordinates(float[] BOTTOM_LEFT, float[] BOTTOM_RIGHT,
