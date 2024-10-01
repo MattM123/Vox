@@ -1,14 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Xml.Linq;
-using System.Collections;
-using System.Runtime.Serialization.Formatters.Binary;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 
 namespace Vox.World
 {
@@ -21,7 +11,7 @@ namespace Vox.World
         public static readonly int RENDER_DISTANCE = 4;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
-        public static readonly long WORLD_SEED = 1234563454;
+        public static readonly long WORLD_SEED = 4472426645;
         private static Thread reagionWriterThread;
 
         /**

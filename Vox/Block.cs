@@ -5,9 +5,9 @@ using Vox.Model;
 namespace Vox
 {
 
+
     public class Block
     {
-
         private BlockType type;
         private Vector3 location;
 
@@ -21,7 +21,7 @@ namespace Vox
          */
         public Block(float x, float y, float z, BlockType b)
         {
-            location = new Vector3(x, y, z);
+            this.location = new Vector3(x, y, z);
             type = b;
         }
 
@@ -35,16 +35,15 @@ namespace Vox
          */
         public Block(float x, float y, float z)
         {
-            location = new Vector3(x, y, z);
+            this.location = new Vector3(x, y, z);
         }
 
         public Block(Vector3 location, BlockType b)
         {
             this.location = location;
-            type = b;
+            this.type = b;
         }
 
-        public Vector3 GetLocation() { return location; }
         public BlockType GetBlockType()
         {
             return type;
@@ -55,7 +54,7 @@ namespace Vox
             this.type = type;
         }
 
-        public Vector3 getLocation()
+        public Vector3 GetLocation()
         {
             return location;
         }
@@ -63,14 +62,14 @@ namespace Vox
         {
             this.location = location;
         }
-            /*
+
+        /*
         @Serial
-        private void writeObject(ObjectOutputStream out) throws IOException
-        {
+        private void writeObject(ObjectOutputStream out) throws IOException {
             out.writeFloat(location.X);
             out.writeFloat(location.Y);
             out.writeFloat(location.Z);
-            out.writeObject(getBlockType());
+            out.writeObject(GetBlockType());
         }
 
         @Serial
@@ -78,26 +77,30 @@ namespace Vox
             this.location.X = in.readFloat();
             this.location.Y = in.readFloat();
             this.location.Z = in.readFloat();
-        type = (BlockType) in.readObject();
+            type = (BlockType) in.readObject();
         }
-            */
+        */
 
         public override bool Equals(object? o)
         {
-            if (o.GetType() == typeof(Block)) {
-                return getLocation().X == ((Block)o).getLocation().X && getLocation().Y == ((Block)o).getLocation().Y
-                        && getLocation().Z == ((Block)o).getLocation().Z;// && this.getBlockType() == ((Block) o).getBlockType();
-            } else return false;
+            if (o.GetType() == typeof(Block))
+            {
+                return GetLocation().X == ((Block)o).GetLocation().X && GetLocation().Y == ((Block)o).GetLocation().Y
+                        && GetLocation().Z == ((Block)o).GetLocation().Z;// && this.GetBlockType() == ((Block) o).GetBlockType();
+            }
+            else return false;
         }
 
         public override string ToString()
         {
             return "[" + location.X + ", " + location.Y + ", " + location.Z + "]";
+
         }
 
         public override int GetHashCode()
         {
             return base.GetHashCode();
         }
+
     }
 }

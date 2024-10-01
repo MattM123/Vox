@@ -1,5 +1,8 @@
 ﻿using System.Collections;
+using System.Diagnostics;
 using System.Drawing;
+using Newtonsoft.Json;
+using OpenTK.Graphics.ES20;
 using OpenTK.Mathematics;
 using Vox.Comparator;
 using Vox.Model;
@@ -19,8 +22,10 @@ namespace Vox
         private int vbo = 0;
         private int ebo = 0;
         private static Matrix4 modelMatrix = new();
+        private static List<float> chunkVerts = [];
+        private static List<int> chunkEle = [];
 
-        public Chunk()
+        static Chunk()
         {
 
             //Chunk events executed by player
@@ -56,7 +61,7 @@ namespace Vox
             location = new Vector3(x, y, z);
 
             //Generic model matrix applicable to every chunk object
-            modelMatrix = Matrix4.CreateTranslation(location);
+            modelMatrix = Matrix4.CreateTranslation(location) * Matrix4.CreateScale(1/16);
 
             //===================================
             //Generate chunk height map
@@ -113,7 +118,7 @@ namespace Vox
                         xCount = 0;
                 }
             }
-            PopulateChunk();
+           // InterpolateChunk();
             SortBlocks();
             isInitialized = true;
             rerender = true;
@@ -191,6 +196,10 @@ namespace Vox
 
         }
 
+        public int[,] GetHeightmap()
+        {
+            return heightMap;
+        }
         /**
          * Given a 2D chunk heightmap, interpolates between
          * height-mapped blocks to fill in vertical gaps in terrain generation.
@@ -207,12 +216,17 @@ namespace Vox
          * |-----|-----|-----|  |-----|-----|
          *       |  b  |        | base|
          *       |-----|        |-----|
+         *       
+         *  Returns a Vector3f list containg all points. These vertices
+         *  will be assigned block types and texture infromation in GetRenderTask()
+         *  
          */
-        private void PopulateChunk()
+        private List<Vector3> InterpolateChunk(List<Vector3> inVert)
         {
             //TODO: Determine BlockType based on noise
             //loop through heightmap
-            chunkBlocks.Clear();
+            List<Vector3> output = [];
+
             for (int row = 0; row < heightMap.GetLength(0); row++)
             {
                 for (int col = 0; col < heightMap.GetLength(1); col++)
@@ -252,10 +266,11 @@ namespace Vox
                         comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
 
                     //Adds base by default since that will always be visible and rendered
-                    if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
+                    if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
                     {
-                        // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                        chunkBlocks.Add(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                        // inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                        //inVert.Add(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                        output.Add(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z));
                     }
 
 
@@ -269,10 +284,10 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
-                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
-
+                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
+                                    //  inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
                     }
@@ -285,10 +300,10 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
-                                    //   chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
-
+                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
+                                    //   inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
                     }
@@ -301,10 +316,10 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
-                                    //  chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
-
+                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
+                                    //  inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
                     }
@@ -317,20 +332,17 @@ namespace Vox
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!chunkBlocks.Contains(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK)))
-                                    // chunkBlocks.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    chunkBlocks.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
-
+                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
+                                    // inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
+                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
                     }
                 }
             }
-            //   for (int[] ints : heightMap) {
-            //       System.out.println(Arrays.toString(ints));
-            //   }
-            //  System.out.println();
-
+            output.AddRange(inVert);
+            return output;
         }
 
         /**
@@ -344,6 +356,14 @@ namespace Vox
             return location;
         }
 
+        public float[] GetVertices()
+        {
+            return [.. chunkVerts];
+        }
+        public int[] GetElements()
+        {
+            return [.. chunkEle];
+        }
         /**
          * If this region is currently visible to the player (in-memory), this region will
          * be returned populated with chunk data. This region will otherwise be an empty object
@@ -418,13 +438,56 @@ namespace Vox
             //idea: have bits/bools at block level for which faces are rendered.
             //use to determine what other faces to render since +y face
             //renders properly
+            List<Vector3> nonInterpolated = [];
             List<float> vertices = [];
             List<int> elements = [];
             int elementCounter = 0;
 
-            if (rerender)
-            {// || elementCache.Length == 0 || vertexCache.Length == 0) {
+            BlockModel model = ModelLoader.GetModel(BlockType.DIRT_BLOCK);
+            Array values = Enum.GetValues(typeof(BlockType));
+            Random random = new();
 
+            if (rerender && (chunkVerts.Count == 0 || chunkEle.Count == 0))
+            {
+                Logger.Debug("Calculating chunk vertex and element data");
+                for (int x = 0; x < heightMap.GetLength(0); x++) // GetLength(0) gives the number of rows
+                {
+                    for (int z = 0; z < heightMap.GetLength(1); z++) // GetLength(1) gives the number of columns
+                    {
+                        nonInterpolated.Add(new Vector3(location.X + x, heightMap[z,x], location.Z + z));
+                    }
+                }
+
+                List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
+                for (int i = 0; i < interpolatedChunk.Count; i++)
+                {
+                    int randomIndex = random.Next(values.Length);
+                    model = ModelLoader.GetModel((BlockType)values.GetValue(randomIndex));
+
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "south", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "north", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "up",    new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "down",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "west",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "east",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+
+                    elements.AddRange([
+                        elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 10000,
+                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 10000,
+                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 10000,
+                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 10000,
+                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 10000,
+                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 10000,
+                    ]);
+
+                    elementCounter += 24;
+                }
+
+                //Updates chunk data
+                chunkVerts = vertices;
+                chunkEle = elements;
+                
+                /*
                 //Block face render conditions
                 for (int i = 0; i < chunkBlocks.Count; i++)
                 {
@@ -482,8 +545,9 @@ namespace Vox
                         elements.AddRange(posYElements);
                     }
 
-
+                
                 }
+                */
             }
             return new RenderTask(vertices, elements, vbo, ebo, modelMatrix);
         }

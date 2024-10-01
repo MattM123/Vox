@@ -9,11 +9,11 @@ namespace Vox.Comparator
 
         public override int Compare(Block? a, Block? b)
         {
-            if (Utils.FloatCompare(a.getLocation().X, b.getLocation().X) == -1)
+            if (Utils.FloatCompare(a.GetLocation().X, b.GetLocation().X) == -1)
             {
                 return -1;
             }
-            else if (Utils.FloatCompare(a.getLocation().X, b.getLocation().X) == 1)
+            else if (Utils.FloatCompare(a.GetLocation().X, b.GetLocation().X) == 1)
             {
                 return 1;
             }
@@ -22,16 +22,16 @@ namespace Vox.Comparator
             else
             {
                 float epsilon = float.Epsilon;
-                if (Math.Abs(a.getLocation().Z - b.getLocation().Z) < epsilon)
+                if (Math.Abs(a.GetLocation().Z - b.GetLocation().Z) < epsilon)
                 {
-                    if (Math.Abs(a.getLocation().Y - b.getLocation().Y) < epsilon)
+                    if (Math.Abs(a.GetLocation().Y - b.GetLocation().Y) < epsilon)
                         return 0;
                     else
-                        return Utils.FloatCompare(a.getLocation().Y, b.getLocation().Y);
+                        return Utils.FloatCompare(a.GetLocation().Y, b.GetLocation().Y);
                 }
                 else
                 {
-                    return Utils.FloatCompare(a.getLocation().Z, b.getLocation().Z);
+                    return Utils.FloatCompare(a.GetLocation().Z, b.GetLocation().Z);
                 }
             }
         }

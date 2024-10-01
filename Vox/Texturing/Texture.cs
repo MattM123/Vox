@@ -6,5 +6,6 @@ namespace Vox.Texturing
         DIRT,
         GRASS_FULL,
         GRASS_SIDE,
+        STONE,
     }
 }

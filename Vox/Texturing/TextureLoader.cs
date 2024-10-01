@@ -26,26 +26,42 @@ namespace Vox.Texturing
 
         static TextureLoader()
         {
+
             Directory.CreateDirectory(assets + "Textures");
         }
 
         public static int LoadTextures()
         {
-            string texturePath;
+            string[] tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
+            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
+
             width = 16;
             height = 16;
-            numLayers = 3;
 
             //========================
             //Texture Setup
             //========================
 
+            //Copies textures into foler if not present
+            if (tex.Length == 0)
+            {
+                numLayers = projTex.Length;
+                Logger.Info("Reloading default textures");
+                for (int i = 0; i < projTex.Length; i++)
+                {
+                    File.Copy(projTex[i], assets + "Textures\\" + Path.GetFileName(projTex[i]));
+                    Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
+                }
+                //update int value
+                tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
+            }
+            numLayers = tex.Length;
+
             //Create and bind texture array
             int texId = GL.GenTexture();
+
             GL.BindTexture(TextureTarget.Texture2DArray, texId);
-
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, width, height, numLayers);
-
 
             // Setting texture parameters
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMaxLevel, 0);
@@ -55,48 +71,17 @@ namespace Vox.Texturing
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
 
-            //========================
-            //Load Assets
-            //========================
-
-
-            //Copies textures into foler if not present
-            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
-            if (Directory.EnumerateFiles(assets + "Textures").ToArray().Length == 0)
-            {
-                Logger.Info("Reloading default textures");
-                for (int i = 0; i < projTex.Length; i++)
-                    File.Copy(projTex[i], assets + "Textures\\" + Path.GetFileName(projTex[i]));
-            }
-
-         //   for (int i = 0; i < model.GetElements().Count(); i++)
-         //   {
-         //       Logger.Debug("0: " + model.GetElements().ElementAt(i).ToString());
-         //   }
-         //   for (int i = 0; i < model.GetElements().Count(); i++)
-         //   {
-         //       Logger.Debug("90: " + model.RotateX(90).GetElements().ElementAt(i).ToString());
-         //   }
-         //   for (int i = 0; i < model.GetElements().Count(); i++)
-         //   {
-         //       Logger.Debug("180: " + model.RotateX(180).GetElements().ElementAt(i).ToString());
-         //   }
-         //   for (int i = 0; i < model.GetElements().Count(); i++)
-         //   {
-         //       Logger.Debug("270: " + model.RotateX(270).GetElements().ElementAt(i).ToString());
-         //   }
 
             // Upload texture sub-images to each layer
-            string[] tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
+            // string[] tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
             for (int i = 0; i < numLayers; i++)
-            {          
+            {
                 using var memoryStream = new MemoryStream();
                 FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
                 image = Stbi.LoadFromMemory(memoryStream, 4);
 
                 byte[] subimageData = image.Data.ToArray();
-
                 // Use TexSubImage3D to upload the image data to the specific layer
                 GL.TexSubImage3D(
                     TextureTarget.Texture2DArray, //Target
@@ -106,9 +91,9 @@ namespace Vox.Texturing
                     PixelFormat.Rgba,             //Pixel Format
                     PixelType.UnsignedByte,       //Pixel Type
                     subimageData);                //Image data
-                
                 image.Dispose();
             }
+           
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
             return texId;
         }
