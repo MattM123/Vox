@@ -1,7 +1,8 @@
 ﻿
 using OpenTK.Mathematics;
+using Vox.Genesis;
 
-namespace Vox
+namespace Vox.Texturing
 {
     /**
      * RenderTask objects store GL primitive data relative to each chunk.
@@ -17,7 +18,7 @@ namespace Vox
      * @param modelMatrix The chunks model matrix to use for rendering
      */
 
-    public class RenderTask(List<float> vertexData, List<int> elementData, int vbo, int ebo, Matrix4 modelMatrix)
+    public class RenderTask(Chunk chunk, List<float> vertexData, List<int> elementData, int vbo, int ebo, int vao, Matrix4 modelMatrix)
     {
         private readonly int vbo = vbo;
         private readonly int ebo = ebo;
@@ -41,10 +42,15 @@ namespace Vox
         {
             return ebo;
         }
+        public int GetVao()
+        {
+            return vao;
+        }
         public Matrix4 GetModelMatrix()
         {
             return modelMatrix;
         }
+        public Chunk GetChunk() { return chunk; }
     }
 
 }

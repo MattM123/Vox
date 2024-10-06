@@ -4,7 +4,7 @@ using System.Text;
 using OpenTK.Mathematics;
 using Vox.Comparator;
 
-namespace Vox
+namespace Vox.Genesis
 {
     public class ChunkManager : List<Chunk>
     {
@@ -42,14 +42,21 @@ namespace Vox
          */
         public Chunk BinaryInsertChunkWithLocation(int l, int r, Vector3 c)
         {
+           
             ChunkComparator pointCompare = new();
-            Chunk q = new Chunk().Initialize(c.X, c.Y, c.Z);
+            Chunk q = new Chunk().Initialize(c.X, c.Z);
+
+            //If chunk already exists in region
+            if (Contains(q))
+            {
+                return q;
+            }
 
             if (Count == 0)
             {
                 Add(q);
             }
-           
+
             if (Count == 1)
             {
                 //Inserts element as first in list
@@ -69,53 +76,51 @@ namespace Vox
             if (r >= l && Count > 1)
             {
                 int mid = l + (r - l) / 2;
-                //When an index has been found, right and left will be very close to each other
-                //Insertion of the right index will shift the right element
-                //and all subsequent ones to the right.
+
+                // If an index is found where left and right are very close
                 if (Math.Abs(r - l) == 1)
                 {
                     Insert(r, q);
                     return q;
                 }
 
-                //If element is less than first element insert at front of list
+                // Check if the element should be inserted at the front
                 if (pointCompare.Compare(c, this[0].GetLocation()) < 0)
                 {
                     Insert(0, q);
                     return q;
                 }
-                //If element is more than last element insert at end of list
+
+                // Check if the element should be inserted at the end
                 if (pointCompare.Compare(c, this[Count - 1].GetLocation()) > 0)
                 {
                     Add(q);
                     return q;
                 }
 
-                //If the index is near the middle
-                if (pointCompare.Compare(c, this[mid - 1].GetLocation()) > 0
+                // Check if it's near the middle, but ensure bounds are respected
+                if (mid > 0 && pointCompare.Compare(c, this[mid - 1].GetLocation()) > 0
                         && pointCompare.Compare(c, this[mid].GetLocation()) < 0)
                 {
                     Insert(mid, q);
                     return q;
                 }
-                if (pointCompare.Compare(c, this[mid + 1].GetLocation()) < 0
+
+                if (mid < Count - 1 && pointCompare.Compare(c, this[mid + 1].GetLocation()) < 0
                         && pointCompare.Compare(c, this[mid].GetLocation()) > 0)
                 {
                     Insert(mid + 1, q);
                     return q;
                 }
 
-                // If element is smaller than mid, then
-                // it can only be present in left subarray
+                // If element is smaller than mid, search the left half
                 if (pointCompare.Compare(c, this[mid].GetLocation()) < 0)
                 {
                     return BinaryInsertChunkWithLocation(l, mid - 1, c);
                 }
 
-                // Else the element can only be present
-                // in right subarray
+                // Otherwise, search the right half
                 return BinaryInsertChunkWithLocation(mid + 1, r, c);
-
             }
             else
             {
@@ -133,7 +138,7 @@ namespace Vox
          */
         public Chunk BinarySearchChunkWithLocation(int l, int r, Vector3 c)
         {
-            ChunkComparator pointCompare = new ChunkComparator();
+            ChunkComparator pointCompare = new();
             if (r >= l)
             {
                 int mid = l + (r - l) / 2;
@@ -171,7 +176,7 @@ namespace Vox
         {
             StringBuilder s = new();
             foreach (Chunk c in this)
-            s.Append(c.ToString()).Append(", ");
+                s.Append(c.ToString()).Append(", ");
 
             return s.ToString();
         }

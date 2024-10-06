@@ -1,7 +1,7 @@
 ﻿
 using System.Drawing;
 using OpenTK.Mathematics;
-using Vox.World;
+using Vox.Genesis;
 
 namespace Vox
 {
@@ -18,7 +18,7 @@ namespace Vox
          */
         public Player()
         {
-            position = new Vector3(0, 0, 0);
+            position = new Vector3(0, 200, 0);
             ChunkCache.SetPlayerChunk(GetChunkWithPlayer());
             RegionManager.EnterRegion(GetRegionWithPlayer());
         }
@@ -74,9 +74,9 @@ namespace Vox
          *
          * @return The region that the player is in
          */
-        public Region GetRegionWithPlayer()
+        public Genesis.Region GetRegionWithPlayer()
         {
-            Region? returnRegion = null;
+            Genesis.Region? returnRegion = null;
 
             int x = (int)GetPosition().X;
             int xLowerLimit = ((x / RegionManager.REGION_BOUNDS) * RegionManager.REGION_BOUNDS);
@@ -100,7 +100,7 @@ namespace Vox
             int regionXCoord = xUpperLimit;
             int regionZCoord = zUpperLimit;
 
-            foreach (Region region in RegionManager.VisibleRegions)
+            foreach (Genesis.Region region in RegionManager.VisibleRegions)
             {
                 Rectangle regionBounds = region.GetBounds();
                 if (regionXCoord == regionBounds.X && regionZCoord == regionBounds.Y)
@@ -109,7 +109,7 @@ namespace Vox
                 }
             }
 
-            returnRegion ??= new Region(regionXCoord, regionZCoord);
+            returnRegion ??= new Genesis.Region(regionXCoord, regionZCoord);
 
             return returnRegion;
         }
@@ -147,12 +147,12 @@ namespace Vox
             int chunkZCoord = zUpperLimit;
 
 
-            Region r = GetRegionWithPlayer();
+            Genesis.Region r = GetRegionWithPlayer();
             Chunk c = r.GetChunkWithLocation(new Vector3(chunkXCoord, 0, chunkZCoord));
 
             if (c == null)
             {
-                Chunk d = new Chunk().Initialize(chunkXCoord, 0, chunkZCoord);
+                Chunk d = new Chunk().Initialize(chunkXCoord, chunkZCoord);
                 r.Add(d);
                 return d;
             }
@@ -170,6 +170,22 @@ namespace Vox
             return new Vector2(yaw, pitch);
         }
 
+        private void GetTransformationMatrix(out Matrix4 matrix)
+        {
+            // Create rotation matrices
+            Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(GetLookDir().Y));
+            Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(GetLookDir().X));
+            Quaternion localRotation = pitchRotation * yawRotation;
+
+            Vector3 localScale = new(1, 1, 1);
+
+            Matrix3.CreateFromQuaternion(localRotation, out Matrix3 rotation);
+
+            matrix.Row0 = new(rotation.Row0 * localScale.X, 0);
+            matrix.Row1 = new(rotation.Row1 * localScale.Y, 0);
+            matrix.Row2 = new(rotation.Row2 * localScale.Z, 0);
+            matrix.Row3 = new(GetPosition(), 1);
+        }
         /**
          * Instantiates the players view matrix witch is later
          * multiplied by the projection and model matrix.
@@ -184,8 +200,8 @@ namespace Vox
                 //  Vector3 lookPoint = new Vector3(getPosition().X, 0f, getPosition().Z);
 
                 // Create rotation matrices
-                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(pitch));
-                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(yaw));
+                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(GetLookDir().Y));
+                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(GetLookDir().X));
                 lookPoint += position;
 
 
@@ -195,20 +211,29 @@ namespace Vox
             }
             else
             {
+                Vector3 cameraUp = Vector3.UnitY;
+                Vector3 forward = new(0, 0, -1);  // Z-axis (camera looks down negative Z)
+                Vector3 right = Vector3.Normalize(Vector3.Cross(cameraUp, forward)); // X-axis
+                Vector3 up = Vector3.Cross(forward, right);                          // Y-axis
+
                 Vector3 lookPoint = new(0f, 0f, -1f);
                 // Create rotation matrices
-                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(0));
-                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(0));
+                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(GetLookDir().Y));
+                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(GetLookDir().X));
                 lookPoint += position;
 
                 lookPoint = Vector3.Transform(lookPoint, pitchRotation * yawRotation);
-                return Matrix4.LookAt(position, lookPoint, new Vector3(0, 1, 0));
+                //return Matrix4.LookAt(position, lookPoint, new Vector3(0, 1, 0));
+                Matrix4 output = new();
+                GetTransformationMatrix(out output);
+                output.Invert();
+                return output;
             }
         }
 
 
 
-        public string ToString()
+        public override string ToString()
         {
             return "Player at position (" + position.X + ", " + position.Y + ", " + position.Z + ")";
         }

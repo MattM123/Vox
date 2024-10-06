@@ -7,13 +7,21 @@ layout(location = 2) in float aTexCoord;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
+uniform mat4 chunkModelMatrix;
+uniform int isMenuRendered;
+layout(std140) uniform chunkModelUBO {
+    mat4 modelMatrices[200]; 
+};
 
 out vec4 fColor;
 out vec2 ftexCoords;
 flat out float fTexLayer;
 
 void main() {
-    gl_Position = vec4(position, 1.0) *  modelMatrix * viewMatrix * projectionMatrix;
+    if (isMenuRendered == 1)
+        gl_Position = vec4(position, 1.0) * modelMatrix * viewMatrix * projectionMatrix;
+    else
+        gl_Position = vec4(position, 1.0) * viewMatrix * projectionMatrix;
 
     //passthrough
     fTexLayer = aTexLayer;

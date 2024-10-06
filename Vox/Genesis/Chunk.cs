@@ -1,15 +1,14 @@
-﻿using System.Collections;
+﻿
 using System.Diagnostics;
 using System.Drawing;
-using Newtonsoft.Json;
-using OpenTK.Graphics.ES20;
 using OpenTK.Mathematics;
 using Vox.Comparator;
 using Vox.Model;
-using Vox.World;
+using Vox.Texturing;
+using GL = OpenTK.Graphics.OpenGL4.GL;
 
 
-namespace Vox
+namespace Vox.Genesis
 {
     public class Chunk
     {
@@ -17,17 +16,19 @@ namespace Vox
         private bool rerender = false;
         private readonly List<Block> blocks = [];
         private readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
-        private readonly List<Block> chunkBlocks = [];
         private bool isInitialized = false;
         private int vbo = 0;
         private int ebo = 0;
+        private int vao = 0;
         private static Matrix4 modelMatrix = new();
-        private static List<float> chunkVerts = [];
-        private static List<int> chunkEle = [];
+        private List<float> chunkVerts = [];
+        private List<int> chunkEle = [];
 
-        static Chunk()
+        public Chunk()
         {
-
+            SetEbo(GL.GenBuffer());
+            SetVbo(GL.GenBuffer());
+            SetVao(GL.GenVertexArray());
             //Chunk events executed by player
             //determine when a chunk should be re-rendered
 
@@ -56,58 +57,35 @@ namespace Vox
          * @param z coordinate of top left chunk corner
          * @return Returns the chunk
          */
-        public Chunk Initialize(float x, float y, float z)
+        public Chunk Initialize(float x, float z)
         {
-            location = new Vector3(x, y, z);
+            if (GetRegion().Contains(this))
+                isInitialized = true;
+
+            location = new Vector3(x, 0, z);
 
             //Generic model matrix applicable to every chunk object
-            modelMatrix = Matrix4.CreateTranslation(location) * Matrix4.CreateScale(1/16);
+            modelMatrix = Matrix4.CreateTranslation(0,0,0);
 
-            //===================================
-            //Generate chunk height map
-            //===================================
-
-            int xCount = 0;
-            int zCount = 0;
-            for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
+            if (!isInitialized)
             {
-                for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
+                //===================================
+                //Generate chunk height map
+                //===================================
+
+                int xCount = 0;
+                int zCount = 0;
+               //  Logger.Debug("CHUNK: " + x + " : " + z);
+                string test = "\n";
+                for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
                 {
-
-                    //Converts the raw noise value in the range of -1 to 1, to the range of 0 to 320 to match Z coordinate.
-                    int elevation = GetGlobalHeightMapValue(x1, z1);
-
-                    heightMap[xCount, zCount] = elevation;
-                    //Block c = new Block(x1, elevation, z1, BlockType.GRASS);
-                    //  chunkBlocks.Add(c);
-                
-                    zCount++;
-                    if (zCount > RegionManager.CHUNK_BOUNDS - 1)
-                        zCount = 0;
-                }
-                xCount++;
-                if (xCount > RegionManager.CHUNK_BOUNDS - 1)
-                    xCount = 0;
-            }
-
-
-            //How far down caves should start generating
-            int caveStart = 50;
-
-            //checks chunks for blocks to render based on noise value and heightmap
-            for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
-            {
-                for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
-                {
-                    for (int y1 = (int)y; y1 <= heightMap[xCount, zCount]; y1++)
+                    string test1 = "\n";
+                    for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
                     {
 
-                        Block c = new Block(x1, y1, z1, BlockType.DIRT_BLOCK);
-                        //    c.f = OpenSimplex.noise3_ImproveXZ(RegionManager.WORLD_SEED, x1 * 0.05, y1 * 0.05, z1 * 0.05);
-                        //   if (c.f > 0.00)
-                        blocks.Add(c);
-                        //      if (c.f <= 0.00 && y1 >= heightMap[xCount][zCount] - caveStart)
-                        //           blocks.Add(c);
+                        int elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
+                        test1 += "(" + x1 + ", " + z1 + ")";
+                        heightMap[xCount, zCount] = elevation;
 
                         zCount++;
                         if (zCount > RegionManager.CHUNK_BOUNDS - 1)
@@ -116,14 +94,38 @@ namespace Vox
                     xCount++;
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
-                }
-            }
-           // InterpolateChunk();
-            SortBlocks();
-            isInitialized = true;
-            rerender = true;
-            // updateMesh();
 
+                    test += test1;
+                    test1 = "\n";
+                }
+             //   Logger.Debug(test);
+
+                //checks chunks for blocks to render based on noise value and heightmap
+                //  for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
+                //  {
+                //     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
+                //      {
+                //         for (int y1 = (int)y; y1 <= heightMap[xCount, zCount]; y1++)
+                //         {
+
+                //      Block c = new Block(x1, y1, z1, BlockType.DIRT_BLOCK);
+                //    c.f = OpenSimplex.noise3_ImproveXZ(RegionManager.WORLD_SEED, x1 * 0.05, y1 * 0.05, z1 * 0.05);
+                //   if (c.f > 0.00)
+                //     blocks.Add(c);
+                //      if (c.f <= 0.00 && y1 >= heightMap[xCount][zCount] - caveStart)
+                //           blocks.Add(c);
+
+                //       zCount++;
+                //       if (zCount > RegionManager.CHUNK_BOUNDS - 1)
+                //           zCount = 0;
+                //     }
+                //      if (xCount > RegionManager.CHUNK_BOUNDS - 1)
+                //          xCount = 0;
+                //  }
+                //   }
+                isInitialized = true;
+                rerender = true;
+            }
             return this;
         }
 
@@ -173,34 +175,6 @@ namespace Vox
         //}
 
         /**
-         * Retrieves the Y value for any given x,z column in any chunk
-         * @param x coordinate of column
-         * @param z coordinate of column
-         * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
-         */
-        public static int GetGlobalHeightMapValue(int x, int z)
-        {
-            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
-            // a rougher, raised terrain
-            float var1 = 12;
-
-            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
-            //more smooth, spread out hills.
-            double var2 = 0.01;
-
-            float f = (1 * OpenSimplex.noise2(RegionManager.WORLD_SEED, (x * var2), (z * var2)) / (var1 + 2)) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex.noise2(RegionManager.WORLD_SEED, (x * (var2 * 2)), (z * (var2 * 2))) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex.noise2(RegionManager.WORLD_SEED, (x * (var2 * 2)), (z * (var2 * 2))) / (var1 + 6)); //Noise Octave 3
-
-            return (int)Math.Floor(((f + 1) / 2) * (RegionManager.CHUNK_HEIGHT - 1));
-
-        }
-
-        public int[,] GetHeightmap()
-        {
-            return heightMap;
-        }
-        /**
          * Given a 2D chunk heightmap, interpolates between
          * height-mapped blocks to fill in vertical gaps in terrain generation.
          * Populates this chunk with blocks by making comparisons between the
@@ -224,7 +198,7 @@ namespace Vox
         private List<Vector3> InterpolateChunk(List<Vector3> inVert)
         {
             //TODO: Determine BlockType based on noise
-            //loop through heightmap
+
             List<Vector3> output = [];
 
             for (int row = 0; row < heightMap.GetLength(0); row++)
@@ -245,25 +219,25 @@ namespace Vox
                     if (col > 0)
                         comparison1 = heightMap[row, col - 1];
                     else
-                        comparison1 = GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
+                        comparison1 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
 
                     //+1 horizontal comparison
                     if (col < RegionManager.CHUNK_BOUNDS - 1)
                         comparison2 = heightMap[row, col + 1];
                     else
-                        comparison2 = GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
+                        comparison2 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
 
                     //-1 2d vertical comparison
                     if (row > 0)
                         comparison3 = heightMap[row - 1, col];
                     else
-                        comparison3 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
+                        comparison3 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
 
                     //+1 2d vertical comparison
                     if (row < RegionManager.CHUNK_BOUNDS - 1)
                         comparison4 = heightMap[row + 1, col];
                     else
-                        comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
+                        comparison4 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
 
                     //Adds base by default since that will always be visible and rendered
                     if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
@@ -377,7 +351,7 @@ namespace Vox
             Region returnRegion = null;
 
             int x = (int)GetLocation().X;
-            int xLowerLimit = ((x / RegionManager.REGION_BOUNDS) * RegionManager.REGION_BOUNDS);
+            int xLowerLimit = x / RegionManager.REGION_BOUNDS * RegionManager.REGION_BOUNDS;
             int xUpperLimit;
             if (x < 0)
                 xUpperLimit = xLowerLimit - RegionManager.REGION_BOUNDS;
@@ -386,7 +360,7 @@ namespace Vox
 
 
             int z = (int)GetLocation().Z;
-            int zLowerLimit = ((z / RegionManager.REGION_BOUNDS) * RegionManager.REGION_BOUNDS);
+            int zLowerLimit = z / RegionManager.REGION_BOUNDS * RegionManager.REGION_BOUNDS;
             int zUpperLimit;
             if (z < 0)
                 zUpperLimit = zLowerLimit - RegionManager.REGION_BOUNDS;
@@ -408,17 +382,12 @@ namespace Vox
             }
 
             if (returnRegion == null)
+            {
                 returnRegion = new Region(regionXCoord, regionZCoord);
+                RegionManager.VisibleRegions.Add(returnRegion);
+            }
 
             return returnRegion;
-        }
-
-        /**
-         * Sorts the chunks blocks to make accessing them more efficient.
-         */
-        private void SortBlocks()
-        {
-            chunkBlocks.Sort(new BlockComparator());
         }
 
         /**
@@ -449,12 +418,11 @@ namespace Vox
 
             if (rerender && (chunkVerts.Count == 0 || chunkEle.Count == 0))
             {
-                Logger.Debug("Calculating chunk vertex and element data");
                 for (int x = 0; x < heightMap.GetLength(0); x++) // GetLength(0) gives the number of rows
                 {
                     for (int z = 0; z < heightMap.GetLength(1); z++) // GetLength(1) gives the number of columns
                     {
-                        nonInterpolated.Add(new Vector3(location.X + x, heightMap[z,x], location.Z + z));
+                        nonInterpolated.Add(new Vector3(location.X + x, heightMap[z, x], location.Z + z));
                     }
                 }
 
@@ -466,18 +434,18 @@ namespace Vox
 
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, "south", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, "north", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "up",    new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "down",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "west",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "east",  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "up", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "down", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "west", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "east", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
 
                     elements.AddRange([
-                        elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 10000,
-                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 10000,
-                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 10000,
-                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 10000,
-                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 10000,
-                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 10000,
+                        elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 80000,
+                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
+                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
+                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
+                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
+                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
                     ]);
 
                     elementCounter += 24;
@@ -486,70 +454,11 @@ namespace Vox
                 //Updates chunk data
                 chunkVerts = vertices;
                 chunkEle = elements;
-                
-                /*
-                //Block face render conditions
-                for (int i = 0; i < chunkBlocks.Count; i++)
-                {
-                    Block? block = chunkBlocks[i];
+                SetRerender(false);
 
-                    Block? c1 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X + 1, block.GetLocation().Y - 1, block.GetLocation().Z));
-                    Block? c2 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X, block.GetLocation().Y + 1, block.GetLocation().Z));
-
-                    Block? c3 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X, block.GetLocation().Y, block.GetLocation().Z + 1));
-                    Block? c4 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X - 1, block.GetLocation().Y, block.GetLocation().Z));
-                    Block? c5 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X, block.GetLocation().Y - 1, block.GetLocation().Z));
-                    Block? c6 = BinarySearchBlockWithLocation(0, chunkBlocks.Count - 1, new Block(block.GetLocation().X, block.GetLocation().Y, block.GetLocation().Z - 1));
-
-                    //TODO: Add texture layer index in vertex attributes
-
-                    //If c1 is null, positive X face should be rendered
-                    if (c1 != null)
-                    {
-                        float[] origin = { block.GetLocation().X, block.GetLocation().Y, block.GetLocation().Z };
-                        List<float> posXFace = [
-                            //Position (X, Y, Z)                            Color (R, G, B, A)          Texture (U, V)
-                            origin[0] + 1, origin[1], origin[2],            1.0f, 0.0f, 0.0f, 1.0f,     0, 0,
-                            origin[0] + 1, origin[1] + 1, origin[2],        1.0f, 0.0f, 0.0f, 1.0f,     1, 0,
-                            origin[0] + 1, origin[1] + 1, origin[2] + 1,    1.0f, 0.0f, 0.0f, 1.0f,     1, 1,
-                            origin[0] + 1, origin[1], origin[2] + 1,        1.0f, 0.0f, 0.0f, 1.0f,     0, 1,
-                        ];
-                        List<int> posXElements = [
-                            elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000
-                        ];
-                        elementCounter += 4;
-
-                       vertices.AddRange(posXFace);
-                       elements.AddRange(posXElements);
-                    }
-
-
-                    //If c2 is null, positive Y face should be rendered
-                    if (c2 == null)
-                    {
-                        float[] origin = [block.GetLocation().X, block.GetLocation().Y, block.GetLocation().Z];
-
-                        List<float> posYFace = [
-                            //Position (X, Y, Z)                            Color (R, G, B, A)          Texture (U, V)
-                            origin[0], origin[1] + 1, origin[2],            0.0f, 1.0f, 0.0f, 1.0f,     0, 0,
-                            origin[0], origin[1] + 1, origin[2] + 1,        0.0f, 1.0f, 0.0f, 1.0f,     1, 0,
-                            origin[0] + 1, origin[1] + 1, origin[2] + 1,    0.0f, 1.0f, 0.0f, 1.0f,     1, 1,
-                            origin[0] + 1, origin[1] + 1, origin[2],        0.0f, 1.0f, 0.0f, 1.0f,     0, 1,
-                        ];
-                        List<int> posYElements = [
-                            elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000
-                        ];
-                        elementCounter += 4;
-
-                        vertices.AddRange(posYFace);
-                        elements.AddRange(posYElements);
-                    }
-
-                
-                }
-                */
             }
-            return new RenderTask(vertices, elements, vbo, ebo, modelMatrix);
+     
+            return new RenderTask(this, chunkVerts, chunkEle, GetVbo(), GetEbo(), GetVao(), modelMatrix);
         }
 
         /**
@@ -561,6 +470,7 @@ namespace Vox
          * @param v The coordinate to search for.
          * @return Returns the Block that was just inserted into the list.
          */
+        /*
         private Block BinaryInsertBlockWithLocation(int l, int r, Vector3 v)
         {
             ChunkComparator comparator = new();
@@ -573,13 +483,13 @@ namespace Vox
             if (chunkBlocks.Count == 1)
             {
                 //Inserts element as first in list
-                if (comparator.Compare(v, ((Block)chunkBlocks[0]).GetLocation()) < 0)
+                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) < 0)
                 {
                     chunkBlocks.Insert(0, b);
                     return b;
                 }
                 //Appends to end of list
-                if (comparator.Compare(v, ((Block)chunkBlocks[0]).GetLocation()) > 0)
+                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) > 0)
                 {
                     chunkBlocks.Add(b);
                     return b;
@@ -599,27 +509,27 @@ namespace Vox
                 }
 
                 //If element is less than first element insert at front of list
-                if (comparator.Compare(v, ((Block) chunkBlocks[0]).GetLocation()) < 0)
+                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) < 0)
                 {
                     chunkBlocks.Insert(0, b);
                     return b;
                 }
                 //If element is more than last element insert at end of list
-                if (comparator.Compare(v, ((Block) chunkBlocks[chunkBlocks.Count - 1]).GetLocation()) > 0)
+                if (comparator.Compare(v, chunkBlocks[chunkBlocks.Count - 1].GetLocation()) > 0)
                 {
                     chunkBlocks.Add(b);
                     return b;
                 }
 
                 //If the index is near the middle
-                if (comparator.Compare(v, ((Block) chunkBlocks[mid - 1]).GetLocation()) > 0
-                        && comparator.Compare(b.GetLocation(), ((Block) chunkBlocks[mid]).GetLocation()) < 0)
+                if (comparator.Compare(v, chunkBlocks[mid - 1].GetLocation()) > 0
+                        && comparator.Compare(b.GetLocation(), chunkBlocks[mid].GetLocation()) < 0)
                 {
                     chunkBlocks.Insert(mid, b);
                     return b;
                 }
-                if (comparator.Compare(v, ((Block) chunkBlocks[mid + 1]).GetLocation()) < 0
-                        && comparator.Compare(v, ((Block) chunkBlocks[mid]).GetLocation()) > 0)
+                if (comparator.Compare(v, chunkBlocks[mid + 1].GetLocation()) < 0
+                        && comparator.Compare(v, chunkBlocks[mid].GetLocation()) > 0)
                 {
                     chunkBlocks.Insert(mid + 1, b);
                     return b;
@@ -627,7 +537,7 @@ namespace Vox
 
                 // If element is smaller than mid, then
                 // it can only be present in left subarray
-                if (comparator.Compare(v, ((Block) chunkBlocks[mid]).GetLocation()) < 0)
+                if (comparator.Compare(v, chunkBlocks[mid].GetLocation()) < 0)
                 {
                     return BinaryInsertBlockWithLocation(l, mid - 1, v);
                 }
@@ -642,6 +552,7 @@ namespace Vox
                 return null;
             }
         }
+        */
 
         /**
          * Searches for a Block in O(log n) time complexity and returns it.
@@ -651,6 +562,7 @@ namespace Vox
          * @param v The coordinate to search for.
          * @return Returns the Block if found. Else null.
          */
+        /*
         private Block? BinarySearchBlockWithLocation(int l, int r, Block v)
         {
             BlockComparator comparator = new();
@@ -660,22 +572,22 @@ namespace Vox
                 int mid = l + (r - l) / 2;
 
                 // If the element is present at the middle
-                if (comparator.Compare(v, (Block?) chunkBlocks[mid]) == 0)
+                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) == 0)
                 {
                     // System.out.println("Found Equal: " + v + "   " + chunkBlocks[mid]);
-                    return (Block?) chunkBlocks[mid];
+                    return (Block?)chunkBlocks[mid];
                 }
 
                 // If element is smaller than mid, then
                 // it can only be present in left subarray
-                if (comparator.Compare(v, (Block?) chunkBlocks[mid]) < 0)
+                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) < 0)
                 {
                     return BinarySearchBlockWithLocation(l, mid - 1, v);
                 }
 
                 // Else the element can only be present
                 // in right subarray
-                if (comparator.Compare(v, (Block?) chunkBlocks[mid]) > 0)
+                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) > 0)
                 {
                     return BinarySearchBlockWithLocation(mid + 1, r, v);
                 }
@@ -683,6 +595,7 @@ namespace Vox
             return null;
 
         }
+        */
 
         public static Matrix4 GetModelMatrix()
         {
@@ -773,6 +686,10 @@ return c.Get();
         {
             return ebo;
         }
+        public int GetVao()
+        {
+            return vao;
+        }
         /**
          * Vertex Buffer Object specific to this chunk used in the
          * Chunks RenderTask and for drawing the chunks data
@@ -781,6 +698,10 @@ return c.Get();
         public void SetVbo(int i)
         {
             vbo = i;
+        }
+        public void SetVao(int i)
+        {
+            vao = i;
         }
         public int GetVbo()
         {
@@ -795,16 +716,17 @@ return c.Get();
          * @param obj The object to compare
          * @return True if the chunks are equal, false if not
          */
-        public override bool Equals(object? obj)
-        {
-            if (obj?.GetType() == typeof(Chunk))
-            {
-                if (chunkBlocks.Equals(((Chunk)obj).chunkBlocks) && GetLocation() == ((Chunk)obj).GetLocation())
-                    return true;
-            }
-            else return false;
-            return true;
-        }
+     //   public bool Equals(object? obj)
+     //   {
+      //      if (obj?.GetType() == typeof(Chunk))
+      //      {
+      //          if (GetLocation().X.Equals(((Chunk)obj).GetLocation().X)
+      //              && GetLocation().Z.Equals(((Chunk)obj).GetLocation().Z))
+      //              return true;
+      //      }
+      //      else return false;
+      //      return true;
+       // }
 
         public override string ToString()
         {

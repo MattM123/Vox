@@ -74,10 +74,15 @@ namespace Vox
             }
             return null;
         }
-        public void SetUniform(string uniformName, Matrix4 matrix)
+        public void SetMatrixUniform(string uniformName, Matrix4 matrix)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.UniformMatrix4(uniformLocation, true, ref matrix);
+        }
+        public void SetIntUniform(string uniformName, int value)
+        {
+            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            GL.Uniform1(uniformLocation, value);
         }
 
         public string GetProgramLog()

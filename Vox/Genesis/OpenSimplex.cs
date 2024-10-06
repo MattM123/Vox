@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Vox
+namespace Vox.Genesis
 {
     /**
      * K.jpg's OpenSimplex 2, faster variant
@@ -105,7 +105,7 @@ namespace Vox
             float a0 = RSQUARED_2D - dx0 * dx0 - dy0 * dy0;
             if (a0 > 0)
             {
-                value = (a0 * a0) * (a0 * a0) * grad(seed, xsbp, ysbp, dx0, dy0);
+                value = a0 * a0 * (a0 * a0) * grad(seed, xsbp, ysbp, dx0, dy0);
             }
 
             // Second vertex.
@@ -114,7 +114,7 @@ namespace Vox
             {
                 float dx1 = dx0 - (float)(1 + 2 * UNSKEW_2D);
                 float dy1 = dy0 - (float)(1 + 2 * UNSKEW_2D);
-                value += (a1 * a1) * (a1 * a1) * grad(seed, xsbp + PRIME_X, ysbp + PRIME_Y, dx1, dy1);
+                value += a1 * a1 * (a1 * a1) * grad(seed, xsbp + PRIME_X, ysbp + PRIME_Y, dx1, dy1);
             }
 
             // Third vertex.
@@ -125,7 +125,7 @@ namespace Vox
                 float a2 = RSQUARED_2D - dx2 * dx2 - dy2 * dy2;
                 if (a2 > 0)
                 {
-                    value += (a2 * a2) * (a2 * a2) * grad(seed, xsbp, ysbp + PRIME_Y, dx2, dy2);
+                    value += a2 * a2 * (a2 * a2) * grad(seed, xsbp, ysbp + PRIME_Y, dx2, dy2);
                 }
             }
             else
@@ -135,7 +135,7 @@ namespace Vox
                 float a2 = RSQUARED_2D - dx2 * dx2 - dy2 * dy2;
                 if (a2 > 0)
                 {
-                    value += (a2 * a2) * (a2 * a2) * grad(seed, xsbp + PRIME_X, ysbp, dx2, dy2);
+                    value += a2 * a2 * (a2 * a2) * grad(seed, xsbp + PRIME_X, ysbp, dx2, dy2);
                 }
             }
 
@@ -230,14 +230,14 @@ namespace Vox
 
             // Loop: Pick an edge on each lattice copy.
             float value = 0;
-            float a = (RSQUARED_3D - xri * xri) - (yri * yri + zri * zri);
+            float a = RSQUARED_3D - xri * xri - (yri * yri + zri * zri);
             for (int l = 0; ; l++)
             {
 
                 // Closest point on cube.
                 if (a > 0)
                 {
-                    value += (a * a) * (a * a) * grad(seed, xrbp, yrbp, zrbp, xri, yri, zri);
+                    value += a * a * (a * a) * grad(seed, xrbp, yrbp, zrbp, xri, yri, zri);
                 }
 
                 // Second-closest point.
@@ -247,7 +247,7 @@ namespace Vox
                     if (b > 1)
                     {
                         b -= 1;
-                        value += (b * b) * (b * b) * grad(seed, xrbp - xNSign * PRIME_X, yrbp, zrbp, xri + xNSign, yri, zri);
+                        value += b * b * (b * b) * grad(seed, xrbp - xNSign * PRIME_X, yrbp, zrbp, xri + xNSign, yri, zri);
                     }
                 }
                 else if (ay0 > ax0 && ay0 >= az0)
@@ -256,7 +256,7 @@ namespace Vox
                     if (b > 1)
                     {
                         b -= 1;
-                        value += (b * b) * (b * b) * grad(seed, xrbp, yrbp - yNSign * PRIME_Y, zrbp, xri, yri + yNSign, zri);
+                        value += b * b * (b * b) * grad(seed, xrbp, yrbp - yNSign * PRIME_Y, zrbp, xri, yri + yNSign, zri);
                     }
                 }
                 else
@@ -265,7 +265,7 @@ namespace Vox
                     if (b > 1)
                     {
                         b -= 1;
-                        value += (b * b) * (b * b) * grad(seed, xrbp, yrbp, zrbp - zNSign * PRIME_Z, xri, yri, zri + zNSign);
+                        value += b * b * (b * b) * grad(seed, xrbp, yrbp, zrbp - zNSign * PRIME_Z, xri, yri, zri + zNSign);
                     }
                 }
 
@@ -283,12 +283,12 @@ namespace Vox
                 zri = zNSign * az0;
 
                 // Update falloff.
-                a += (0.75f - ax0) - (ay0 + az0);
+                a += 0.75f - ax0 - (ay0 + az0);
 
                 // Update prime for hash.
-                xrbp += (xNSign >> 1) & PRIME_X;
-                yrbp += (yNSign >> 1) & PRIME_Y;
-                zrbp += (zNSign >> 1) & PRIME_Z;
+                xrbp += xNSign >> 1 & PRIME_X;
+                yrbp += yNSign >> 1 & PRIME_Y;
+                zrbp += zNSign >> 1 & PRIME_Z;
 
                 // Update the reverse sign indicators.
                 xNSign = -xNSign;
@@ -399,7 +399,7 @@ namespace Vox
 
             // Determine which lattice we can be confident has a contributing point its corresponding cell's base simplex.
             // We only look at the spaces between the diagonal planes. This proved effective in all of my tests.
-            float siSum = (xsi + ysi) + (zsi + wsi);
+            float siSum = xsi + ysi + (zsi + wsi);
             int startingLattice = (int)(siSum * 1.25);
 
             // Offset for seed based on first lattice copy.
@@ -449,7 +449,7 @@ namespace Vox
 
                 // gradient contribution with falloff.
                 float dx = xsi + ssi, dy = ysi + ssi, dz = zsi + ssi, dw = wsi + ssi;
-                float a = (dx * dx + dy * dy) + (dz * dz + dw * dw);
+                float a = dx * dx + dy * dy + (dz * dz + dw * dw);
                 if (a < RSQUARED_4D)
                 {
                     a -= RSQUARED_4D;
@@ -487,27 +487,27 @@ namespace Vox
         {
             long hash = seed ^ xsvp ^ ysvp;
             hash *= HASH_MULTIPLIER;
-            hash ^= hash >> (64 - N_GRADS_2D_EXPONENT + 1);
-            int gi = (int)hash & ((N_GRADS_2D - 1) << 1);
+            hash ^= hash >> 64 - N_GRADS_2D_EXPONENT + 1;
+            int gi = (int)hash & N_GRADS_2D - 1 << 1;
             return GRADIENTS_2D[gi | 0] * dx + GRADIENTS_2D[gi | 1] * dy;
         }
 
         private static float grad(long seed, long xrvp, long yrvp, long zrvp, float dx, float dy, float dz)
         {
-            long hash = (seed ^ xrvp) ^ (yrvp ^ zrvp);
+            long hash = seed ^ xrvp ^ yrvp ^ zrvp;
             hash *= HASH_MULTIPLIER;
-            hash ^= hash >> (64 - N_GRADS_3D_EXPONENT + 2);
-            int gi = (int)hash & ((N_GRADS_3D - 1) << 2);
+            hash ^= hash >> 64 - N_GRADS_3D_EXPONENT + 2;
+            int gi = (int)hash & N_GRADS_3D - 1 << 2;
             return GRADIENTS_3D[gi | 0] * dx + GRADIENTS_3D[gi | 1] * dy + GRADIENTS_3D[gi | 2] * dz;
         }
 
         private static float grad(long seed, long xsvp, long ysvp, long zsvp, long wsvp, float dx, float dy, float dz, float dw)
         {
-            long hash = seed ^ (xsvp ^ ysvp) ^ (zsvp ^ wsvp);
+            long hash = seed ^ xsvp ^ ysvp ^ zsvp ^ wsvp;
             hash *= HASH_MULTIPLIER;
-            hash ^= hash >> (64 - N_GRADS_4D_EXPONENT + 2);
-            int gi = (int)hash & ((N_GRADS_4D - 1) << 2);
-            return (GRADIENTS_4D[gi | 0] * dx + GRADIENTS_4D[gi | 1] * dy) + (GRADIENTS_4D[gi | 2] * dz + GRADIENTS_4D[gi | 3] * dw);
+            hash ^= hash >> 64 - N_GRADS_4D_EXPONENT + 2;
+            int gi = (int)hash & N_GRADS_4D - 1 << 2;
+            return GRADIENTS_4D[gi | 0] * dx + GRADIENTS_4D[gi | 1] * dy + (GRADIENTS_4D[gi | 2] * dz + GRADIENTS_4D[gi | 3] * dw);
         }
 
         private static int fastFloor(double x)
@@ -528,7 +528,8 @@ namespace Vox
         private static float[] GRADIENTS_2D;
         private static float[] GRADIENTS_3D;
         private static float[] GRADIENTS_4D;
-        static OpenSimplex() {
+        static OpenSimplex()
+        {
 
             GRADIENTS_2D = new float[N_GRADS_2D * 2];
             float[] grad2 = {
@@ -558,10 +559,12 @@ namespace Vox
                     -0.608761429008721f,  0.793353340291235f,
                     -0.130526192220052f,  0.99144486137381f,
             };
-            for (int i = 0; i<grad2.Length; i++) {
-                grad2[i] = (float) (grad2[i] / NORMALIZER_2D);
+            for (int i = 0; i < grad2.Length; i++)
+            {
+                grad2[i] = (float)(grad2[i] / NORMALIZER_2D);
             }
-            for (int i = 0, j = 0; i<GRADIENTS_2D.Length; i++, j++) {
+            for (int i = 0, j = 0; i < GRADIENTS_2D.Length; i++, j++)
+            {
                 if (j == grad2.Length) j = 0;
                 GRADIENTS_2D[i] = grad2[j];
             }

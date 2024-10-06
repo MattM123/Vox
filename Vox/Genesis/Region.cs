@@ -5,10 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Vox.World;
-using Vox;
+using Vox.Comparator;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace Vox
+namespace Vox.Genesis
 {
     public class Region(int x, int z) : ChunkManager
     {
@@ -108,21 +108,53 @@ namespace Vox
 
         public override bool Equals(object? o)
         {
-            if (o.GetType() == typeof(Region)) {
+            if (o.GetType() == typeof(Region))
+            {
                 return regionBounds.X == ((Region)o).regionBounds.X
                         && regionBounds.Y == ((Region)o).regionBounds.Y;
             }
             return false;
         }
 
+        //Faster contains function to deal with chunks with large regions
+        public bool Contains(Chunk c)
+        {
+            int low = 0;
+            int high = Count - 1;
+            ChunkComparator compare = new();
 
+            while (low <= high)
+            {
+                // Find the middle element
+                int mid = (low + high) / 2;
+
+                // Check if the middle element is the target
+                if (this[mid].Equals(c))
+                {
+                    return true;
+                }
+                // If target is smaller, ignore the right half
+                else if (compare.Compare(this[mid].GetLocation(), c.GetLocation()) == 1)
+                {
+                    high = mid - 1;
+                }
+                // If target is larger, ignore the left half
+                else
+                {
+                    low = mid + 1;
+                }
+            }
+
+            // If we reach here, the target is not in the array
+            return false;
+        }
         public override string ToString()
         {
 
-            if (Count > 0 && GetChunks() != null)
-                return "(" + this + " Chunks) Region: (" + regionBounds.X
+            if (Count > 0)
+                return "(" + Count + " Chunks) Region: (" + regionBounds.X
                         + ", " + regionBounds.Y + ")";
-            else
+           else
                 return "(Empty) Region: (" + regionBounds.X + ", " + regionBounds.Y + ")";
         }
 
