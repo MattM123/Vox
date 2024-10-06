@@ -108,7 +108,7 @@ namespace Vox.Genesis
             {
                 for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
                 {
-                    chunks.AddRange(QuadrantHelper(x, z));
+                    chunks.AddRange(CacheHelper(x, z));
                 }
             }
 
@@ -119,7 +119,7 @@ namespace Vox.Genesis
             {
                 for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
                 {
-                    chunks.AddRange(QuadrantHelper(x, z));
+                    chunks.AddRange(CacheHelper(x, z));
                 }
             }
 
@@ -129,7 +129,7 @@ namespace Vox.Genesis
             {
                 for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
                 {
-                    chunks.AddRange(QuadrantHelper(x, z));
+                    chunks.AddRange(CacheHelper(x, z));
                 }
             }
 
@@ -139,14 +139,15 @@ namespace Vox.Genesis
             {
                 for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
                 {
-                    chunks.AddRange(QuadrantHelper(x, z));
+                    chunks.AddRange(CacheHelper(x, z));
                 }
             }
 
             return chunks;
         }
 
-        private static List<Chunk> QuadrantHelper(int x, int z)
+        //This gets called A LOT.
+        private static List<Chunk> CacheHelper(int x, int z)
         {
             Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords(x, z);
             Chunk chunk = chunkRegion.GetChunkWithLocation(new Vector3(x, 0, z));
@@ -154,21 +155,22 @@ namespace Vox.Genesis
 
             if (chunk != null)
             {
+                Region region = chunk.GetRegion();
                 chunks.Add(chunk);
-                if (!regions.Contains(chunkRegion))
-                    regions.Add(chunkRegion);
+                if (!regions.Contains(region))
+                    regions.Add(region);
 
-                if (!chunkRegion.Contains(chunk))
-                    chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.Count - 1, chunk.GetLocation());
-
+                if (!region.Contains(chunk))
+                    region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
             }
             else
             {
                 chunk = new Chunk().Initialize(x, z);
                 chunks.Add(chunk);
-                chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.Count - 1, chunk.GetLocation());
-                if (!regions.Contains(chunk.GetRegion()))
-                    regions.Add(chunkRegion);
+                Region region = chunk.GetRegion();
+                region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+                if (!regions.Contains(region))
+                    regions.Add(region);
             }
             return chunks;
         }
@@ -188,152 +190,33 @@ namespace Vox.Genesis
             //Positive X
             for (int i = 1; i <= renderDistance; i++)
             {
-                Vector3 p = new Vector3(playerChunk.GetLocation().X + (i * bounds), 0, playerChunk.GetLocation().Z);
-                Chunk c = playerRegion.GetChunkWithLocation(p);
-                if (c != null)
-                {
-                    chunks.Add(c);
-                    if (!regions.Contains(c.GetRegion()))
-                        regions.Add(c.GetRegion());
-                }
-                else
-                {
-                    //Search for existing chunk in region
-                    Chunk get = playerRegion.BinarySearchChunkWithLocation(0, playerRegion.Count - 1, p);
-
-                    //If chunk does not exist, create and add it
-                    if (get == null)
-                    {
-                        Chunk d = playerRegion.BinaryInsertChunkWithLocation(0, playerRegion.Count - 1, p);
-                        if (d != null)
-                        {
-                            chunks.Add(d);
-
-                            if (!regions.Contains(d.GetRegion()))
-                                regions.Add(d.GetRegion());
-                        }
-                        //If region already has chunk, get chunk do not add
-                    }
-                    else
-                    {
-                        chunks.Add(get);
-                        if (!regions.Contains(get.GetRegion()))
-                            regions.Add(get.GetRegion());
-                    }
-                }
+                int x = (int) playerChunk.GetLocation().X + (i * bounds);
+                int z = (int) playerChunk.GetLocation().Z;
+                chunks.AddRange(CacheHelper(x, z));
             }
 
             //Negative X
             for (int i = 1; i <= renderDistance; i++)
             {
-                Vector3 p = new Vector3(playerChunk.GetLocation().X - (i * bounds), 0, playerChunk.GetLocation().Z);
-                Chunk c = playerRegion.GetChunkWithLocation(p);
-                if (c != null)
-                {
-                    chunks.Add(c);
-                    if (!regions.Contains(c.GetRegion()))
-                        regions.Add(c.GetRegion());
-                }
-                else
-                {
-                    //Search for existing chunk in region
-                    Chunk get = playerRegion.BinarySearchChunkWithLocation(0, playerRegion.Count - 1, p);
-
-                    //If chunk does not exist, create and add it
-                    if (get == null)
-                    {
-                        Chunk d = playerRegion.BinaryInsertChunkWithLocation(0, playerRegion.Count - 1, p);
-                        if (d != null)
-                        {
-                            chunks.Add(d);
-
-                            if (!regions.Contains(d.GetRegion()))
-                                regions.Add(d.GetRegion());
-                        }
-                        //If region already has chunk, get chunk do not add
-                    }
-                    else
-                    {
-                        chunks.Add(get);
-                        if (!regions.Contains(get.GetRegion()))
-                            regions.Add(get.GetRegion());
-                    }
-                }
+                int x = (int)playerChunk.GetLocation().X - (i * bounds);
+                int z = (int)playerChunk.GetLocation().Z;
+                chunks.AddRange(CacheHelper(x, z));
             }
 
             //Positive Y
             for (int i = 1; i <= renderDistance; i++)
             {
-                Vector3 p = new Vector3(playerChunk.GetLocation().X, 0, playerChunk.GetLocation().Z + (i * bounds));
-                Chunk c = playerRegion.GetChunkWithLocation(p);
-                if (c != null)
-                {
-                    chunks.Add(c);
-                    if (!regions.Contains(c.GetRegion()))
-                        regions.Add(c.GetRegion());
-                }
-                else
-                {
-                    //Search for existing chunk in region
-                    Chunk get = playerRegion.BinarySearchChunkWithLocation(0, playerRegion.Count - 1, p);
-
-                    //If chunk does not exist, create and add it
-                    if (get == null)
-                    {
-                        Chunk d = playerRegion.BinaryInsertChunkWithLocation(0, playerRegion.Count - 1, p);
-                        if (d != null)
-                        {
-                            chunks.Add(d);
-
-                            if (!regions.Contains(d.GetRegion()))
-                                regions.Add(d.GetRegion());
-                        }
-                        //If region already has chunk, get chunk do not add
-                    }
-                    else
-                    {
-                        chunks.Add(get);
-                        if (!regions.Contains(get.GetRegion()))
-                            regions.Add(get.GetRegion());
-                    }
-                }
+                int x = (int)playerChunk.GetLocation().X;
+                int z = (int)playerChunk.GetLocation().Z + (i * bounds);
+                chunks.AddRange(CacheHelper(x, z));
             }
             //Negative Y
             for (int i = 1; i <= renderDistance; i++)
             {
-                Vector3 p = new Vector3(playerChunk.GetLocation().X, 0, playerChunk.GetLocation().Z - (i * bounds));
-                Chunk c = playerRegion.GetChunkWithLocation(p);
-                if (c != null)
-                {
-                    chunks.Add(c);
-                    if (!regions.Contains(c.GetRegion()))
-                        regions.Add(c.GetRegion());
-                }
-                else
-                {
-                    //Search for existing chunk in region
-                    Chunk get = playerRegion.BinarySearchChunkWithLocation(0, playerRegion.Count - 1, p);
 
-                    //If chunk does not exist, create and add it
-                    if (get == null)
-                    {
-                        Chunk d = playerRegion.BinaryInsertChunkWithLocation(0, playerRegion.Count - 1, p);
-                        if (d != null)
-                        {
-                            chunks.Add(d);
-
-                            if (!regions.Contains(d.GetRegion()))
-                                regions.Add(d.GetRegion());
-                        }
-                        //If region already has chunk, get chunk do not add
-                    }
-                    else
-                    {
-                        chunks.Add(get);
-                        if (!regions.Contains(get.GetRegion()))
-                            regions.Add(get.GetRegion());
-                    }
-                }
+                int x = (int)playerChunk.GetLocation().X;
+                int z = (int)playerChunk.GetLocation().Z - (i * bounds);
+                chunks.AddRange(CacheHelper(x, z));
             }
             return chunks;
         }
