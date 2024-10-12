@@ -21,7 +21,7 @@ void main() {
     if (isMenuRendered == 1)
         gl_Position = vec4(position, 1.0) * modelMatrix * viewMatrix * projectionMatrix;
     else
-        gl_Position = vec4(position, 1.0) * viewMatrix * projectionMatrix;
+        gl_Position = vec4(position, 1.0) * chunkModelMatrix * viewMatrix * projectionMatrix;
 
     //passthrough
     fTexLayer = aTexLayer;

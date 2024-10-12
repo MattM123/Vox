@@ -9,11 +9,11 @@ namespace Vox.Genesis
     {
         public static List<Region> VisibleRegions = new();
         private static string worldDir;
-        public static readonly int CHUNK_HEIGHT = 320;
-        public static readonly int RENDER_DISTANCE = 6;
+        public static readonly int CHUNK_HEIGHT = 400;
+        public static readonly int RENDER_DISTANCE = 16;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
-        public static readonly long WORLD_SEED = 4472426645;
+        public static readonly long WORLD_SEED = 8867534524;
         private static Thread regionWriterThread;
         private ChunkCache ChunkCache;
 
@@ -208,10 +208,12 @@ namespace Vox.Genesis
             //more smooth, spread out hills.
             double var2 = 0.01;
 
-            float f = 1 * OpenSimplex.noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex.noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex.noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
 
+            float f = 1 * OpenSimplex2.Noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
+                    + (float)(0.5 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
+                    + (float)(0.25 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
+
+            int min = 0;
             return (int)Math.Floor((f + 1) / 2 * CHUNK_HEIGHT - 1);
 
         }

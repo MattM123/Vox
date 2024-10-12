@@ -1,8 +1,11 @@
 ﻿
+using System.Collections.Concurrent;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Vox.Genesis
 {
@@ -16,7 +19,7 @@ namespace Vox.Genesis
         private static int maxMatrices = 0;
         private static bool reRenderFlag = false;
         private static List<Chunk> chunks = [];
-        Matrix4[] modelMatrices;
+        private static readonly object chunkLock = new();
 
         /**
          *
@@ -47,48 +50,6 @@ namespace Vox.Genesis
             playerChunk = c;
         }
 
-        private static List<Chunk> GetChunksInCache()
-        {
-            if (reRenderFlag)
-            {
-                List<Chunk> allChunks = [];
-                Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
-
-                int startX = (int)(playerChunk.GetLocation().X / bounds) * bounds;
-                int startZ = (int)(playerChunk.GetLocation().Z / bounds) * bounds;
-                int renderMax = renderDistance * 2 + 1;
-
-                for (int i = startX; i < renderMax * bounds; i += bounds)
-                {
-                    for (int j = startZ; j < renderMax * bounds; j += bounds)
-                    {
-
-                        //   Chunk c = new Chunk().Initialize(i, j);
-
-                        Region r = RegionManager.GetGlobalRegionFromChunkCoords(i, j);
-
-
-                        if (playerRegion.GetChunkWithLocation(new(i, 0, j)) == null)
-                            playerRegion.BinaryInsertChunkWithLocation(0, playerRegion.Count - 1, new(i, 0, j));
-                        else
-                            allChunks.Add(playerRegion.GetChunkWithLocation(new(i, 0, j)));
-
-                       
-                        if (!regions.Contains(r))
-                            regions.Add(r);
-                        // if (!regions.Contains(c.GetRegion()))
-                        //     regions.Add(c.GetRegion());
-
-                    }
-
-                }
-                chunks = allChunks;
-            }
-            else { return chunks; }
-
-            reRenderFlag = false;
-            return chunks;
-        }
         /**
          * Gets the chunks diagonally oriented from the chunk the player is in.
          * This includes each 4 quadrants surrounding the player. This does not include the chunks
@@ -97,9 +58,8 @@ namespace Vox.Genesis
          * @return A list of chunks that should be rendered diagonally from the chunk the
          * player is in.
          */
-        private static List<Chunk> GetQuadrantChunks()
+        private static void GetQuadrantChunks()
         {
-            List<Chunk> chunks = [];
             Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
 
             //Top left quadrant
@@ -108,7 +68,7 @@ namespace Vox.Genesis
             {
                 for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
                 {
-                    chunks.AddRange(CacheHelper(x, z));
+                    CacheHelper(x, z);
                 }
             }
 
@@ -119,9 +79,14 @@ namespace Vox.Genesis
             {
                 for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
                 {
-                    chunks.AddRange(CacheHelper(x, z));
+                    CacheHelper(x, z);
                 }
             }
+        }
+
+        public static void GetOtherQuadrantChunks()
+        {
+            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
 
             //Bottom right quadrant
             Vector3 BRStart = new Vector3(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
@@ -129,7 +94,7 @@ namespace Vox.Genesis
             {
                 for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
                 {
-                    chunks.AddRange(CacheHelper(x, z));
+                    CacheHelper(x, z);
                 }
             }
 
@@ -139,42 +104,48 @@ namespace Vox.Genesis
             {
                 for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
                 {
-                    chunks.AddRange(CacheHelper(x, z));
+                    CacheHelper(x, z);
                 }
             }
-
-            return chunks;
         }
-
         //This gets called A LOT.
-        private static List<Chunk> CacheHelper(int x, int z)
+        private static void CacheHelper(int x, int z)
         {
             Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords(x, z);
             Chunk chunk = chunkRegion.GetChunkWithLocation(new Vector3(x, 0, z));
-            List<Chunk> chunks = [];
 
             if (chunk != null)
             {
                 Region region = chunk.GetRegion();
-                chunks.Add(chunk);
-                if (!regions.Contains(region))
-                    regions.Add(region);
 
-                if (!region.Contains(chunk))
-                    region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+                if (!chunks.Contains(chunk))
+                    chunks.Add(chunk);
+
+                if (!regions.Contains(region))
+                        regions.Add(region);
+
+                    if (!region.Contains(chunk))
+                        region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+                    
             }
             else
             {
                 chunk = new Chunk().Initialize(x, z);
-                chunks.Add(chunk);
                 Region region = chunk.GetRegion();
+
+         
+                if (!chunks.Contains(chunk))
+                    chunks.Add(chunk);
+                    
+
                 region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+
                 if (!regions.Contains(region))
                     regions.Add(region);
-            }
-            return chunks;
-        }
 
+
+            }
+        }
 
         /**
          * Gets the chunks that should be rendered along the X And Z axis. E.X a renderer distance
@@ -182,9 +153,8 @@ namespace Vox.Genesis
          *
          * @return A list of chunks that should be rendered in x, z, -x, and -z directions
          */
-        private static List<Chunk> GetCardinalChunks()
+        private static void GetCardinalChunks()
         {
-            List<Chunk> chunks = [];
             Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
 
             //Positive X
@@ -192,7 +162,7 @@ namespace Vox.Genesis
             {
                 int x = (int) playerChunk.GetLocation().X + (i * bounds);
                 int z = (int) playerChunk.GetLocation().Z;
-                chunks.AddRange(CacheHelper(x, z));
+                CacheHelper(x, z);
             }
 
             //Negative X
@@ -200,7 +170,7 @@ namespace Vox.Genesis
             {
                 int x = (int)playerChunk.GetLocation().X - (i * bounds);
                 int z = (int)playerChunk.GetLocation().Z;
-                chunks.AddRange(CacheHelper(x, z));
+                CacheHelper(x, z);
             }
 
             //Positive Y
@@ -208,7 +178,7 @@ namespace Vox.Genesis
             {
                 int x = (int)playerChunk.GetLocation().X;
                 int z = (int)playerChunk.GetLocation().Z + (i * bounds);
-                chunks.AddRange(CacheHelper(x, z));
+                CacheHelper(x, z);
             }
             //Negative Y
             for (int i = 1; i <= renderDistance; i++)
@@ -216,9 +186,8 @@ namespace Vox.Genesis
 
                 int x = (int)playerChunk.GetLocation().X;
                 int z = (int)playerChunk.GetLocation().Z - (i * bounds);
-                chunks.AddRange(CacheHelper(x, z));
+                CacheHelper(x, z);
             }
-            return chunks;
         }
 
         /**
@@ -228,60 +197,38 @@ namespace Vox.Genesis
          */
         public static List<Chunk> GetChunksToRender()
         {
-            List<Chunk> chunks = [];
-            regions.Clear();
-            chunks.AddRange(GetQuadrantChunks());
-            chunks.AddRange(GetCardinalChunks());
-            chunks.Add(playerChunk);
+            chunks.Clear();
 
-            foreach (Chunk c in chunks)
-              {
-             //   Logger.Debug(c.ToString());
+            regions.Clear();
+
+            //CountdownEvent countdown = new CountdownEvent(3);
+            //ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+            //{
+                GetQuadrantChunks();
+            //    countdown.Signal();
+            //}));
+            //ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+            //{
+                GetOtherQuadrantChunks();
+            //    countdown.Signal();
+            // }));
+            // ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+            // {
+                GetCardinalChunks();
+            //     countdown.Signal();
+            // }));
+            // countdown.Wait();   
+
+               if (!chunks.Contains(playerChunk))
+               {
+                   playerChunk.GetRegion().BinaryInsertChunkWithLocation(0, playerChunk.GetRegion().Count - 1, playerChunk.GetLocation());
+                   chunks.Add(playerChunk);
                }
 
+
+
+
             return chunks;
-        }
-        public static void UpdateChunkModelBuffer()
-        {
-            Matrix4[] modelMatrices = new Matrix4[maxMatrices];
-
-
-            int uniformBlockIndex = GL.GetUniformBlockIndex(Window.GetShaders().GetProgramId(), "chunModelUBO");
-            GL.UniformBlockBinding(Window.GetShaders().GetProgramId(), uniformBlockIndex, 0);
-            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, uboModelMatrices);
-
-            // Update the buffer with new data (dynamic updates)
-            IntPtr ptr = GL.MapBuffer(BufferTarget.UniformBuffer, BufferAccess.WriteOnly);
-            if (ptr != IntPtr.Zero)
-            {
-                // Calculate the size to copy
-                int sizeToCopy = modelMatrices.Length * (sizeof(float) * 16);
-
-                // Copy the new matrices into the buffer
-                // Use Marshal to copy the array to unmanaged memory
-                GCHandle handle = GCHandle.Alloc(modelMatrices, GCHandleType.Pinned);
-                unsafe
-                {
-                    try
-                    {
-                        // Copy the data from the managed array to the unmanaged buffer
-                        IntPtr sourcePtr = handle.AddrOfPinnedObject();
-                        System.Buffer.MemoryCopy(
-                            sourcePtr.ToPointer(),
-                            ptr.ToPointer(),
-                            sizeToCopy,
-                            sizeToCopy
-                        );
-                    }
-                    finally
-                    {
-                        handle.Free(); // Free the handle after copying
-                    }
-                }
-            }
-
-
-
         }
 
         public static int GetModeBuffer()
@@ -294,10 +241,6 @@ namespace Vox.Genesis
         }
         public static List<Region> GetRegions()
         {
-           // foreach (Region region in regions)
-         //   {
-           //     Logger.Debug(region.ToString());
-         //   }
             return regions;
         }
 

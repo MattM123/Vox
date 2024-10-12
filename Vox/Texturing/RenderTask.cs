@@ -20,8 +20,6 @@ namespace Vox.Texturing
 
     public class RenderTask(Chunk chunk, List<float> vertexData, List<int> elementData, int vbo, int ebo, int vao, Matrix4 modelMatrix)
     {
-        private readonly int vbo = vbo;
-        private readonly int ebo = ebo;
         private readonly float[] vertexData = [.. vertexData];
         private readonly int[] elementData = [.. elementData];
         private readonly Matrix4 modelMatrix = modelMatrix;
@@ -51,6 +49,16 @@ namespace Vox.Texturing
             return modelMatrix;
         }
         public Chunk GetChunk() { return chunk; }
+
+        public override string ToString()
+        {
+            return $"   {chunk}, \n" +
+                   $"    VBO: {vbo},\n " +
+                   $"   EBO: {ebo},\n " +
+                   $"   VAO:{vao},\n " +
+                   $"   Vertex Length: {vertexData.Length},\n" +
+                   $"    Elements: {elementData.Length}\n"; 
+        }
     }
 
 }

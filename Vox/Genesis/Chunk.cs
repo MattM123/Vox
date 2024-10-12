@@ -1,6 +1,7 @@
 ﻿
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.CompilerServices;
 using OpenTK.Mathematics;
 using Vox.Comparator;
 using Vox.Model;
@@ -23,31 +24,19 @@ namespace Vox.Genesis
         private static Matrix4 modelMatrix = new();
         private List<float> chunkVerts = [];
         private List<int> chunkEle = [];
+        private bool didChange = false;
+        private readonly object chunkLock = new();
+        private RenderTask renderTask;
 
         public Chunk()
         {
-            SetEbo(GL.GenBuffer());
-            SetVbo(GL.GenBuffer());
-            SetVao(GL.GenVertexArray());
-            //Chunk events executed by player
-            //determine when a chunk should be re-rendered
-
-            //Option 1: Use polygonmesh view with built-in listeners (might not even work
-            //since object is the only reference to javafx in the whole project)
-            //Option 2: Don't extend Chunk and implement custom listeners
-
-            /*
-            setOnMouseClicked(mouseEvent -> {
-                rerender = true;
-                mouseEvent.GetPickResult().
-
-                if (Player.Getblock players looking at is in heightmap) {
-                  remove from heightmap
-                else {
-                  add to heightmap
-                });
-
-            */
+            //GL work must be done on main trhead
+        //    Window.GetMainThreadQueue().Enqueue(() =>
+        //    {
+                SetEbo(GL.GenBuffer());
+                SetVbo(GL.GenBuffer());
+                SetVao(GL.GenVertexArray());
+        //    });
         }
 
         /**
@@ -59,13 +48,10 @@ namespace Vox.Genesis
          */
         public Chunk Initialize(float x, float z)
         {
-            if (GetRegion().Contains(this))
-                isInitialized = true;
-
             location = new Vector3(x, 0, z);
 
             //Generic model matrix applicable to every chunk object
-            modelMatrix = Matrix4.CreateTranslation(0,0,0);
+            modelMatrix = Matrix4.CreateTranslation(0, 0, 0);// * Matrix4.CreateScale(-1, 1, -1);// * Matrix4.CreateFromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(45));// * Matrix4.CreateScale(1, 1, 1);
 
             if (!isInitialized)
             {
@@ -75,17 +61,14 @@ namespace Vox.Genesis
 
                 int xCount = 0;
                 int zCount = 0;
-               //  Logger.Debug("CHUNK: " + x + " : " + z);
-                string test = "\n";
+
                 for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
                 {
-                    string test1 = "\n";
                     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
                     {
 
                         int elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
-                        test1 += "(" + x1 + ", " + z1 + ")";
-                        heightMap[xCount, zCount] = elevation;
+                        heightMap[zCount, xCount] = elevation;
 
                         zCount++;
                         if (zCount > RegionManager.CHUNK_BOUNDS - 1)
@@ -94,85 +77,11 @@ namespace Vox.Genesis
                     xCount++;
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
-
-                    test += test1;
-                    test1 = "\n";
                 }
-             //   Logger.Debug(test);
-
-                //checks chunks for blocks to render based on noise value and heightmap
-                //  for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
-                //  {
-                //     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
-                //      {
-                //         for (int y1 = (int)y; y1 <= heightMap[xCount, zCount]; y1++)
-                //         {
-
-                //      Block c = new Block(x1, y1, z1, BlockType.DIRT_BLOCK);
-                //    c.f = OpenSimplex.noise3_ImproveXZ(RegionManager.WORLD_SEED, x1 * 0.05, y1 * 0.05, z1 * 0.05);
-                //   if (c.f > 0.00)
-                //     blocks.Add(c);
-                //      if (c.f <= 0.00 && y1 >= heightMap[xCount][zCount] - caveStart)
-                //           blocks.Add(c);
-
-                //       zCount++;
-                //       if (zCount > RegionManager.CHUNK_BOUNDS - 1)
-                //           zCount = 0;
-                //     }
-                //      if (xCount > RegionManager.CHUNK_BOUNDS - 1)
-                //          xCount = 0;
-                //  }
-                //   }
-                isInitialized = true;
                 rerender = true;
             }
             return this;
         }
-
-        /**
-         * Regenerates this chunks heightmap if the chunk is marked for
-         * re-rendering.
-
-         * This might not even be used
-         */
-        //  public void updateMesh()
-        //      {
-
-        //   if (blocks.Count > 0 && rerender)
-        //   {
-
-        //Every vertex contained inside the chunk mesh in no particular order
-        //   float[] points = new float[0];
-
-        //Check if interpolations are already present in heightmap
-        // List<Block> cList = getInterpolatedBlocks();
-        // for (Block c : cList) {
-        //     if (c != null) {
-        //        if (!chunkBlocks.Contains(c))
-        //            chunkBlocks.Add(c);
-        //     }
-        // }
-
-        //Populating array that holds the surface points of the chunk.
-        //    for (Block block : chunkBlocks) {
-        //        float[] coordArr = {block.GetLocation().X, block.GetLocation().Y, block.GetLocation().Z};
-        //         points = ArrayUtils.AddAll(points, coordArr);
-        //      }
-
-        //Updates data caches when the chunk mesh has changed
-        //Future<RenderTask> temp;
-        //     Main.executor.submit(this::getRenderTask);
-        //  try {
-        //  vertexCache = temp.Get().GetVertexData();
-        //   elementCache = temp.Get().GetElementData();
-        //   } catch (Exception e) {
-        //      logger.warning(e.GetMessage());
-        //  }
-        //  for (int[] ints : heightMap) {
-        //      System.out.println(Arrays.toString(ints));
-        //   }
-
-        //}
 
         /**
          * Given a 2D chunk heightmap, interpolates between
@@ -392,21 +301,16 @@ namespace Vox.Genesis
 
         /**
          * Generates or regenerates this Chunks RenderTask. The RenderTask is
-         * used to graphically render the Chunk. Calling this method will
-         * automatically update this chunks vertex and element data and
+         * used to graphically render the Chunk. Calling this method will, if
+         * needed, automatically update this chunks vertex and element data and
          * return a new RenderTask that can be passed to the GPU when drawing.
          *
          * @return A RenderTask whose regularly updated contents can be
          * used in GL draw calls to render this Chunk graphically
          */
-
+        [MethodImpl(MethodImplOptions.Synchronized)]
         public RenderTask GetRenderTask()
         {
-            //   long t1 = System.currentTimeMillis();
-            //TODO: in progress
-            //idea: have bits/bools at block level for which faces are rendered.
-            //use to determine what other faces to render since +y face
-            //renders properly
             List<Vector3> nonInterpolated = [];
             List<float> vertices = [];
             List<int> elements = [];
@@ -416,7 +320,7 @@ namespace Vox.Genesis
             Array values = Enum.GetValues(typeof(BlockType));
             Random random = new();
 
-            if (rerender && (chunkVerts.Count == 0 || chunkEle.Count == 0))
+            if (didChange || renderTask == null)
             {
                 for (int x = 0; x < heightMap.GetLength(0); x++) // GetLength(0) gives the number of rows
                 {
@@ -430,7 +334,11 @@ namespace Vox.Genesis
                 for (int i = 0; i < interpolatedChunk.Count; i++)
                 {
                     int randomIndex = random.Next(values.Length);
-                    model = ModelLoader.GetModel((BlockType)values.GetValue(randomIndex));
+                    BlockType? randomBlock = (BlockType?) values.GetValue(randomIndex);
+                    if (randomBlock != null)
+                        model = ModelLoader.GetModel((BlockType) randomBlock);
+                    else
+                        model = ModelLoader.GetModel(BlockType.GRASS_BLOCK);
 
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, "south", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, "north", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
@@ -441,24 +349,36 @@ namespace Vox.Genesis
 
                     elements.AddRange([
                         elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 80000,
-                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
-                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
-                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
-                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
-                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
-                    ]);
+                    elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
+                    elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
+                    elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
+                    elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
+                    elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
+                ]);
 
                     elementCounter += 24;
                 }
 
-                //Updates chunk data
-                chunkVerts = vertices;
-                chunkEle = elements;
-                SetRerender(false);
-
+              //  //Updates chunk data
+                lock (chunkLock)
+                {
+                    renderTask = new RenderTask(this, vertices, elements, GetVbo(), GetEbo(), GetVao(), modelMatrix);
+                    didChange = false;
+                    chunkVerts = vertices;
+                    chunkEle = elements;
+                  //  Logger.Info($"{GetRegion()} updating {this} with RenderTask:\n {renderTask}");
+                }
             }
-     
-            return new RenderTask(this, chunkVerts, chunkEle, GetVbo(), GetEbo(), GetVao(), modelMatrix);
+            return renderTask;
+        }
+
+        /**
+         * This flag should only be updated to true when the chunk needs to re-render.
+         * Ex. If a block was destroyer or placed or otherwise modified
+         * */
+        public void DidChange(bool b)
+        {
+            didChange = b;
         }
 
         /**

@@ -1,11 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Reflection;
 using System.Text;
 using ImGuiNET;
-using Newtonsoft.Json.Linq;
-using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -50,15 +46,25 @@ namespace Vox
         private static BlockModel menuModel;
         private static Chunk c;
         private float mouseSensitivity = 1.0f;
+        private static int vbo, ebo, vao = 0;
+        private static Thread mainThread;
+        private static ConcurrentQueue<Action> mainThreadQueue;
 
         protected override void OnLoad()
         {
             base.OnLoad();
-            c = new Chunk().Initialize(0, 0);
+            mainThread = Thread.CurrentThread;
+            mainThreadQueue = new ConcurrentQueue<Action>();
+
+            //Mene render buffers
+            vbo = GL.GenBuffer();
+            ebo = GL.GenBuffer();
+            vao = GL.GenVertexArray();
 
             //Load textures and models
             TextureLoader.LoadTextures();
             ModelLoader.LoadModels();
+            c = new Chunk().Initialize(0, 0);
             c.GetRenderTask();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
@@ -68,6 +74,7 @@ namespace Vox
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
+            
 
             //Enable primitive restart
             GL.Enable(EnableCap.PrimitiveRestart);
@@ -102,7 +109,7 @@ namespace Vox
             float NEAR = 0.01f;
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
 
-            viewMatrix = Matrix4.LookAt(new Vector3(50f, 180, -10f), new Vector3(8f, 150f, 8f), new Vector3(0.0f, 1f, 0.0f));
+            viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -10f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
 
             shaders.CreateUniform("projectionMatrix");
             shaders.SetMatrixUniform("projectionMatrix", pMatrix);
@@ -118,16 +125,18 @@ namespace Vox
 
             shaders.CreateUniform("isMenuRendered");
             shaders.SetIntUniform("isMenuRendered", 1);
-
-            //shaders.CreateUniform("chunkModelUBO");
-            // Bind the buffer to a binding point(binding point 0 in this example)
-            //int uniformBlockIndex = GL.GetUniformBlockIndex(shaders.GetProgramId(), "chunkModelUBO");
-
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
+
+            //Process main thread queue prior to rendering each frame
+            if (!mainThreadQueue.IsEmpty)
+            {
+                foreach (Action action in mainThreadQueue)
+                    action();
+            }
 
             /*==============================
             Update UI input and config
@@ -156,6 +165,7 @@ namespace Vox
                 renderMenu = false;
                 shaders?.SetIntUniform("isMenuRendered", 0);
                 RenderWorld();
+           
             }
 
             ImGuiController.CheckGLError("End of frame");
@@ -168,6 +178,7 @@ namespace Vox
 
             SwapBuffers();
 
+
         }
 
         protected override void OnUpdateFrame(FrameEventArgs args)
@@ -176,13 +187,11 @@ namespace Vox
 
             if (IsMenuRendered())
             {
-                modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(150f, 2200, 100f), angle);
+                modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
                 Matrix4 menuMatrix = modelMatricRotate;
                 shaders?.SetMatrixUniform("modelMatrix", menuMatrix);
             } else
             {
-                //  viewMatrix = Matrix4.LookAt(player.GetPosition(), new Vector3(1f, 336f, -1f), new Vector3(0.0f, 1f, 0.0f));
-                // viewMatrix = Matrix4.LookAt(player.GetPosition(), new Vector3(1f, 336f, -100f), new Vector3(0.0f, 1f, 0.0f));
                 player.SetLookDir(MouseState.Y, MouseState.X);
                 shaders.SetMatrixUniform("viewMatrix", player.GetViewMatrix());
 
@@ -423,14 +432,10 @@ namespace Vox
             /*==================================
             Buffer binding and loading
             ====================================*/
-            int vbo = GL.GenBuffer();
-            int ebo = GL.GenBuffer();
-            int vao = GL.GenVertexArray();
 
             GL.BindVertexArray(vao);
 
             //Vertices
-            //float[] vertexBuffer = [.. vertices];
             float[] vertexBuffer = c.GetVertices();
 
             // Create VBO upload the vertex buffer
@@ -482,15 +487,12 @@ namespace Vox
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+            
         }
 
 
         private void RenderWorld()
         {
-            //  ChunkCache.GetRegions();
-            /*=====================================
-             View Matrix setup
-            ======================================*/
 
             /*====================================
                 Chunk and Region check
@@ -516,6 +518,7 @@ namespace Vox
                 globalPlayerChunk = player.GetChunkWithPlayer();
                 ChunkCache.SetPlayerChunk(globalPlayerChunk);
                 ChunkCache.ReRender(true);
+
                 chunksToRender = ChunkCache.GetChunksToRender();
 
                 //Updates the regions when player moves into different region
@@ -525,16 +528,24 @@ namespace Vox
                     loadedWorld.UpdateVisibleRegions();
                 }
             }
-
             //=========================================================================
 
             //Per chunk primitive information calculated in thread pool and later sent to GPU for drawing
-            List<RenderTask> renderTasks = [];
+            ConcurrentBag<RenderTask> renderTasks = [];
+            CountdownEvent countdown = new(chunksToRender.Count);
             foreach (Chunk c in chunksToRender)
             {
-                renderTasks.Add(c.GetRenderTask());
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    renderTasks.Add(c.GetRenderTask());
+                    countdown.Signal();
+                }));
             }
-            
+           countdown.Wait();
+           
+            /*======================================================
+            Getting vertex and element information for rendering
+            ========================================================*/
 
             /*======================================================
             Getting vertex and element information for rendering
@@ -545,6 +556,9 @@ namespace Vox
                 /*=====================================
                  Vertex attribute definitions for shaders
                  ======================================*/
+
+                if (renderTask == null)
+                    continue;
 
                 int posSize = 3;
                 int layerSize = 1;
@@ -602,20 +616,6 @@ namespace Vox
                     GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
                 }
             }
-            //Unbind and cleanup everything
-            renderTasks.Clear();
-
-            //Unbind and cleanup everything
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(2);
-
-
-            // Delete VAO, VBO, and EBO
-            GL.BindVertexArray(0);
-            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -656,6 +656,10 @@ namespace Vox
         public static ShaderProgram GetShaders()
         {
             return shaders;
+        }
+        public static ConcurrentQueue<Action> GetMainThreadQueue()
+        {
+            return mainThreadQueue;
         }
         static void Main()
         {

@@ -42,19 +42,20 @@ namespace Vox.Genesis
          */
         public Chunk BinaryInsertChunkWithLocation(int l, int r, Vector3 c)
         {
-           
+
             ChunkComparator pointCompare = new();
             Chunk q = new Chunk().Initialize(c.X, c.Z);
 
             //If chunk already exists in region
             if (Contains(q))
             {
-                return q;
+                return null;
             }
 
             if (Count == 0)
             {
                 Add(q);
+                return q;
             }
 
             if (Count == 1)
@@ -138,34 +139,59 @@ namespace Vox.Genesis
          */
         public Chunk BinarySearchChunkWithLocation(int l, int r, Vector3 c)
         {
+            if (this == null || this.Count == 0) // Ensure the collection is initialized and not empty
+            {
+                return null;
+            }
+
             ChunkComparator pointCompare = new();
-            if (r >= l)
+
+            while (r >= l)
             {
                 int mid = l + (r - l) / 2;
 
-                // If the element is present at the middle
-                if (pointCompare.Compare(c, this[mid].GetLocation()) == 0)
+                // Check if mid is a valid index
+                if (mid < 0 || mid >= this.Count)
                 {
-                    return this[mid];
+                    return null;
                 }
 
+                Chunk midChunk = this[mid]; // Cache the chunk for reuse
 
-                // If element is smaller than mid, then
-                // it can only be present in left subarray
-                if (pointCompare.Compare(c, this[mid].GetLocation()) < 0)
+                // Ensure midChunk is not null before accessing its properties
+                if (midChunk == null)
+                {
+                    return null; // or throw an exception depending on your error handling strategy
+                }
+
+                Vector3 midLocation = midChunk.GetLocation(); // Cache the location
+
+                // Ensure midLocation is not null
+                if (midLocation == null)
+                {
+                    return null; // Handle the case where the location is null
+                }
+
+                // If the element is present at the middle
+                if (pointCompare.Compare(c, midLocation) == 0)
+                {
+                    return midChunk;
+                }
+
+                // If element is smaller than mid, search the left subarray
+                if (pointCompare.Compare(c, midLocation) < 0)
                 {
                     return BinarySearchChunkWithLocation(l, mid - 1, c);
                 }
 
-                // Else the element can only be present
-                // in right subarray
-                if (pointCompare.Compare(c, this[mid].GetLocation()) > 0)
+                // Else the element can only be present in right subarray
+                if (pointCompare.Compare(c, midLocation) > 0)
                 {
                     return BinarySearchChunkWithLocation(mid + 1, r, c);
                 }
             }
-            return null;
 
+            return null; // Not found
         }
 
         /**

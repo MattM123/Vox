@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Vox.Comparator;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Vox.Genesis
 {
@@ -117,10 +116,8 @@ namespace Vox.Genesis
         }
 
         //Faster contains function to deal with chunks with large regions
-        public bool Contains(Chunk c)
+        public bool Contains(int low, int high, Chunk c)
         {
-            int low = 0;
-            int high = Count - 1;
             ChunkComparator compare = new();
 
             while (low <= high)
@@ -136,12 +133,14 @@ namespace Vox.Genesis
                 // If target is smaller, ignore the right half
                 else if (compare.Compare(this[mid].GetLocation(), c.GetLocation()) == 1)
                 {
-                    high = mid - 1;
+                    Contains(low, mid - 1, c);
+                  //  high = mid - 1;
                 }
                 // If target is larger, ignore the left half
                 else
                 {
-                    low = mid + 1;
+                    Contains(mid + 1, high, c);
+                   // low = mid + 1;
                 }
             }
 
@@ -152,10 +151,10 @@ namespace Vox.Genesis
         {
 
             if (Count > 0)
-                return "(" + Count + " Chunks) Region: (" + regionBounds.X
-                        + ", " + regionBounds.Y + ")";
+                return "(" + Count + " Chunks) Region[" + regionBounds.X
+                        + ", " + regionBounds.Y + "]";
            else
-                return "(Empty) Region: (" + regionBounds.X + ", " + regionBounds.Y + ")";
+                return "(Empty) Region[" + regionBounds.X + ", " + regionBounds.Y + "]";
         }
 
         public override int GetHashCode()
