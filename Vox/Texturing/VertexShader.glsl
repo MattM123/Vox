@@ -3,19 +3,20 @@
 layout(location = 0) in vec3 position;
 layout(location = 1) in float aTexLayer;
 layout(location = 2) in float aTexCoord;
+layout(location = 3) in vec3 normal;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
 uniform mat4 chunkModelMatrix;
 uniform int isMenuRendered;
-layout(std140) uniform chunkModelUBO {
-    mat4 modelMatrices[200]; 
-};
 
 out vec4 fColor;
 out vec2 ftexCoords;
+out vec3 fnormal;
+out vec3 fragPos;
 flat out float fTexLayer;
+
 
 void main() {
     if (isMenuRendered == 1)
@@ -33,7 +34,8 @@ void main() {
         vec2(1.0f, 1.0f)
     );
 
+    fragPos = vec3(vec4(position, 1.0) * modelMatrix);
     ftexCoords = texCoords[int(aTexCoord)];
-
+    fnormal = normal * mat3(transpose(inverse(modelMatrix)));
 
 }

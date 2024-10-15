@@ -10,12 +10,11 @@ namespace Vox.Genesis
         public static List<Region> VisibleRegions = new();
         private static string worldDir;
         public static readonly int CHUNK_HEIGHT = 400;
-        public static readonly int RENDER_DISTANCE = 16;
+        public static readonly int RENDER_DISTANCE = 10;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
         public static readonly long WORLD_SEED = 8867534524;
         private static Thread regionWriterThread;
-        private ChunkCache ChunkCache;
 
         /**
          * The highest level object representation of a world. The RegionManager
@@ -192,31 +191,7 @@ namespace Vox.Genesis
                 }
             }
         }
-        /**
-         * Retrieves the Y value for any given x,z column in any chunk
-         * @param x coordinate of column
-         * @param z coordinate of column
-         * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
-         */
-        public static int GetGlobalHeightMapValue(int x, int z)
-        {
-            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
-            // a rougher, raised terrain
-            float var1 = 12;
-
-            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
-            //more smooth, spread out hills.
-            double var2 = 0.01;
-
-
-            float f = 1 * OpenSimplex2.Noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
-
-            int min = 0;
-            return (int)Math.Floor((f + 1) / 2 * CHUNK_HEIGHT - 1);
-
-        }
+      
 
         public static Region GetGlobalRegionFromChunkCoords(int x, int z)
         {

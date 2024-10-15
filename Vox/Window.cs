@@ -1,7 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Reflection.Metadata;
 using System.Text;
 using ImGuiNET;
+using Newtonsoft.Json.Linq;
+using OpenTK.Graphics.ES11;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -33,6 +36,7 @@ namespace Vox
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
         private static ShaderProgram? shaders = null;
+        private static ShaderProgram? depthShader = null;
         private static Player? player = null;
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
         private static RegionManager? loadedWorld;
@@ -49,6 +53,15 @@ namespace Vox
         private static int vbo, ebo, vao = 0;
         private static Thread mainThread;
         private static ConcurrentQueue<Action> mainThreadQueue;
+        private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
+
+        //used for player and lighting projection matrices
+        private static float FAR = 500.0f;
+        private static float NEAR = 0.01f;
+
+        private static Vector3 lightColor;
+        private static Vector3 ambientColor;
+        private static Vector3 diffuseColor;
 
         protected override void OnLoad()
         {
@@ -71,6 +84,7 @@ namespace Vox
 
             _controller = new ImGuiController(ClientSize.X, ClientSize.Y);
             shaders = new();
+            depthShader = new();
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
@@ -92,6 +106,13 @@ namespace Vox
             string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\FragShader.glsl");
             shaders.CreateFragmentShader(fragmentShaderSource);
 
+            string vertexShadowShaders = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\VertexShadowShader.glsl");
+            depthShader.CreateVertexShader(vertexShadowShaders);
+
+            string fragShadowShaders = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\FragShader.glsl");
+            depthShader.CreateFragmentShader(fragShadowShaders);
+
+
             //Load Textures
             shaders.UploadTexture("texture_sampler", 0);
 
@@ -105,8 +126,6 @@ namespace Vox
             //Matrix setup
             //========================
 
-            float FAR = 500.0f;
-            float NEAR = 0.01f;
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
 
             viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -10f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
@@ -124,7 +143,39 @@ namespace Vox
             shaders.SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix());
 
             shaders.CreateUniform("isMenuRendered");
-            shaders.SetIntUniform("isMenuRendered", 1);
+            shaders.SetIntFloatUniform("isMenuRendered", 1);
+            
+            Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
+            Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS,
+                RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
+
+            shaders.CreateUniform("lightSpaceMatrix");
+            shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
+
+
+
+            //lightinf uniforms
+            shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
+            shaders.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
+            shaders.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
+            shaders.SetIntFloatUniform("material.shininess", 32.0f);
+
+            // This is where we change the lights color over time using the sin function
+            float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
+            lightColor.X = 1f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
+            lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
+            lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
+
+            // The ambient light is less intensive than the diffuse light in order to make it less dominant
+            ambientColor = lightColor * new Vector3(0.2f);
+            diffuseColor = lightColor * new Vector3(0.5f);
+
+            shaders.SetVector3Uniform("light.position", _lightPos);
+            shaders.SetVector3Uniform("light.ambient", ambientColor);
+            shaders.SetVector3Uniform("light.diffuse", diffuseColor);
+            shaders.SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
+
+            
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -157,13 +208,13 @@ namespace Vox
 
                 angle += 0.0001f;
                 renderMenu = true;
-                shaders?.SetIntUniform("isMenuRendered", 1);
+                shaders?.SetIntFloatUniform("isMenuRendered", 1);
                 RenderMenu();
             }
             else
             {
                 renderMenu = false;
-                shaders?.SetIntUniform("isMenuRendered", 0);
+                shaders?.SetIntFloatUniform("isMenuRendered", 0);
                 RenderWorld();
            
             }
@@ -184,6 +235,46 @@ namespace Vox
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
             base.OnUpdateFrame(args);
+
+            int diffuseTexID = TextureLoader.LoadSingleTexture(Path.Combine(assets + "Textures", "grass_full.png"));
+            GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)TextureUnit.Texture0);
+            GL.BindTexture((OpenTK.Graphics.OpenGL4.TextureTarget)TextureTarget.Texture2D, diffuseTexID);
+            shaders.SetIntFloatUniform("material.diffuse", diffuseTexID);
+
+            /*==================================
+             Ambient lighting update
+            ====================================*/
+            //update light color each frame
+            float dayLengthInSeconds = 60.0f;  
+            float timeOfDay = (DateTime.Now.Second + DateTime.Now.Millisecond / 1000f) % dayLengthInSeconds;
+            float normalizedTime = timeOfDay / dayLengthInSeconds;  // Normalized time between 0 (start of day) and 1 (end of day)
+            float dayCycle = MathF.Sin(normalizedTime * MathF.PI * 2);  // Sine wave oscillates between -1 and 1 over one full cycle
+            float lightIntensity = (dayCycle + 1.0f) / 2.0f;  // Convert sine range (-1 to 1) to (0 to 1)
+
+            lightColor.X = lightIntensity * 1.0f;//R
+            lightColor.Y = lightIntensity * 0.7f;//G
+            lightColor.Z = lightIntensity * 0.3f;//B
+
+            // The ambient light is less intensive than the diffuse light in order to make it less dominant
+            ambientColor = lightColor * new Vector3(0.2f);
+            diffuseColor = lightColor * new Vector3(0.5f);
+            shaders.SetVector3Uniform("light.position", _lightPos);
+            shaders.SetVector3Uniform("light.ambient", ambientColor);
+            shaders.SetVector3Uniform("light.diffuse", diffuseColor);
+
+            /*==================================
+            Environmental shadow updates
+            ====================================*/
+            Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, player.GetPosition(), Vector3.UnitY);
+            Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS,
+                RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
+
+            shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
+
+
+            if (player != null)
+                _lightPos = new Vector3(player.GetPosition().X, 
+                    RegionManager.CHUNK_HEIGHT + 100, player.GetPosition().Z);
 
             if (IsMenuRendered())
             {
@@ -458,8 +549,8 @@ namespace Vox
             int posSize = 3;
             int layerSize = 1;
             int coordSize = 1;
-            int floatSizeBytes = 4;
-            int vertexSizeBytes = (posSize + layerSize + coordSize) * floatSizeBytes;
+            int normalSize = 3;
+            int vertexSizeBytes = (posSize + layerSize + coordSize + normalSize) * sizeof(float);
 
             // Position
             GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, vertexSizeBytes, 0);
@@ -473,15 +564,14 @@ namespace Vox
             GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize) * sizeof(float));
             GL.EnableVertexAttribArray(2);
 
+            // Face Normal
+            GL.VertexAttribPointer(3, normalSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize + coordSize) * sizeof(float));
+            GL.EnableVertexAttribArray(3);
+
             /*==================================
             Drawing
             ====================================*/
             GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
-
-            //Unbind and cleanup everything
-            GL.DisableVertexAttribArray(0);
-            GL.DisableVertexAttribArray(1);
-            GL.DisableVertexAttribArray(2);
 
             // Delete VAO, VBO, and EBO
             GL.BindVertexArray(0);
@@ -554,29 +644,29 @@ namespace Vox
             foreach (RenderTask renderTask in renderTasks)
             {
                 /*=====================================
-                 Vertex attribute definitions for shaders
-                 ======================================*/
-
-                if (renderTask == null)
-                    continue;
-
+                Vertex attribute definitions for shaders
+                ======================================*/
                 int posSize = 3;
                 int layerSize = 1;
                 int coordSize = 1;
-                int floatSizeBytes = 4;
-                int vertexSizeBytes = (posSize + layerSize + coordSize) * floatSizeBytes;
+                int normalSize = 3;
+                int vertexSizeBytes = (posSize + layerSize + coordSize + normalSize) * sizeof(float);
 
                 // Position
                 GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, vertexSizeBytes, 0);
                 GL.EnableVertexAttribArray(0);
 
                 // Texture Layer
-                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, posSize * sizeof(float));
+                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize) * sizeof(float));
                 GL.EnableVertexAttribArray(1);
 
                 // Texture Coordinates
                 GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize) * sizeof(float));
                 GL.EnableVertexAttribArray(2);
+
+                // Face Normal
+                GL.VertexAttribPointer(3, normalSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize + coordSize) * sizeof(float));
+                GL.EnableVertexAttribArray(3);
 
                 int vbo = renderTask.GetVbo();
                 int ebo = renderTask.GetEbo();

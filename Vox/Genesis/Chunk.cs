@@ -67,7 +67,7 @@ namespace Vox.Genesis
                     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
                     {
 
-                        int elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
+                        int elevation = GetGlobalHeightMapValue(x1, z1);
                         heightMap[zCount, xCount] = elevation;
 
                         zCount++;
@@ -128,25 +128,25 @@ namespace Vox.Genesis
                     if (col > 0)
                         comparison1 = heightMap[row, col - 1];
                     else
-                        comparison1 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
+                        comparison1 = GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
 
                     //+1 horizontal comparison
                     if (col < RegionManager.CHUNK_BOUNDS - 1)
                         comparison2 = heightMap[row, col + 1];
                     else
-                        comparison2 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
+                        comparison2 = GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
 
                     //-1 2d vertical comparison
                     if (row > 0)
                         comparison3 = heightMap[row - 1, col];
                     else
-                        comparison3 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
+                        comparison3 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
 
                     //+1 2d vertical comparison
                     if (row < RegionManager.CHUNK_BOUNDS - 1)
                         comparison4 = heightMap[row + 1, col];
                     else
-                        comparison4 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
+                        comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
 
                     //Adds base by default since that will always be visible and rendered
                     if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
@@ -582,6 +582,32 @@ return c.Get();
         public bool ShouldRerender()
         {
             return rerender;
+        }
+
+        /**
+       * Retrieves the Y value for any given x,z column in any chunk
+       * @param x coordinate of column
+       * @param z coordinate of column
+       * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
+       */
+        public static int GetGlobalHeightMapValue(int x, int z)
+        {
+            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
+            // a rougher, raised terrain
+            float var1 = 12;
+
+            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
+            //more smooth, spread out hills.
+            double var2 = 0.01;
+
+
+            float f = 1 * OpenSimplex2.Noise2(RegionManager.WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
+                    + (float)(0.5 * OpenSimplex2.Noise2(RegionManager.WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
+                    + (float)(0.25 * OpenSimplex2.Noise2(RegionManager.WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
+
+            int min = 0;
+            return (int)Math.Floor((f + 1) / 2 * RegionManager.CHUNK_HEIGHT - 1);
+
         }
 
         /**

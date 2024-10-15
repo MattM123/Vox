@@ -79,12 +79,22 @@ namespace Vox
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.UniformMatrix4(uniformLocation, true, ref matrix);
         }
-        public void SetIntUniform(string uniformName, int value)
+        public void SetIntFloatUniform(string uniformName, int value)
+        {
+            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            GL.Uniform1(uniformLocation, value);
+        }
+        public void SetIntFloatUniform(string uniformName, float value)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.Uniform1(uniformLocation, value);
         }
 
+        public void SetVector3Uniform(string uniformName, Vector3 value)
+        {
+            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            GL.Uniform3(uniformLocation, value);
+        }
         public string GetProgramLog()
         {
             int[] maxlen = new int[1];
