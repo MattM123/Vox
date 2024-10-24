@@ -1,6 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Reflection.Metadata;
+using System.Security.Cryptography;
 using System.Text;
 using ImGuiNET;
 using Newtonsoft.Json.Linq;
@@ -48,12 +50,15 @@ namespace Vox
         private static float fps = 0.0f;
         public static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static BlockModel menuModel;
-        private static Chunk c;
-        private float mouseSensitivity = 1.0f;
+        private static Chunk menuChunk;
+        private static long menuSeed;
+        private float mouseSensitivity = 0.1f;
         private static int vbo, ebo, vao = 0;
         private static Thread mainThread;
         private static ConcurrentQueue<Action> mainThreadQueue;
         private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
+        public static float forward = 0f;
+        public static float right = 0f;
 
         //used for player and lighting projection matrices
         private static float FAR = 500.0f;
@@ -69,6 +74,11 @@ namespace Vox
             mainThread = Thread.CurrentThread;
             mainThreadQueue = new ConcurrentQueue<Action>();
 
+            //Generate menu chunk seed
+            byte[] buffer = new byte[8];
+            RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
+            menuSeed = BitConverter.ToInt64(buffer, 0);
+
             //Mene render buffers
             vbo = GL.GenBuffer();
             ebo = GL.GenBuffer();
@@ -77,8 +87,8 @@ namespace Vox
             //Load textures and models
             TextureLoader.LoadTextures();
             ModelLoader.LoadModels();
-            c = new Chunk().Initialize(0, 0);
-            c.GetRenderTask();
+            menuChunk = new Chunk().Initialize(0, 0);
+            menuChunk.GetRenderTask();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
@@ -145,14 +155,18 @@ namespace Vox
             shaders.CreateUniform("isMenuRendered");
             shaders.SetIntFloatUniform("isMenuRendered", 1);
             
-            Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
-            Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS,
-                RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
+           // Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
+           // Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS,
+            //    RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
 
-            shaders.CreateUniform("lightSpaceMatrix");
-            shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
+            //shaders.CreateUniform("lightSpaceMatrix");
+           // shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
 
+            shaders.CreateUniform("renderDistance");
+            shaders.CreateUniform("playerPos");
 
+            shaders.CreateUniform("chunkSize");
+            shaders.SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS);
 
             //lightinf uniforms
             shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
@@ -162,7 +176,7 @@ namespace Vox
 
             // This is where we change the lights color over time using the sin function
             float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
-            lightColor.X = 1f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
+            lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
             lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
             lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
 
@@ -236,10 +250,15 @@ namespace Vox
         {
             base.OnUpdateFrame(args);
 
-            int diffuseTexID = TextureLoader.LoadSingleTexture(Path.Combine(assets + "Textures", "grass_full.png"));
-            GL.ActiveTexture((OpenTK.Graphics.OpenGL4.TextureUnit)TextureUnit.Texture0);
-            GL.BindTexture((OpenTK.Graphics.OpenGL4.TextureTarget)TextureTarget.Texture2D, diffuseTexID);
-            shaders.SetIntFloatUniform("material.diffuse", diffuseTexID);
+            //Update player velocity, position, and collision
+            if (!IsMenuRendered())
+                GetPlayer().Update((float) args.Time);
+
+
+            shaders.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
+            
+            if (loadedWorld != null)
+                shaders.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
 
             /*==================================
              Ambient lighting update
@@ -249,7 +268,7 @@ namespace Vox
             float timeOfDay = (DateTime.Now.Second + DateTime.Now.Millisecond / 1000f) % dayLengthInSeconds;
             float normalizedTime = timeOfDay / dayLengthInSeconds;  // Normalized time between 0 (start of day) and 1 (end of day)
             float dayCycle = MathF.Sin(normalizedTime * MathF.PI * 2);  // Sine wave oscillates between -1 and 1 over one full cycle
-            float lightIntensity = (dayCycle + 1.0f) / 2.0f;  // Convert sine range (-1 to 1) to (0 to 1)
+            float lightIntensity = ((dayCycle + 1.0f) / 2f) + 0.1f;  // Convert sine range (-1 to 1) to (0 to 1)
 
             lightColor.X = lightIntensity * 1.0f;//R
             lightColor.Y = lightIntensity * 0.7f;//G
@@ -265,16 +284,16 @@ namespace Vox
             /*==================================
             Environmental shadow updates
             ====================================*/
-            Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, player.GetPosition(), Vector3.UnitY);
-            Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS,
-                RegionManager.RENDER_DISTANCE * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
+            //Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, player.GetPosition(), Vector3.UnitY);
+            //Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS,
+            //    RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
 
-            shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
+            // shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
 
 
             if (player != null)
-                _lightPos = new Vector3(player.GetPosition().X, 
-                    RegionManager.CHUNK_HEIGHT + 100, player.GetPosition().Z);
+                _lightPos = new Vector3(GetPlayer().GetPosition().X, 
+                    RegionManager.CHUNK_HEIGHT + 100, GetPlayer().GetPosition().Z);
 
             if (IsMenuRendered())
             {
@@ -283,31 +302,36 @@ namespace Vox
                 shaders?.SetMatrixUniform("modelMatrix", menuMatrix);
             } else
             {
-                player.SetLookDir(MouseState.Y, MouseState.X);
+                CursorState = CursorState.Grabbed;
+                Player.SetLookDir(MouseState.Y, MouseState.X);
                 shaders.SetMatrixUniform("viewMatrix", player.GetViewMatrix());
-
             }
 
         }
 
+        private KeyboardState previousKeyboardState;
         protected override void OnKeyDown(KeyboardKeyEventArgs e)
         {
             base.OnKeyDown(e);
+            KeyboardState current = KeyboardState.GetSnapshot();
 
             if (!IsMenuRendered()) {
-                if (e.Key == Keys.W)
-                    player.MoveForward(1 * mouseSensitivity);
-                if (e.Key == Keys.S)
-                    player.MoveBackwards(1 * mouseSensitivity);
-                if (e.Key == Keys.A)
-                    player.MoveLeft(1 * mouseSensitivity);
-                if (e.Key == Keys.D)
-                    player.MoveRight(1 * mouseSensitivity);
-                if (e.Key == Keys.LeftShift)
-                    player.MoveDown(1);
-                if (e.Key == Keys.Space)
+                if (current[Keys.W]) GetPlayer().MoveForward(1);
+                if (current[Keys.S]) GetPlayer().MoveForward(-1);
+                if (current[Keys.A]) GetPlayer().MoveRight(-1);
+                if (current[Keys.D]) GetPlayer().MoveRight(1);
+                               
+                if (current[Keys.Space])
                     player.MoveUp(1);
+
+                if (current[Keys.LeftShift])
+                    player.MoveUp(-1);
+
+                if (current[Keys.Escape])
+                    CursorState = CursorState.Normal;
             }
+
+            previousKeyboardState = current;
 
         }
         protected override void OnKeyUp(KeyboardKeyEventArgs e)
@@ -332,7 +356,10 @@ namespace Vox
 
             _controller.MouseScroll(e.Offset);
         }
-
+        public static long GetMenuSeed()
+        {
+            return menuSeed;
+        }
         private void RenderUI()
         {
             ImGuiIOPtr ioptr = ImGui.GetIO();
@@ -407,7 +434,7 @@ namespace Vox
                             {
                                 try
                                 {
-                                    Directory.Delete(folder);
+                                    Directory.Delete(folder, true);
                                 }
                                 catch (Exception e1)
                                 {
@@ -480,7 +507,7 @@ namespace Vox
 
                 ImGui.Text("Position: X:" + GetPlayer().GetPosition().X + " Y:" + GetPlayer().GetPosition().Y + " Z:" + GetPlayer().GetPosition().Z);
                 ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
-                ImGui.Text("Cursor Position: " + Cursor.X + ", " + Cursor.Y);
+
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -489,8 +516,8 @@ namespace Vox
 
                 ImGui.Text("Region: " + GetPlayer().GetRegionWithPlayer().ToString());
                 ImGui.Text(GetPlayer().GetChunkWithPlayer().ToString());
-                ImGui.Text("Chunk Cache Size: " + (RegionManager.RENDER_DISTANCE + RegionManager.RENDER_DISTANCE + 1)
-                    * (RegionManager.RENDER_DISTANCE + RegionManager.RENDER_DISTANCE + 1));
+                ImGui.Text("Chunk Cache Size: " + (RegionManager.GetRenderDistance() + RegionManager.GetRenderDistance() + 1)
+                    * (RegionManager.GetRenderDistance() + RegionManager.GetRenderDistance() + 1));
 
                 string str = "Visible Regions:\n";
                 foreach (Region r in ChunkCache.GetRegions())
@@ -504,7 +531,7 @@ namespace Vox
                 ImGui.PopStyleColor();
 
                 ImGui.Text("FPS: " + fps);
-                ImGui.Text("Memory: " + Utils.FormatSize(GC.GetTotalMemory(false)) + "/" + Utils.FormatSize(GC.GetTotalMemory(true)));
+                ImGui.Text("Memory: " + Utils.FormatSize(Process.GetCurrentProcess().WorkingSet64) + "/" + Utils.FormatSize(Process.GetCurrentProcess().PrivateMemorySize64));
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -527,14 +554,14 @@ namespace Vox
             GL.BindVertexArray(vao);
 
             //Vertices
-            float[] vertexBuffer = c.GetVertices();
+            float[] vertexBuffer = menuChunk.GetVertices();
 
             // Create VBO upload the vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
             GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * sizeof(float), vertexBuffer, BufferUsageHint.StaticDraw);
 
             //Elements
-            int[] elementBuffer = c.GetElements();
+            int[] elementBuffer = menuChunk.GetElements();
 
             // Create EBO upload the element buffer;
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
@@ -581,7 +608,7 @@ namespace Vox
         }
 
 
-        private void RenderWorld()
+        private static void RenderWorld()
         {
 
             /*====================================
@@ -593,21 +620,13 @@ namespace Vox
                 globalPlayerChunk = new Chunk().Initialize(player.GetChunkWithPlayer().GetLocation().X + RegionManager.CHUNK_BOUNDS,
                      player.GetChunkWithPlayer().GetLocation().Z);
 
-            //playerRegion will be null when world first loads
-            if (globalPlayerRegion == null)
-            {
-                globalPlayerRegion = player?.GetRegionWithPlayer();
-                RegionManager.EnterRegion(globalPlayerRegion);
-            }
-
             //Updates the chunks to render when the player has moved into a new chunk
             List<Chunk> chunksToRender = ChunkCache.GetChunksToRender();
             if (!player.GetChunkWithPlayer().Equals(globalPlayerChunk))
             {
-
+                RegionManager.UpdateVisibleRegions();
                 globalPlayerChunk = player.GetChunkWithPlayer();
                 ChunkCache.SetPlayerChunk(globalPlayerChunk);
-                ChunkCache.ReRender(true);
 
                 chunksToRender = ChunkCache.GetChunksToRender();
 
@@ -615,7 +634,7 @@ namespace Vox
                 if (!player.GetRegionWithPlayer().Equals(globalPlayerRegion))
                 {
                     globalPlayerRegion = player.GetRegionWithPlayer();
-                    loadedWorld.UpdateVisibleRegions();
+                  //  RegionManager.UpdateVisibleRegions();
                 }
             }
             //=========================================================================
@@ -623,6 +642,7 @@ namespace Vox
             //Per chunk primitive information calculated in thread pool and later sent to GPU for drawing
             ConcurrentBag<RenderTask> renderTasks = [];
             CountdownEvent countdown = new(chunksToRender.Count);
+            object lockObj = new();
             foreach (Chunk c in chunksToRender)
             {
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
@@ -633,10 +653,6 @@ namespace Vox
             }
            countdown.Wait();
            
-            /*======================================================
-            Getting vertex and element information for rendering
-            ========================================================*/
-
             /*======================================================
             Getting vertex and element information for rendering
             ========================================================*/

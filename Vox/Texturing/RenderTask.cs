@@ -1,4 +1,4 @@
-﻿
+﻿using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Genesis;
 
@@ -18,19 +18,47 @@ namespace Vox.Texturing
      * @param modelMatrix The chunks model matrix to use for rendering
      */
 
-    public class RenderTask(Chunk chunk, List<float> vertexData, List<int> elementData, int vbo, int ebo, int vao, Matrix4 modelMatrix)
+    [MessagePackObject]
+    public class RenderTask
     {
-        private readonly float[] vertexData = [.. vertexData];
-        private readonly int[] elementData = [.. elementData];
-        private readonly Matrix4 modelMatrix = modelMatrix;
 
+        [Key(0)]
+        public List<float> vertexData;
+            
+        [Key(1)]        
+        public List<int> elementData;
+
+        [Key(2)]
+        public int vbo;
+
+        [Key(3)]
+        public int ebo;
+
+        [Key(4)]
+        public int vao;
+
+
+        
+        private Matrix4 modelMatrix;
+
+        [SerializationConstructor]
+        public RenderTask(List<float> vertexData, List<int> elementData, int vbo, int ebo, int vao) 
+        { 
+            this.vertexData = vertexData;
+            this.elementData = elementData;
+            this.vbo = vbo;
+            this.ebo = ebo;
+            this.vao = vao;
+            modelMatrix = Chunk.GetModelMatrix();
+
+        }
         public float[] GetVertexData()
         {
-            return vertexData;
+            return [.. vertexData];
         }
         public int[] GetElementData()
         {
-            return elementData;
+            return [.. elementData];
         }
         public int GetVbo()
         {
@@ -48,16 +76,14 @@ namespace Vox.Texturing
         {
             return modelMatrix;
         }
-        public Chunk GetChunk() { return chunk; }
 
         public override string ToString()
         {
-            return $"   {chunk}, \n" +
-                   $"    VBO: {vbo},\n " +
+            return $"    VBO: {vbo},\n " +
                    $"   EBO: {ebo},\n " +
                    $"   VAO:{vao},\n " +
-                   $"   Vertex Length: {vertexData.Length},\n" +
-                   $"    Elements: {elementData.Length}\n"; 
+                   $"   Vertex Length: {vertexData.Count},\n" +
+                   $"    Elements: {elementData.Count}\n";
         }
     }
 

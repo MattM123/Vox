@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using MessagePack;
 using Newtonsoft.Json;
 using OpenTK.Mathematics;
 
@@ -8,14 +9,13 @@ namespace Vox.Genesis
     public class RegionManager : List<Region>
     {
         public static List<Region> VisibleRegions = new();
-        private static string worldDir;
+        private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 400;
-        public static readonly int RENDER_DISTANCE = 10;
+        private static int RENDER_DISTANCE = 10;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
-        public static readonly long WORLD_SEED = 8867534524;
-        private static Thread regionWriterThread;
-
+        public static long WORLD_SEED;
+        private static object lockObj = new();
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -26,20 +26,19 @@ namespace Vox.Genesis
          */
         public RegionManager(string path)
         {
-            try
-            {
-                worldDir = path;
-                Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
+            worldDir = path;
+            WORLD_SEED = path.GetHashCode();
+            Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
 
             ChunkCache.SetBounds(CHUNK_BOUNDS);
             ChunkCache.SetRenderDistance(RENDER_DISTANCE);
         }
 
+        public static void SetRenderDistance(int i)
+        {
+            RENDER_DISTANCE = i;
+        }
+        public static int GetRenderDistance() { return RENDER_DISTANCE; }
         /**
          * Removes a region from the visible regions once a player leaves a region and
          * their render distance no longer overlaps it. Writes region to file in the process
@@ -49,57 +48,15 @@ namespace Vox.Genesis
          */
         public static void LeaveRegion(Region r)
         {
-            try
-            {
-                List<string> fileList = Directory.EnumerateFiles(worldDir + "\\regions\\").ToList();
-                string? file = fileList.Find(filename => filename.Equals(r.GetBounds().X + "." + r.GetBounds().Y + ".dat"));
 
+            WriteRegion(r);
+            Logger.Info($"Writing {r}");
+            VisibleRegions.Remove(r);
 
-                //Writes region to file and removes from visibility
-                ParameterizedThreadStart threadStart = new((r) =>
-                {
-                  //  WriteRegion(r);
-                });
-                if (regionWriterThread == null)
-                    regionWriterThread = new Thread(threadStart);
-
-               // regionWriterThread.Start(threadStart);
-               // regionWriterThread.Join();
-
-                // Remove the region from the VisibleRegions list
-                VisibleRegions.Remove(r);
-                Logger.Debug("[Exiting Region2] " + r);
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
+            //mark for garbage collection
+            r = null;
         }
 
-        public static void WriteRegion(object r)
-        {
-            // Serialize the object to JSON
-            string json = JsonConvert.SerializeObject(r);
-
-            if (r.GetType() == typeof(Region))
-            {
-                Region region = (Region)r;
-                // Write the JSON to the file
-                File.WriteAllText(Path.Combine(worldDir, "regions", $"{region.GetBounds().X}.{region.GetBounds().Y}.dat"), json);
-                Logger.Debug($"Writing {r} to file");
-            } else
-            {
-                Logger.Debug($"Tried to write object of type {r.GetType()} and failed");
-            }
-        }
-        public static Region? ReadRegion(string path)
-        {
-            // Serialize the object to JSON
-            Region? json = JsonConvert.DeserializeObject<Region>("Region");
-
-            return json;
-
-        }
         /**
          * Generates or loads an already generated region from filesystem when the players
          * render distance intersects with the regions bounds.
@@ -108,52 +65,35 @@ namespace Vox.Genesis
         {
             //If region is already visible
             if (VisibleRegions.Contains(r))
-            {
                 return r;
-            }
 
             //Gets region from files if it's written to file but not visible
-            try
-            {
-                //Check if region is already in files
-                Directory.CreateDirectory(worldDir + "\\regions\\");
-                List<string> fileList = Directory.EnumerateFiles(worldDir + "\\regions\\").ToList();
-                string? file = fileList.Find(filename => filename.Equals(r.GetBounds().X + "." + r.GetBounds().Y + ".dat"));
-
-
-                if (fileList.Count > 0 && file != null)
-                {
-
-                    //Reads region from file and adds to visibility
-                    ParameterizedThreadStart threadStart = new((r) =>
-                    {
-                        ReadRegion(file);
-                    });
-                    if (regionWriterThread == null)
-                        regionWriterThread = new Thread(threadStart);
-
-                    regionWriterThread.Start(threadStart);
-                    regionWriterThread.Join();
-
-                    // Remove the region from the VisibleRegions list
-                    VisibleRegions.Remove(r);
-                    Logger.Debug("[Entering Region1] " + r);
-                }
-
-                //if region is not visible and not written to files creates new region
-                else if (file == null)
-                {
-                    VisibleRegions.Add(r);
-                    Logger.Debug("[Entering Region2] " + r);
-                    return r;
-                }
-
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
+            Region region = TryGetRegionFromFile(r.x, r.z);
+            VisibleRegions.Add(region);
             return r;
+
+        }
+
+        public static void WriteRegion(Region r)
+        {
+            string path = Path.Combine(worldDir, "regions", $"{r.GetBounds().X}.{r.GetBounds().Y}.dat");
+
+            byte[] serializedRegion = MessagePackSerializer.Serialize(r);
+            
+            File.WriteAllBytes(path, serializedRegion);
+
+            //mark for garbage collection
+            r = null;
+        }
+
+        public static Region? ReadRegion(string path)
+        {
+            byte[] serializedData = File.ReadAllBytes(path);
+
+            // Deserialize the byte array back into an object
+            Region region = MessagePackSerializer.Deserialize<Region>(serializedData);
+
+            return region;
 
         }
 
@@ -164,20 +104,19 @@ namespace Vox.Genesis
          * system for future use when the player no longer inhabits them.
          *
          */
-        public void UpdateVisibleRegions()
+        public static void UpdateVisibleRegions()
         {
             //Updates regions within render distance
-            //ChunkCache.GetChunksToRender();
             List<Region> updatedRegions = ChunkCache.GetRegions();
 
             if (VisibleRegions.Count > 0)
             {
-                Logger.Debug("[Updating Regions...]");
 
                 //Retrieves from file or generates any region that is visible
                 for (int i = 0; i < updatedRegions.Count; i++)
                 {
-                    if (!VisibleRegions.Contains(updatedRegions[i]))
+                    //Enter region if not found in visible regions
+                   if (!VisibleRegions.Contains(updatedRegions[i]))
                         EnterRegion(updatedRegions[i]);
                 }
 
@@ -185,17 +124,38 @@ namespace Vox.Genesis
                 for (int i = 0; i < VisibleRegions.Count; i++)
                 {
                     if (!updatedRegions.Contains(VisibleRegions[i]))
-                    {
                         LeaveRegion(VisibleRegions[i]);
-                    }
                 }
             }
         }
       
+        /**
+         * Attempts to get a region from file.
+         * Returns an empty region to write later if it theres no file to read.
+         */
+        public static Region TryGetRegionFromFile(int x, int z)
+        {
+            //Check if region is already in files
+            string path = Path.Combine(worldDir, "regions", x + "." + z + ".dat");
+            bool exists = File.Exists(path);
+
+            if (exists)
+            {
+                Logger.Info($"Reading Existing Region at {x},{z}");
+                return ReadRegion(path);
+            }
+            else
+            {
+               
+                Logger.Info($"Generating New Region at   {x},{z}");
+                return new Region(x, z);
+                
+            }
+        }
 
         public static Region GetGlobalRegionFromChunkCoords(int x, int z)
         {
-            Region returnRegion = new(0,0);
+            Region returnRegion = null;
 
             int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
             int xUpperLimit;
@@ -217,14 +177,18 @@ namespace Vox.Genesis
             int regionXCoord = xUpperLimit;
             int regionZCoord = zUpperLimit;
 
-            foreach (Region region in VisibleRegions)
+            lock (lockObj)
             {
-                Rectangle regionBounds = region.GetBounds();
-                if (regionXCoord == regionBounds.X && regionZCoord == regionBounds.Y)
+                foreach (Region region in VisibleRegions)
                 {
-                    returnRegion = region;
+                    if (regionXCoord == region.x && regionZCoord == region.z)
+                    {
+                        returnRegion = region;
+                    }
                 }
             }
+
+            returnRegion ??= new Region(xUpperLimit, zUpperLimit);
 
             return returnRegion;
         }
@@ -234,7 +198,7 @@ namespace Vox.Genesis
             Vector3 chunkLoc = new(x, 0, z);
             foreach (Region region in VisibleRegions)
             {
-                Chunk output = region.BinarySearchChunkWithLocation(0, region.Count - 1, chunkLoc);
+                Chunk output = region.BinarySearchChunkWithLocation(0, region.GetChunks().Count - 1, chunkLoc);
                 if (output != null)
                     return output;
             }

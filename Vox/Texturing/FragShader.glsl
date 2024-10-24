@@ -28,17 +28,22 @@ uniform Material material;
 //We still need the view position.
 uniform vec3 viewPos;
 
+uniform vec3 playerPos;
+uniform int chunkSize;
+uniform int renderDistance;
 
 flat in float fTexLayer;
 in vec3 fnormal;
 in vec2 ftexCoords;
 in vec3 fragPos;
+in vec4 vertexPos;
 
 out vec4 color;
 
 
 void main()
 {
+
     //ambient
     vec3 ambient = light.ambient * material.ambient; //Remember to use the material here.
 
@@ -58,5 +63,6 @@ void main()
     //multiply the light with the object here, instead we do it for each element seperatly. This allows much better control
     //over how each element is applied to different objects.
     vec3 result = ambient + diffuse + specular;
+
     color = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer))) * vec4(result, 1.0);
 }

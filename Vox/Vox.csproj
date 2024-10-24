@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="ImGui.NET" Version="1.91.0.1" />
+    <PackageReference Include="MessagePack" Version="2.5.187" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="OpenTK" Version="4.8.2" />
     <PackageReference Include="StbiSharp" Version="1.2.1" />

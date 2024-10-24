@@ -1,20 +1,15 @@
 ﻿
-using System.Collections.Concurrent;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
-using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace Vox.Genesis
 {
     public class ChunkCache
     {
-        private static int renderDistance = RegionManager.RENDER_DISTANCE;
+        private static int renderDistance = RegionManager.GetRenderDistance();
         private static int bounds = RegionManager.CHUNK_BOUNDS;
         private static Chunk? playerChunk;
-        private static readonly List<Region> regions = [];
+        private static List<Region> regions = [];
         private static int uboModelMatrices;
         private static int maxMatrices = 0;
         private static bool reRenderFlag = false;
@@ -63,7 +58,7 @@ namespace Vox.Genesis
             Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
 
             //Top left quadrant
-            Vector3 TLstart = new Vector3(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
+            Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
             for (int x = (int)TLstart.X; x > TLstart.X - (renderDistance * bounds); x -= bounds)
             {
                 for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
@@ -72,9 +67,8 @@ namespace Vox.Genesis
                 }
             }
 
-
             //Top right quadrant
-            Vector3 TRStart = new Vector3(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
+            Vector3 TRStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
             for (int x = (int)TRStart.X; x < TRStart.X + (renderDistance * bounds); x += bounds)
             {
                 for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
@@ -82,14 +76,9 @@ namespace Vox.Genesis
                     CacheHelper(x, z);
                 }
             }
-        }
-
-        public static void GetOtherQuadrantChunks()
-        {
-            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
 
             //Bottom right quadrant
-            Vector3 BRStart = new Vector3(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
+            Vector3 BRStart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
             for (int x = (int)BRStart.X; x > BRStart.X - (renderDistance * bounds); x -= bounds)
             {
                 for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
@@ -99,7 +88,7 @@ namespace Vox.Genesis
             }
 
             //Bottom left quadrant
-            Vector3 BLStart = new Vector3(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
+            Vector3 BLStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
             for (int x = (int)BLStart.X; x < BLStart.X + (renderDistance * bounds); x += bounds)
             {
                 for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
@@ -108,11 +97,15 @@ namespace Vox.Genesis
                 }
             }
         }
+
         //This gets called A LOT.
         private static void CacheHelper(int x, int z)
         {
             Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords(x, z);
-            Chunk chunk = chunkRegion.GetChunkWithLocation(new Vector3(x, 0, z));
+            Chunk chunk = chunkRegion.GetChunkWithLocation(new(x, 0, z));
+
+            chunks ??= [];
+            regions ??= [];
 
             if (chunk != null)
             {
@@ -124,8 +117,8 @@ namespace Vox.Genesis
                 if (!regions.Contains(region))
                         regions.Add(region);
 
-                    if (!region.Contains(chunk))
-                        region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+                    if (!region.GetChunks().Contains(chunk))
+                        region.BinaryInsertChunkWithLocation(0, region.GetChunks().Count - 1, chunk.GetLocation());
                     
             }
             else
@@ -138,7 +131,7 @@ namespace Vox.Genesis
                     chunks.Add(chunk);
                     
 
-                region.BinaryInsertChunkWithLocation(0, region.Count - 1, chunk.GetLocation());
+                region.BinaryInsertChunkWithLocation(0, region.GetChunks().Count - 1, chunk.GetLocation());
 
                 if (!regions.Contains(region))
                     regions.Add(region);
@@ -198,35 +191,18 @@ namespace Vox.Genesis
         public static List<Chunk> GetChunksToRender()
         {
             chunks.Clear();
+            chunks = null;
 
             regions.Clear();
+            regions = null;
 
-            //CountdownEvent countdown = new CountdownEvent(3);
-            //ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-            //{
-                GetQuadrantChunks();
-            //    countdown.Signal();
-            //}));
-            //ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-            //{
-                GetOtherQuadrantChunks();
-            //    countdown.Signal();
-            // }));
-            // ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-            // {
-                GetCardinalChunks();
-            //     countdown.Signal();
-            // }));
-            // countdown.Wait();   
-
-               if (!chunks.Contains(playerChunk))
-               {
-                   playerChunk.GetRegion().BinaryInsertChunkWithLocation(0, playerChunk.GetRegion().Count - 1, playerChunk.GetLocation());
-                   chunks.Add(playerChunk);
-               }
-
-
-
+            GetQuadrantChunks();
+            GetCardinalChunks();
+            if (!chunks.Contains(playerChunk))
+            {
+                playerChunk.GetRegion().BinaryInsertChunkWithLocation(0, playerChunk.GetRegion().GetChunks().Count - 1, playerChunk.GetLocation());
+                chunks.Add(playerChunk);
+            }
 
             return chunks;
         }

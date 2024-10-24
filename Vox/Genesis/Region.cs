@@ -1,20 +1,33 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Drawing;
+using MessagePack;
 using Vox.Comparator;
 
 namespace Vox.Genesis
 {
-    public class Region(int x, int z) : ChunkManager
+    [MessagePackObject]
+    public class Region : ChunkManager
     {
+        [Key(0)]
+        public int x;
 
-        private readonly Rectangle regionBounds = new(x, z, RegionManager.REGION_BOUNDS, RegionManager.REGION_BOUNDS);
-        private bool didChange = false;
+        [Key(1)]
+        public int z;
 
+        [Key(2)]
+        public bool didChange = false;
+
+        [IgnoreMember]
+        public readonly Rectangle regionBounds;
+
+
+
+        [SerializationConstructor]
+        public Region(int x, int z) {
+            this.x = x;
+            this.z = z;
+            regionBounds = new(x, z, RegionManager.REGION_BOUNDS, RegionManager.REGION_BOUNDS);
+
+        }
         /**
          * Returns true if at least one chunk in a region has changed. If true,
          * the region as a whole is also marked as having changed therefore
@@ -24,9 +37,9 @@ namespace Vox.Genesis
          */
         public bool DidChange()
         {
-            foreach (Chunk c in this)
+            foreach (Chunk c in GetChunks())
             {
-                if (c.ShouldRerender())
+                if (c.DidChange())
                 {
                     didChange = true;
                     break;
@@ -39,78 +52,15 @@ namespace Vox.Genesis
         {
             return regionBounds;
         }
-
-        /**
-         * Writes to file only if the didChange flag of the region is true. This
-         * flag would only be true if at least one chunks didChange flag was also true.
-         */
-        /*
-        @Serial
-        private void writeObject(ObjectOutputStream o)
-        {
-            if (didChange())
-            {
-                writeRegion(o, this);
-                didChange = false;
-            }
-        }
-
-        @Serial
-        private void readObject(ObjectInputStream o)
-        {
-            this.replaceAll(c->readRegion(o).Get(indexOf(c)));
-        }
-
-        private void writeRegion(OutputStream stream, Region r)
-        {
-            System.out.println("Writing " + r);
-
-            Main.executor.execute(()-> {
-                try
-                {
-                    FSTObjectOutput out = Main.GetInstance().GetObjectOutput(stream);
-                    out.writeObject(r, Region.class);
-                    r.clear();
-                } catch (Exception e) {
-                    e.printStackTrace();
-    System.exit(-1);
-                }
-            });
-        }
-
-        private Region readRegion(InputStream stream)
-    {
-
-        AtomicReference<Region> r = new AtomicReference<>();
-        FSTObjectInput in = Main.GetInstance().GetObjectInput(stream);
-
-        try
-        {
-            r.set((Region) in.readObject(Region.class));
-    System.out.println("Reading Region: " + r);
-    stream.close();
-            } catch (Exception e) {
-                logger.warning(e.GetMessage());
-            }
-
-            try
-    { in.close();
-    }
-    catch (Exception e)
-    {
-        e.printStackTrace();
-    }
-
-    return r.Get();
-        }
-        */
-
         public override bool Equals(object? o)
         {
+            if (o == null)
+                return false;
+
             if (o.GetType() == typeof(Region))
             {
-                return regionBounds.X == ((Region)o).regionBounds.X
-                        && regionBounds.Y == ((Region)o).regionBounds.Y;
+                return regionBounds.X.Equals(((Region)o).regionBounds.X)
+                        && regionBounds.Y.Equals(((Region)o).regionBounds.Y);
             }
             return false;
         }
@@ -126,12 +76,12 @@ namespace Vox.Genesis
                 int mid = (low + high) / 2;
 
                 // Check if the middle element is the target
-                if (this[mid].Equals(c))
+                if (GetChunks()[mid].Equals(c))
                 {
                     return true;
                 }
                 // If target is smaller, ignore the right half
-                else if (compare.Compare(this[mid].GetLocation(), c.GetLocation()) == 1)
+                else if (compare.Compare(GetChunks()[mid].GetLocation(), c.GetLocation()) == 1)
                 {
                     Contains(low, mid - 1, c);
                   //  high = mid - 1;
@@ -150,8 +100,8 @@ namespace Vox.Genesis
         public override string ToString()
         {
 
-            if (Count > 0)
-                return "(" + Count + " Chunks) Region[" + regionBounds.X
+            if (GetChunks().Count > 0)
+                return "(" + GetChunks().Count + " Chunks) Region[" + regionBounds.X
                         + ", " + regionBounds.Y + "]";
            else
                 return "(Empty) Region[" + regionBounds.X + ", " + regionBounds.Y + "]";
