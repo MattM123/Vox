@@ -1,11 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection.Metadata;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using ImGuiNET;
-using Newtonsoft.Json.Linq;
 using OpenTK.Graphics.ES11;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -14,6 +13,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.Genesis;
 using Vox.GUI;
 using Vox.Model;
+using Vox.Rendering;
 using Vox.Texturing;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
@@ -38,7 +38,7 @@ namespace Vox
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
         private static ShaderProgram? shaders = null;
-        private static ShaderProgram? depthShader = null;
+        private static ShaderProgram? crosshairShader = null;
         private static Player? player = null;
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
         private static RegionManager? loadedWorld;
@@ -54,11 +54,8 @@ namespace Vox
         private static long menuSeed;
         private float mouseSensitivity = 0.1f;
         private static int vbo, ebo, vao = 0;
-        private static Thread mainThread;
-        private static ConcurrentQueue<Action> mainThreadQueue;
         private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
-        public static float forward = 0f;
-        public static float right = 0f;
+        private static int crosshairTex;
 
         //used for player and lighting projection matrices
         private static float FAR = 500.0f;
@@ -71,8 +68,6 @@ namespace Vox
         protected override void OnLoad()
         {
             base.OnLoad();
-            mainThread = Thread.CurrentThread;
-            mainThreadQueue = new ConcurrentQueue<Action>();
 
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
@@ -86,6 +81,8 @@ namespace Vox
 
             //Load textures and models
             TextureLoader.LoadTextures();
+            crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
+
             ModelLoader.LoadModels();
             menuChunk = new Chunk().Initialize(0, 0);
             menuChunk.GetRenderTask();
@@ -94,11 +91,12 @@ namespace Vox
 
             _controller = new ImGuiController(ClientSize.X, ClientSize.Y);
             shaders = new();
-            depthShader = new();
+            crosshairShader = new();
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
-            
+            GL.Enable(EnableCap.LineSmooth);
+            GL.Hint((OpenTK.Graphics.OpenGL4.HintTarget)HintTarget.LineSmoothHint, (OpenTK.Graphics.OpenGL4.HintMode)HintMode.Nicest);
 
             //Enable primitive restart
             GL.Enable(EnableCap.PrimitiveRestart);
@@ -108,26 +106,28 @@ namespace Vox
             //Shader Compilation
             //========================
 
-            //Load the vertex shader from file
-            string vertexShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\VertexShader.glsl");
+            //Load main vertex shader from file
+            string vertexShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexShader.glsl");
             shaders.CreateVertexShader(vertexShaderSource);
 
-            // Load the fragment shader from file
-            string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\FragShader.glsl");
+            // Load main fragment shader from file
+            string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragShader.glsl");
             shaders.CreateFragmentShader(fragmentShaderSource);
 
-            string vertexShadowShaders = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\VertexShadowShader.glsl");
-            depthShader.CreateVertexShader(vertexShadowShaders);
+            //Load crosshair vertex shaders
+            string vertexCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex_Crosshair.glsl");
+            crosshairShader.CreateVertexShader(vertexCrosshairSource);
 
-            string fragShadowShaders = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Texturing\\FragShader.glsl");
-            depthShader.CreateFragmentShader(fragShadowShaders);
-
+            //Load crosshair frag shaders
+            string fragmentCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Frag_Crosshair.glsl");
+            crosshairShader.CreateFragmentShader(fragmentCrosshairSource);
 
             //Load Textures
             shaders.UploadTexture("texture_sampler", 0);
 
             // Link the shader program
             shaders.Link();
+            crosshairShader.Link();
 
             // Use shader for rendering
             shaders.Bind();
@@ -154,19 +154,21 @@ namespace Vox
 
             shaders.CreateUniform("isMenuRendered");
             shaders.SetIntFloatUniform("isMenuRendered", 1);
-            
-           // Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
-           // Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS,
-            //    RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
 
-            //shaders.CreateUniform("lightSpaceMatrix");
-           // shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
+            shaders.CreateUniform("playerMin");
+            shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+
+            shaders.CreateUniform("playerMax");
+            shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
 
             shaders.CreateUniform("renderDistance");
             shaders.CreateUniform("playerPos");
 
             shaders.CreateUniform("chunkSize");
             shaders.SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS);
+
+            shaders.CreateUniform("crosshairOrtho");
+            shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
             //lightinf uniforms
             shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
@@ -195,13 +197,6 @@ namespace Vox
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
-
-            //Process main thread queue prior to rendering each frame
-            if (!mainThreadQueue.IsEmpty)
-            {
-                foreach (Action action in mainThreadQueue)
-                    action();
-            }
 
             /*==============================
             Update UI input and config
@@ -252,13 +247,18 @@ namespace Vox
 
             //Update player velocity, position, and collision
             if (!IsMenuRendered())
-                GetPlayer().Update((float) args.Time);
+            {
+                GetPlayer().Update((float)args.Time);
+                shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+                shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+            }
 
 
             shaders.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
             
             if (loadedWorld != null)
                 shaders.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
+
 
             /*==================================
              Ambient lighting update
@@ -280,16 +280,6 @@ namespace Vox
             shaders.SetVector3Uniform("light.position", _lightPos);
             shaders.SetVector3Uniform("light.ambient", ambientColor);
             shaders.SetVector3Uniform("light.diffuse", diffuseColor);
-
-            /*==================================
-            Environmental shadow updates
-            ====================================*/
-            //Matrix4 lightViewMatrix = Matrix4.LookAt(_lightPos, player.GetPosition(), Vector3.UnitY);
-            //Matrix4 lightProjectionMatrix = Matrix4.CreateOrthographic(RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS,
-            //    RegionManager.GetRenderDistance() * RegionManager.CHUNK_BOUNDS, NEAR, FAR);
-
-            // shaders.SetMatrixUniform("lightSpaceMatrix", lightProjectionMatrix * lightViewMatrix);
-
 
             if (player != null)
                 _lightPos = new Vector3(GetPlayer().GetPosition().X, 
@@ -316,15 +306,16 @@ namespace Vox
             KeyboardState current = KeyboardState.GetSnapshot();
 
             if (!IsMenuRendered()) {
-                if (current[Keys.W]) GetPlayer().MoveForward(1);
-                if (current[Keys.S]) GetPlayer().MoveForward(-1);
-                if (current[Keys.A]) GetPlayer().MoveRight(-1);
-                if (current[Keys.D]) GetPlayer().MoveRight(1);
+                if (current[Keys.W])// && Math.Sign(GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z))
+                    GetPlayer().MoveForward(1);
+                if (current[Keys.S] && Math.Sign(-GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z)) GetPlayer().MoveForward(-1);
+                if (current[Keys.A] && Math.Sign(-GetPlayer().GetRightDirection().X) != Math.Sign(GetPlayer().GetBlockedDirection().X)) GetPlayer().MoveRight(-1);
+                if (current[Keys.D] && Math.Sign(GetPlayer().GetRightDirection().X) != Math.Sign(GetPlayer().GetBlockedDirection().X)) GetPlayer().MoveRight(1);
                                
-                if (current[Keys.Space])
+                if (current[Keys.Space] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != 1)
                     player.MoveUp(1);
 
-                if (current[Keys.LeftShift])
+                if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     player.MoveUp(-1);
 
                 if (current[Keys.Escape])
@@ -332,7 +323,6 @@ namespace Vox
             }
 
             previousKeyboardState = current;
-
         }
         protected override void OnKeyUp(KeyboardKeyEventArgs e)
         {
@@ -342,6 +332,19 @@ namespace Vox
         protected override void OnMouseMove(MouseMoveEventArgs e)
         {
             base.OnMouseMove(e);
+        }
+
+        protected override void OnMouseDown(MouseButtonEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (!IsMenuRendered())
+            {
+                if (e.Button == MouseButton.Left)
+                {
+                    globalPlayerChunk.AddBlockToChunk(GetPlayer().UpdateViewTarget());
+                }
+            }
+            
         }
 
         protected override void OnTextInput(TextInputEventArgs e)
@@ -507,7 +510,8 @@ namespace Vox
 
                 ImGui.Text("Position: X:" + GetPlayer().GetPosition().X + " Y:" + GetPlayer().GetPosition().Y + " Z:" + GetPlayer().GetPosition().Z);
                 ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
-
+                ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
+                ImGui.Text("Looking At: " + GetPlayer().UpdateViewTarget());
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -554,11 +558,11 @@ namespace Vox
             GL.BindVertexArray(vao);
 
             //Vertices
-            float[] vertexBuffer = menuChunk.GetVertices();
+            Vertex[] vertexBuffer = menuChunk.GetVertices();
 
             // Create VBO upload the vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * sizeof(float), vertexBuffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<Vertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
 
             //Elements
             int[] elementBuffer = menuChunk.GetElements();
@@ -576,24 +580,28 @@ namespace Vox
             int posSize = 3;
             int layerSize = 1;
             int coordSize = 1;
+            int sunlightSize = 1;
             int normalSize = 3;
-            int vertexSizeBytes = (posSize + layerSize + coordSize + normalSize) * sizeof(float);
 
             // Position
-            GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, vertexSizeBytes, 0);
+            GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
             GL.EnableVertexAttribArray(0);
 
             // Texture Layer
-            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize) * sizeof(float));
+            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize) * sizeof(float));
             GL.EnableVertexAttribArray(1);
 
             // Texture Coordinates
-            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize) * sizeof(float));
+            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize) * sizeof(float));
             GL.EnableVertexAttribArray(2);
 
-            // Face Normal
-            GL.VertexAttribPointer(3, normalSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize + coordSize) * sizeof(float));
+            // Sunlight
+            GL.VertexAttribPointer(3, sunlightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize) * sizeof(float));
             GL.EnableVertexAttribArray(3);
+
+            // Sunlight
+            GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize) * sizeof(float));
+            GL.EnableVertexAttribArray(4);
 
             /*==================================
             Drawing
@@ -604,12 +612,12 @@ namespace Vox
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
-            
         }
 
-
+ 
         private static void RenderWorld()
         {
+            RenderBlockTarget();
 
             /*====================================
                 Chunk and Region check
@@ -632,10 +640,7 @@ namespace Vox
 
                 //Updates the regions when player moves into different region
                 if (!player.GetRegionWithPlayer().Equals(globalPlayerRegion))
-                {
                     globalPlayerRegion = player.GetRegionWithPlayer();
-                  //  RegionManager.UpdateVisibleRegions();
-                }
             }
             //=========================================================================
 
@@ -648,10 +653,11 @@ namespace Vox
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
                     renderTasks.Add(c.GetRenderTask());
+               
                     countdown.Signal();
                 }));
             }
-           countdown.Wait();
+            countdown.Wait();
            
             /*======================================================
             Getting vertex and element information for rendering
@@ -665,24 +671,28 @@ namespace Vox
                 int posSize = 3;
                 int layerSize = 1;
                 int coordSize = 1;
+                int sunlightSize = 1;
                 int normalSize = 3;
-                int vertexSizeBytes = (posSize + layerSize + coordSize + normalSize) * sizeof(float);
 
                 // Position
-                GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, vertexSizeBytes, 0);
+                GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
                 GL.EnableVertexAttribArray(0);
 
                 // Texture Layer
-                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize) * sizeof(float));
+                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize) * sizeof(float));
                 GL.EnableVertexAttribArray(1);
 
                 // Texture Coordinates
-                GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize) * sizeof(float));
+                GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize) * sizeof(float));
                 GL.EnableVertexAttribArray(2);
 
-                // Face Normal
-                GL.VertexAttribPointer(3, normalSize, VertexAttribPointerType.Float, false, vertexSizeBytes, (posSize + layerSize + coordSize) * sizeof(float));
+                // Sunlight
+                GL.VertexAttribPointer(3, sunlightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize) * sizeof(float));
                 GL.EnableVertexAttribArray(3);
+
+                // Sunlight
+                GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize) * sizeof(float));
+                GL.EnableVertexAttribArray(4);
 
                 int vbo = renderTask.GetVbo();
                 int ebo = renderTask.GetEbo();
@@ -691,7 +701,7 @@ namespace Vox
 
 
                 //Gets chunk data from previously submitted Future
-                float[] vertices = renderTask.GetVertexData();
+                Vertex[] vertices = renderTask.GetVertexData();
                 int[] elements = renderTask.GetElementData();
 
                 //Sends chunk data to GPU for drawing
@@ -702,11 +712,11 @@ namespace Vox
                     ====================================*/
 
                     //Vertices
-                    float[] vertexBuffer = vertices;
+                    Vertex[] vertexBuffer = vertices;
 
                     // Create VBO upload the vertex buffer
                     GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-                    GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * sizeof(float), vertexBuffer, BufferUsageHint.StaticDraw);
+                    GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<Vertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
 
                     //Elements
                     int[] elementBuffer = elements;
@@ -719,16 +729,60 @@ namespace Vox
                     Drawing
                     ====================================*/
 
-                    GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
+                    GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);                   
                 }
+            }
+
+        }
+
+        public static void RenderBlockTarget()
+        {
+            /*==================================
+          Render View Target Block Outline
+          ====================================*/
+            Vertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
+            GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+
+            if (viewBlockVertices.Length > 0)
+            {
+
+                int viewVBO = GL.GenBuffer();
+
+                // Bind and upload vertex data
+                GL.BindBuffer(BufferTarget.ArrayBuffer, viewVBO);
+                GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<Vertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
+
+
+                //Draw the view target outline
+                GL.DrawElements(PrimitiveType.Lines, 24, DrawElementsType.UnsignedInt, 0);
+
             }
         }
 
+        public static Chunk GetGlobalChunk()
+        {
+            if (globalPlayerChunk == null)
+                return new Chunk().Initialize(0, 0);
+            return globalPlayerChunk;
+        }
+        private static float[] GetCrosshair()
+        {
+            return [
+                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 - 13.5f, 0, 0,
+                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 - 13.5f, 1, 0,
+                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 + 13.5f, 1, 1,
+
+                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 - 13.5f, 0, 0,
+                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 + 13.5f, 1, 0,
+                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 + 13.5f, 1, 1,
+            ];
+        }
         protected override void OnClosing(CancelEventArgs e)
         {
             base.OnClosing(e);
 
             shaders?.Cleanup();
+            crosshairShader?.Cleanup();
             TextureLoader.Unbind();
         }
 
@@ -736,13 +790,15 @@ namespace Vox
         {
             base.OnResize(e);
 
+            //Update ortho matrix for crosshair on window resize
+            shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
+
             // Update the opengl viewport
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             float FAR = 3000.0f;
             float NEAR = 0.01f;
 
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)e.Width / e.Height, NEAR, FAR);
-
             shaders?.SetMatrixUniform("projectionMatrix", pMatrix);
 
             // Tell ImGui of the new size
@@ -762,10 +818,6 @@ namespace Vox
         public static ShaderProgram GetShaders()
         {
             return shaders;
-        }
-        public static ConcurrentQueue<Action> GetMainThreadQueue()
-        {
-            return mainThreadQueue;
         }
         static void Main()
         {

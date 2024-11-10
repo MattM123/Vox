@@ -1,6 +1,7 @@
 ﻿using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Genesis;
+using Vox.Rendering;
 
 namespace Vox.Texturing
 {
@@ -23,7 +24,7 @@ namespace Vox.Texturing
     {
 
         [Key(0)]
-        public List<float> vertexData;
+        public List<Vertex> vertexData;
             
         [Key(1)]        
         public List<int> elementData;
@@ -36,13 +37,11 @@ namespace Vox.Texturing
 
         [Key(4)]
         public int vao;
-
-
         
         private Matrix4 modelMatrix;
 
         [SerializationConstructor]
-        public RenderTask(List<float> vertexData, List<int> elementData, int vbo, int ebo, int vao) 
+        public RenderTask(List<Vertex> vertexData, List<int> elementData, int vbo, int ebo, int vao) 
         { 
             this.vertexData = vertexData;
             this.elementData = elementData;
@@ -52,7 +51,7 @@ namespace Vox.Texturing
             modelMatrix = Chunk.GetModelMatrix();
 
         }
-        public float[] GetVertexData()
+        public Vertex[] GetVertexData()
         {
             return [.. vertexData];
         }

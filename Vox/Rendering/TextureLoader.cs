@@ -1,16 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
-using System.IO;
-using System.Drawing;
-using Vox.Model;
-using Newtonsoft.Json.Linq;
-using Newtonsoft.Json;
-
 namespace Vox.Texturing
 {
     public class TextureLoader
@@ -28,12 +18,13 @@ namespace Vox.Texturing
         {
 
             Directory.CreateDirectory(assets + "Textures");
+            Directory.CreateDirectory(assets + "BlockTextures");
         }
 
         public static int LoadTextures()
         {
-            string[] tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
-            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
+            string[] tex = Directory.EnumerateFiles(assets + "BlockTextures").ToArray();
+            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockTextures").ToArray();
 
             width = 16;
             height = 16;
@@ -43,17 +34,17 @@ namespace Vox.Texturing
             //========================
 
             //Copies textures into foler if not present
-            if (tex.Length == 0)
+            if (tex.Length != projTex.Length)
             {
                 numLayers = projTex.Length;
                 Logger.Info("Reloading default textures");
                 for (int i = 0; i < projTex.Length; i++)
                 {
-                    File.Copy(projTex[i], assets + "Textures\\" + Path.GetFileName(projTex[i]));
+                    File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])));
                     Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
                 }
                 //update int value
-                tex = Directory.EnumerateFiles(assets + "Textures").ToArray();
+                tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
             }
             numLayers = tex.Length;
 
@@ -107,6 +98,23 @@ namespace Vox.Texturing
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
 
+            string[] tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
+            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
+            
+            //Copies textures into foler if not present
+            if (tex.Length != projTex.Length)
+            {
+                numLayers = projTex.Length;
+                Logger.Info("Reloading default textures");
+                for (int i = 0; i < projTex.Length; i++)
+                {
+                    File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])));
+                    Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
+                }
+                //update int value
+                tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
+            }
+
             // Here we open a stream to the file and pass it to StbImageSharp to load.
             using (Stream stream = File.OpenRead(path))
             {
@@ -135,8 +143,8 @@ namespace Vox.Texturing
             // You could also use (amongst other options) Nearest, which just grabs the nearest pixel, which makes the texture look pixelated if scaled too far.
             // NOTE: The default settings for both of these are LinearMipmap. If you leave these as default but don't generate mipmaps,
             // your image will fail to render at all (usually resulting in pure black instead).
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
 
             // Now, set the wrapping mode. S is for the X axis, and T is for the Y axis.
             // We set this to Repeat so that textures will repeat when wrapped. Not demonstrated here since the texture coordinates exactly match

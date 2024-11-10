@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OpenTK.Compute.OpenCL;
+﻿
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using Vox.Exceptions;
 
-namespace Vox
+namespace Vox.Rendering
 {
     public class ShaderProgram
     {
@@ -58,7 +53,7 @@ namespace Vox
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             if (uniformLocation < 0)
                 uniforms.Add(uniformName, uniformLocation);
-            else     
+            else
                 Logger.Debug("ShaderProgram.CreateUniform - Uniform already exists: " + uniformName);
         }
 
@@ -98,7 +93,7 @@ namespace Vox
         public string GetProgramLog()
         {
             int[] maxlen = new int[1];
-           // string log;
+            // string log;
 
             GL.GetProgram(programId, GetProgramParameterName.InfoLogLength, maxlen);
             GL.GetProgramInfoLog(programId);//, maxlen[0], out int len, out log);
@@ -119,7 +114,7 @@ namespace Vox
             GL.GetShader(shaderId, ShaderParameter.CompileStatus, out status);
 
             // Check for compilation errors
-            if (status != (int) All.True)
+            if (status != (int)All.True)
                 Logger.Error(new Exception("ShaderProgram.CreateShader - Failed to compile shader:\n" + GL.GetShaderInfoLog(shaderId)));
             else
                 Logger.Debug("ShaderProgram.CreateShader - Successfully compiled " + shaderType.ToString());
@@ -129,7 +124,7 @@ namespace Vox
             int[] shaders = new int[10];
             GL.GetAttachedShaders(programId, 10, out int count, shaders);
 
-            Logger.Debug("ShaderProgram.CreateShader - There are " +  count + " attached shaders");
+            Logger.Debug("ShaderProgram.CreateShader - There are " + count + " attached shaders");
 
             return shaderId;
         }
@@ -146,13 +141,14 @@ namespace Vox
                 int status = linkStatus[0]; // Access the value from the array
 
                 // Check if linking was successful
-                if (status != (int) All.True)
+                if (status != (int)All.True)
                 {
                     if (vertexShaderId != 0)
                     {
                         GL.DetachShader(programId, vertexShaderId);
                         GL.DeleteShader(vertexShaderId);
-                    } else
+                    }
+                    else
                     {
                         Logger.Debug("Successfully linked vertex shader with status " + status);
                     }
@@ -162,13 +158,13 @@ namespace Vox
                         GL.DetachShader(programId, fragmentShaderId);
                         GL.DeleteShader(fragmentShaderId);
                     }
-                    else 
+                    else
                         Logger.Debug("Successfully linked fragment shader with status " + status);
 
                     Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
                     Logger.Debug(GetProgramLog());
                 }
-                
+
 
                 // Validate the shader program
                 GL.ValidateProgram(programId);
@@ -182,7 +178,7 @@ namespace Vox
                 {
                     Logger.Error(new ShaderException("Failed to validate program with status " + status + "\nError Code: " + GL.GetError()));
                 }
-                
+
             }
             catch (Exception e)
             {

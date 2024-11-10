@@ -1,6 +1,6 @@
 {
   "parent": "cube_all",
   "textures": {
-      "all": "dirt"
+    "all": "test"
   }
 }

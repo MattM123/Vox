@@ -12,7 +12,7 @@ namespace Vox.Model
     public class BlockModel
     {
 
-        private Dictionary<string, string> textures = [];
+        private Dictionary<Face, string> textures = [];
         private readonly List<Element> elements = [];
         BlockModel parentModel;
 
@@ -36,7 +36,7 @@ namespace Vox.Model
                 parentModel = new BlockModel();
             }
 
-            textures = new Dictionary<string, string>(parentModel.textures);
+            textures = new Dictionary<Face, string>(parentModel.textures);
             elements = new List<Element>(parentModel.elements);
 
 
@@ -44,7 +44,10 @@ namespace Vox.Model
             {
                 foreach (var texture in jsonTextures)
                 {
-                    textures[texture.Key] = texture.Value.ToString();
+                    Face face;
+                    Enum.TryParse(texture.Key, true, out face);
+
+                    textures[face] = texture.Value.ToString();
                 }
             }
 
@@ -65,24 +68,25 @@ namespace Vox.Model
             }
 
             //Map parent texture references to child model textures
-            foreach (string key in textures.Keys)
+            foreach (Face key in textures.Keys)
             {
-                if (textures.TryGetValue("all", out string? all))
+
+                if (textures.TryGetValue(Face.ALL, out string? all))
                 {
                     if (textures[key] == "#all")
                         textures[key] = all;
                 }
-                if (textures.TryGetValue("top", out string? top))
+                if (textures.TryGetValue(Face.TOP, out string? top))
                 {
                     if (textures[key] == "#top")
                         textures[key] = top;
                 }
-                if (textures.TryGetValue("bottom", out string? bottom))
+                if (textures.TryGetValue(Face.BOTTOM, out string? bottom))
                 {
                     if (textures[key] == "#bottom")
                         textures[key] = bottom;
                 }
-                if (textures.TryGetValue("side", out string? side))
+                if (textures.TryGetValue(Face.SIDE, out string? side))
                 {
                     if (textures[key] == "#side")
                     {
@@ -95,14 +99,13 @@ namespace Vox.Model
             }
         }
 
-        public Texture GetTexture(string side)
+        public Texture GetTexture(Face side)
         {
-            Texture output = Texture.GRASS_FULL;
-            Enum.TryParse(textures[side], true, out output);
+            Enum.TryParse(textures[side], true, out Texture output);
             return output;
         }
 
-        public Dictionary<string, string> GetTextures()
+        public Dictionary<Face, string> GetTextures()
         {
             return textures;
         }
@@ -163,7 +166,7 @@ namespace Vox.Model
         public override string ToString()
         {
             string tex = "";
-            foreach (KeyValuePair<string, string> t in textures)
+            foreach (KeyValuePair<Face, string> t in textures)
             {
                 tex += $"[{t.Key}, {t.Value}]\n";
             }

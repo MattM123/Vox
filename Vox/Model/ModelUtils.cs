@@ -2,6 +2,8 @@
 
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using Vox.Genesis;
+using Vox.Rendering;
 
 namespace Vox.Model
 {
@@ -9,7 +11,8 @@ namespace Vox.Model
     {
 
         //Gets face vertices ready to send to the shaders for rendering
-        public static float[] GetCuboidFace(BlockModel model, string face)
+        /*
+        public static Vertex[] GetCuboidFace(BlockModel model, string face)
         {
             BlockModel model90 = model.RotateX(90);
             BlockModel model180 = model.RotateX(180);
@@ -27,13 +30,13 @@ namespace Vox.Model
                 {
                     Vector3 normal = CalculateNormal(new Vector3(modelEle90.x1, modelEle90.y1, modelEle90.z1), new Vector3(modelEle.x1, modelEle.y1, modelEle.z1) , 
                         new Vector3(modelEle180.x1, modelEle180.y1, modelEle180.z1));
-
+ 
                     return [
-                        //Position (X, Y, Z)                                 Texture Layer                  Tex Coord Idx | Normal X, Y , Z
-                        modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float)model90.GetTexture("south"),   3f,      normal.X, normal.Y, normal.Z,    //top right                      
-                        modelEle.x1, modelEle.y1, modelEle.z1,               (float)model.GetTexture("south"),     2f,      normal.X, normal.Y, normal.Z,    //top left
-                        modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float)model180.GetTexture("south"),  1f,      normal.X, normal.Y, normal.Z,    //bottom right     
-                        modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float)model270.GetTexture("south"),  0f,      normal.X, normal.Y, normal.Z,    //bottom left
+                        //Position (X, Y, Z)                                        Texture Layer                  Tex Coord Idx | Normal X, Y , Z
+                        new Vertex(modelEle90.x1, modelEle90.y1, modelEle90.z1,     model90.GetTexture(Face.SOUTH),   3,              normal.X, normal.Y, normal.Z),    //top right                      
+                        new Vertex(modelEle.x1, modelEle.y1, modelEle.z1,           model.GetTexture(Face.SOUTH),     2,              normal.X, normal.Y, normal.Z),    //top left
+                        new Vertex(modelEle180.x1, modelEle180.y1, modelEle180.z1,  model180.GetTexture(Face.SOUTH),  1,              normal.X, normal.Y, normal.Z),    //bottom right     
+                        new Vertex(modelEle270.x1, modelEle270.y1, modelEle270.z1,  model270.GetTexture(Face.SOUTH),  0,              normal.X, normal.Y, normal.Z),    //bottom left
                     ];                                                                                                      
                 }                                                                                                           
                 case "north":                                                                                               
@@ -43,10 +46,10 @@ namespace Vox.Model
                         new Vector3(modelEle180.x2, modelEle180.y2, modelEle180.z2));
 
                     return [                                                                                                
-                        modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float)model270.GetTexture("north"),  3f,      normal.X, normal.Y, normal.Z,
-                        modelEle.x2, modelEle.y2, modelEle.z2,               (float)model.GetTexture("north"),     1f,      normal.X, normal.Y, normal.Z,
-                        modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float)model180.GetTexture("north"),  2f,      normal.X, normal.Y, normal.Z,
-                        modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float)model90.GetTexture("north"),   0f,      normal.X, normal.Y, normal.Z,
+                       new Vertex(modelEle270.x2, modelEle270.y2, modelEle270.z2,   model270.GetTexture(Face.NORTH),  3,      normal.X, normal.Y, normal.Z),
+                       new Vertex(modelEle.x2, modelEle.y2, modelEle.z2,            model.GetTexture(Face.NORTH),     1,      normal.X, normal.Y, normal.Z),
+                       new Vertex(modelEle180.x2, modelEle180.y2, modelEle180.z2,   model180.GetTexture(Face.NORTH),  2,      normal.X, normal.Y, normal.Z),
+                       new Vertex(modelEle90.x2, modelEle90.y2, modelEle90.z2,      model90.GetTexture(Face.NORTH),   0,      normal.X, normal.Y, normal.Z),
                     ];                                                                                                      
                 }                                                                                                           
                 case "top":                                                                                                 
@@ -56,10 +59,10 @@ namespace Vox.Model
                         new Vector3(modelEle270.x1, modelEle270.y1, modelEle270.z1));
 
                     return [                                                                                                
-                        modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float)model180.GetTexture("up"),     3f,      normal.X, normal.Y, normal.Z,
-                        modelEle.x2, modelEle.y2, modelEle.z2,               (float)model.GetTexture("up"),        1f,      normal.X, normal.Y, normal.Z,
-                        modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float)model270.GetTexture("up"),     2f,      normal.X, normal.Y, normal.Z,
-                        modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float)model90.GetTexture("up"),      0f,      normal.X, normal.Y, normal.Z,
+                        new Vertex(modelEle180.x1, modelEle180.y1, modelEle180.z1,  model180.GetTexture(Face.UP),     3,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle.x2, modelEle.y2, modelEle.z2,           model.GetTexture(Face.UP),        1,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle270.x1, modelEle270.y1, modelEle270.z1,  model270.GetTexture(Face.UP),     2,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle90.x2, modelEle90.y2, modelEle90.z2,     model90.GetTexture(Face.UP),      0,      normal.X, normal.Y, normal.Z),
                                                                                                                             
                     ];                                                                                                      
                 }                                                                                                           
@@ -68,12 +71,12 @@ namespace Vox.Model
                 {
                     Vector3 normal = CalculateNormal(new Vector3(modelEle90.x1, modelEle90.y1, modelEle90.z1), new Vector3(modelEle270.x2, modelEle270.y2, modelEle270.z2),
                         new Vector3(modelEle.x1, modelEle.y1, modelEle.z1));
-
+                         
                     return [                                                                                                
-                        modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float)model90.GetTexture("down"),    3f,      normal.X, normal.Y, normal.Z,
-                        modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float)model270.GetTexture("down"),   1f,      normal.X, normal.Y, normal.Z,
-                        modelEle.x1, modelEle.y1, modelEle.z1,               (float)model.GetTexture("down"),      2f,      normal.X, normal.Y, normal.Z,
-                        modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float)model180.GetTexture("down"),   0f,      normal.X, normal.Y, normal.Z,
+                        new Vertex(modelEle90.x1, modelEle90.y1, modelEle90.z1,     model90.GetTexture(Face.DOWN),    3,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle270.x2, modelEle270.y2, modelEle270.z2,  model270.GetTexture(Face.DOWN),   1,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle.x1, modelEle.y1, modelEle.z1,           model.GetTexture(Face.DOWN),      2,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle180.x2, modelEle180.y2, modelEle180.z2,  model180.GetTexture(Face.DOWN),   0,      normal.X, normal.Y, normal.Z),
                                                                                                                             
                     ];                                                                                                      
                 }                                                                                                           
@@ -84,10 +87,10 @@ namespace Vox.Model
                         new Vector3(modelEle180.x2, modelEle180.y2, modelEle180.z2));
 
                     return [                                                                                                
-                        modelEle90.x2, modelEle90.y2, modelEle90.z2,         (float)model90.GetTexture("west"),    0f,      normal.X, normal.Y, normal.Z,
-                        modelEle270.x1, modelEle270.y1, modelEle270.z1,      (float)model270.GetTexture("west"),   1f,      normal.X, normal.Y, normal.Z,
-                        modelEle180.x2, modelEle180.y2, modelEle180.z2,      (float)model180.GetTexture("west"),   2f,      normal.X, normal.Y, normal.Z,
-                        modelEle.x1, modelEle.y1, modelEle.z1,               (float)model.GetTexture("west"),      3f,      normal.X, normal.Y, normal.Z,
+                        new Vertex(modelEle90.x2, modelEle90.y2, modelEle90.z2,     model90.GetTexture(Face.WEST),    0,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle270.x1, modelEle270.y1, modelEle270.z1,  model270.GetTexture(Face.WEST),   1,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle180.x2, modelEle180.y2, modelEle180.z2,  model180.GetTexture(Face.WEST),   2,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle.x1, modelEle.y1, modelEle.z1,           model.GetTexture(Face.WEST),      3,      normal.X, normal.Y, normal.Z),
                                                                                                                             
                     ];                                                                                                      
                 }                                                                                                           
@@ -97,28 +100,38 @@ namespace Vox.Model
                     Vector3 normal = CalculateNormal(new Vector3(modelEle90.x1, modelEle90.y1, modelEle90.z1), new Vector3(modelEle270.x2, modelEle270.y2, modelEle270.z2),
                         new Vector3(modelEle180.x1, modelEle180.y1, modelEle180.z1));
 
-                    return [                                                                                                
-                        modelEle90.x1, modelEle90.y1, modelEle90.z1,         (float)model90.GetTexture("east"),    2f,      normal.X, normal.Y, normal.Z,
-                        modelEle270.x2, modelEle270.y2, modelEle270.z2,      (float)model270.GetTexture("east"),   3f,      normal.X, normal.Y, normal.Z,
-                        modelEle180.x1, modelEle180.y1, modelEle180.z1,      (float)model180.GetTexture("east"),   0f,      normal.X, normal.Y, normal.Z,
-                        modelEle.x2, modelEle.y2, modelEle.z2,               (float)model.GetTexture("east"),      1f,      normal.X, normal.Y, normal.Z,
+                    return [                                                                                     
+                        new Vertex(modelEle90.x1, modelEle90.y1, modelEle90.z1,     model90.GetTexture(Face.EAST),    2,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle270.x2, modelEle270.y2, modelEle270.z2,  model270.GetTexture(Face.EAST),   3,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle180.x1, modelEle180.y1, modelEle180.z1,  model180.GetTexture(Face.EAST),   0,      normal.X, normal.Y, normal.Z),
+                        new Vertex(modelEle.x2, modelEle.y2, modelEle.z2,           model.GetTexture(Face.EAST),      1,      normal.X, normal.Y, normal.Z),
 
                     ];
                 }
 
                 default:
                     Logger.Warn("Error calculating vertices");
-                    return [0, 0, 0, 0, 0];
-                    
+                    return [
+                        new Vertex(modelEle90.x1, modelEle90.y1, modelEle90.z1,     model90.GetTexture(Face.EAST),    2,      1,2,3),
+                        new Vertex(modelEle270.x2, modelEle270.y2, modelEle270.z2,  model270.GetTexture(Face.EAST),   3,      1,2,3),
+                        new Vertex(modelEle180.x1, modelEle180.y1, modelEle180.z1,  model180.GetTexture(Face.EAST),   0,      1,2,3),
+                        new Vertex(modelEle.x2, modelEle.y2, modelEle.z2,           model.GetTexture(Face.EAST),      1,      1,2,3),
+
+                    ];
+
             }
         }
-
+        */
         //Gets offset face vertices ready to send to the shaders for rendering
-        public static float[] GetCuboidFace(BlockModel model, string face, Vector3 blockLoc)
+        public static Vertex[] GetCuboidFace(BlockModel model, Face face, Vector3 blockLoc, Chunk c)
         {
-            float bLocX = blockLoc.X;
-            float bLocY = blockLoc.Y;
-            float bLocZ = blockLoc.Z;
+            float x = blockLoc.X;
+            float y = blockLoc.Y;
+            float z = blockLoc.Z;
+
+            int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
+            int lightY = (int)Math.Abs(y) % RegionManager.CHUNK_BOUNDS;
+            int lightZ = (int)Math.Abs(z) % RegionManager.CHUNK_BOUNDS;
 
             BlockModel model90 = model.RotateX(90);
             BlockModel model180 = model.RotateX(180);
@@ -131,96 +144,118 @@ namespace Vox.Model
 
             switch (face)
             {
-                case "south":
-                case "front":
+                case Face.SOUTH:
+                case Face.FRONT:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle90.x1 / 16, bLocY + modelEle90.y1 / 16, bLocZ + modelEle90.z1 / 16),
-                            new(bLocX + modelEle.x1 / 16, bLocY + modelEle.y1 / 16, bLocZ + modelEle.z1 / 16),
-                            new(bLocX + modelEle180.x1 / 16, bLocY + modelEle180.y1 / 16, bLocZ + modelEle180.z1 / 16));
-
+                        Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
+                            new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16),
+                            new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
                         return [
-                        //Position (X, Y, Z)                                                                              Texture Layer             Tex Coord Idx | Normal X, Y , Z
-                        bLocX + modelEle90.x1  / 16,     bLocY + modelEle90.y1 / 16,     bLocZ + modelEle90.z1 / 16,      (float)model90.GetTexture("south"),   3f, normal.X, normal.Y, normal.Z,    //top right                      
-                        bLocX + modelEle.x1    / 16,       bLocY + modelEle.y1 / 16,       bLocZ + modelEle.z1 / 16,      (float)model.GetTexture("south"),     2f, normal.X, normal.Y, normal.Z,    //top left
-                        bLocX + modelEle180.x1 / 16,    bLocY + modelEle180.y1 / 16,    bLocZ + modelEle180.z1 / 16,      (float)model180.GetTexture("south"),  1f, normal.X, normal.Y, normal.Z,    //bottom right     
-                        bLocX + modelEle270.x1 / 16,    bLocY + modelEle270.y1 / 16,    bLocZ + modelEle270.z1 / 16,      (float)model270.GetTexture("south"),  0f, normal.X, normal.Y, normal.Z,    //bottom left
+                        //Position (X, Y, Z)                                                                            Texture Layer          ex Coord Idx | Sunlight level                           Normal X, Y , Z
+                        new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,      model90.GetTexture(Face.SOUTH),   3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),    //top right                      
+                        new Vertex(x + modelEle.x1    / 16,    y + modelEle.y1 / 16,       z + modelEle.z1 / 16,        model.GetTexture(Face.SOUTH),     2, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),    //top left
+                        new Vertex(x + modelEle180.x1 / 16,    y + modelEle180.y1 / 16,    z + modelEle180.z1 / 16,     model180.GetTexture(Face.SOUTH),  1, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),    //bottom right     
+                        new Vertex(x + modelEle270.x1 / 16,    y + modelEle270.y1 / 16,    z + modelEle270.z1 / 16,     model270.GetTexture(Face.SOUTH),  0, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),    //bottom left
                     ];
                     }
-                case "north":
-                case "back":
+                case Face.NORTH:
+                case Face.BACK:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle270.x2 / 16, bLocY + modelEle270.y2 / 16, bLocZ + modelEle270.z2 / 16),
-                            new(bLocX + modelEle.x2 / 16, bLocY + modelEle.y2 / 16, bLocZ + modelEle.z2 / 16),
-                            new(bLocX + modelEle180.x2 / 16, bLocY + modelEle180.y2 / 16, bLocZ + modelEle180.z2 / 16));
+                        Vector3 normal = CalculateNormal(new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
+                            new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
+                            new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
+                        
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
 
                         return [
-                        bLocX + modelEle270.x2 / 16,    bLocY + modelEle270.y2 / 16,    bLocZ + modelEle270.z2 / 16,      (float)model270.GetTexture("north"),  3f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle.x2    / 16,       bLocY + modelEle.y2 / 16,       bLocZ + modelEle.z2 / 16,         (float)model.GetTexture("north"),  1f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle180.x2 / 16,    bLocY + modelEle180.y2 / 16,    bLocZ + modelEle180.z2 / 16,      (float)model180.GetTexture("north"),  2f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle90.x2  / 16,     bLocY + modelEle90.y2 / 16,     bLocZ + modelEle90.z2 / 16,       (float)model90.GetTexture("north"),  0f, normal.X, normal.Y, normal.Z,
+                        new Vertex(x + modelEle270.x2 / 16,    y + modelEle270.y2 / 16,    z + modelEle270.z2 / 16,      model270.GetTexture(Face.NORTH),  3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle.x2    / 16,    y + modelEle.y2 / 16,       z + modelEle.z2 / 16,         model.GetTexture(Face.NORTH),     1, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle180.x2 / 16,    y + modelEle180.y2 / 16,    z + modelEle180.z2 / 16,      model180.GetTexture(Face.NORTH),  2, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),
+                        new Vertex(x + modelEle90.x2  / 16,    y + modelEle90.y2 / 16,     z + modelEle90.z2 / 16,       model90.GetTexture(Face.NORTH),   0, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),
                     ];
                     }
-                case "top":
-                case "up":
+                case Face.TOP:
+                case Face.UP:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle180.x1 / 16, bLocY + modelEle180.y1 / 16, bLocZ + modelEle180.z1 / 16),
-                            new(bLocX + modelEle.x2 / 16, bLocY + modelEle.y2 / 16, bLocZ + modelEle.z2 / 16),
-                            new(bLocX + modelEle270.x1 / 16, bLocY + modelEle270.y1 / 16, bLocZ + modelEle270.z1 / 16));
+                        Vector3 normal = CalculateNormal(new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16),
+                            new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
+                            new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16));
+
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
 
                         return [
-                        bLocX + modelEle180.x1 / 16,    bLocY + modelEle180.y1 / 16,    bLocZ + modelEle180.z1 / 16,      (float)model180.GetTexture("up"),     3f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle.x2    / 16,       bLocY + modelEle.y2 / 16,       bLocZ + modelEle.z2 / 16,         (float)model.GetTexture("up"),     1f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle270.x1 / 16,    bLocY + modelEle270.y1 / 16,    bLocZ + modelEle270.z1 / 16,      (float)model270.GetTexture("up"),     2f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle90.x2  / 16,     bLocY + modelEle90.y2 / 16,     bLocZ + modelEle90.z2 / 16,       (float)model90.GetTexture("up"),     0f, normal.X, normal.Y, normal.Z,
+                        new Vertex(x + modelEle180.x1 / 16,    y + modelEle180.y1 / 16,    z + modelEle180.z1 / 16,      model180.GetTexture(Face.UP),     3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle.x2    / 16,    y + modelEle.y2 / 16,       z + modelEle.z2 / 16,         model.GetTexture(Face.UP),        1, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle270.x1 / 16,    y + modelEle270.y1 / 16,    z + modelEle270.z1 / 16,      model270.GetTexture(Face.UP),     2, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle90.x2  / 16,    y + modelEle90.y2 / 16,     z + modelEle90.z2 / 16,       model90.GetTexture(Face.UP),      0, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),
                     ];
                     }
-                case "bottom":
-                case "down":
+                case Face.BOTTOM:
+                case Face.DOWN:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle90.x1 / 16, bLocY + modelEle90.y1 / 16, bLocZ + modelEle90.z1 / 16),
-                            new(bLocX + modelEle270.x2 / 16, bLocY + modelEle270.y2 / 16, bLocZ + modelEle270.z2 / 16),
-                            new(bLocX + modelEle.x1 / 16, bLocY + modelEle.y1 / 16, bLocZ + modelEle.z1 / 16));
+                        Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
+                            new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
+                            new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16));
+
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
 
                         return [
-                        bLocX + modelEle90.x1  / 16,     bLocY + modelEle90.y1 / 16,     bLocZ + modelEle90.z1 / 16,       (float)model90.GetTexture("down"),   3f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle270.x2 / 16,    bLocY + modelEle270.y2 / 16,    bLocZ + modelEle270.z2 / 16,      (float)model270.GetTexture("down"),   1f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle.x1    / 16,       bLocY + modelEle.y1 / 16,       bLocZ + modelEle.z1 / 16,         (float)model.GetTexture("down"),   2f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle180.x2 / 16,    bLocY + modelEle180.y2 / 16,    bLocZ + modelEle180.z2 / 16,      (float)model180.GetTexture("down"),   0f, normal.X, normal.Y, normal.Z,
+                        new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,      model90.GetTexture(Face.DOWN),    3, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle270.x2 / 16,    y + modelEle270.y2 / 16,    z + modelEle270.z2 / 16,     model270.GetTexture(Face.DOWN),   1, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle.x1    / 16,    y + modelEle.y1 / 16,       z + modelEle.z1 / 16,        model.GetTexture(Face.DOWN),      2, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle180.x2 / 16,    y + modelEle180.y2 / 16,    z + modelEle180.z2 / 16,     model180.GetTexture(Face.DOWN),   0, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z),
 
                     ];
                     }
-                case "west":
-                case "left":
+                case Face.WEST:
+                case Face.LEFT:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle90.x2 / 16, bLocY + modelEle90.y2 / 16, bLocZ + modelEle90.z2 / 16),
-                            new(bLocX + modelEle270.x1 / 16, bLocY + modelEle270.y1 / 16, bLocZ + modelEle270.z1 / 16),
-                            new(bLocX + modelEle180.x2 / 16, bLocY + modelEle180.y2 / 16, bLocZ + modelEle180.z2 / 16));
+                        Vector3 normal = CalculateNormal(new(x + modelEle90.x2 / 16, y + modelEle90.y2 / 16, z + modelEle90.z2 / 16),
+                            new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16),
+                            new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
+
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
 
                         return [
-                        bLocX + modelEle90.x2  / 16,     bLocY + modelEle90.y2 / 16,     bLocZ + modelEle90.z2 / 16,       (float)model90.GetTexture("west"),   0f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle270.x1 / 16,    bLocY + modelEle270.y1 / 16,    bLocZ + modelEle270.z1 / 16,      (float)model270.GetTexture("west"),   1f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle180.x2 / 16,    bLocY + modelEle180.y2 / 16,    bLocZ + modelEle180.z2 / 16,      (float)model180.GetTexture("west"),   2f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle.x1    / 16,       bLocY + modelEle.y1 / 16,       bLocZ + modelEle.z1 / 16,         (float)model.GetTexture("west"),   3f, normal.X, normal.Y, normal.Z,
-                    ];
+                        new Vertex(x + modelEle90.x2  / 16,    y + modelEle90.y2 / 16,     z + modelEle90.z2 / 16,       model90.GetTexture(Face.WEST),    0, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle270.x1 / 16,    y + modelEle270.y1 / 16,    z + modelEle270.z1 / 16,      model270.GetTexture(Face.WEST),   1, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle180.x2 / 16,    y + modelEle180.y2 / 16,    z + modelEle180.z2 / 16,      model180.GetTexture(Face.WEST),   2, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle.x1    / 16,    y + modelEle.y1 / 16,       z + modelEle.z1 / 16,         model.GetTexture(Face.WEST),      3, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z),
+                    ]; 
                     }
-                case "east":
-                case "right":
+                case Face.EAST:
+                case Face.RIGHT:
                     {
-                        Vector3 normal = CalculateNormal(new(bLocX + modelEle90.x1 / 16, bLocY + modelEle90.y1 / 16, bLocZ + modelEle90.z1 / 16),
-                            new(bLocX + modelEle270.x2 / 16, bLocY + modelEle270.y2 / 16, bLocZ + modelEle270.z2 / 16),
-                            new(bLocX + modelEle180.x1 / 16, bLocY + modelEle180.y1 / 16, bLocZ + modelEle180.z1 / 16));
+                        Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
+                            new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
+                            new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
+
+                        if (c == null)
+                            c = new Chunk().Initialize(0, 0);
 
                         return [
-                        bLocX + modelEle90.x1  / 16,     bLocY + modelEle90.y1 / 16,     bLocZ + modelEle90.z1 / 16,       (float)model90.GetTexture("east"),   2f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle270.x2 / 16,    bLocY + modelEle270.y2 / 16,    bLocZ + modelEle270.z2 / 16,      (float)model270.GetTexture("east"),   3f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle180.x1 / 16,    bLocY + modelEle180.y1 / 16,    bLocZ + modelEle180.z1 / 16,      (float)model180.GetTexture("east"),   0f, normal.X, normal.Y, normal.Z, 
-                        bLocX + modelEle.x2    / 16,       bLocY + modelEle.y2 / 16,       bLocZ + modelEle.z2 / 16,         (float)model.GetTexture("east"),   1f, normal.X, normal.Y, normal.Z,
+                        new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,       model90.GetTexture(Face.EAST),    2, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle270.x2 / 16,    y + modelEle270.y2 / 16,    z + modelEle270.z2 / 16,      model270.GetTexture(Face.EAST),   3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle180.x1 / 16,    y + modelEle180.y1 / 16,    z + modelEle180.z1 / 16,      model180.GetTexture(Face.EAST),   0, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z), 
+                        new Vertex(x + modelEle.x2    / 16,    y + modelEle.y2 / 16,       z + modelEle.z2 / 16,         model.GetTexture(Face.EAST),      1, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z),
 
                     ];
                     }
 
                 default:
-                    return [1f, 1f, 1f, 1f, 1f];
+                    return [
+                        new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,       model90.GetTexture(Face.EAST),    2, 1, 1, 2, 3),
+                        new Vertex(x + modelEle270.x2 / 16,    y + modelEle270.y2 / 16,    z + modelEle270.z2 / 16,      model270.GetTexture(Face.EAST),   3, 1, 1, 2, 3),
+                        new Vertex(x + modelEle180.x1 / 16,    y + modelEle180.y1 / 16,    z + modelEle180.z1 / 16,      model180.GetTexture(Face.EAST),   0, 1, 1, 2, 3),
+                        new Vertex(x + modelEle.x2    / 16,    y + modelEle.y2 / 16,       z + modelEle.z2 / 16,         model.GetTexture(Face.EAST),      1, 1, 1, 2, 3),
+
+                    ];
 
             }
         }

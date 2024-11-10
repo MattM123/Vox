@@ -3,6 +3,7 @@ using System.Drawing;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
+using Vox.Rendering;
 using Vox.Texturing;
 using GL = OpenTK.Graphics.OpenGL4.GL;
 
@@ -45,9 +46,23 @@ namespace Vox.Genesis
 
         [Key(5)]
         public RenderTask renderTask;
+        
+        [Key(6)]
+        public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
 
+        [IgnoreMember]
+        private readonly object chunkLock = new();
+
+        [Key(8)]
+        public Queue<LightNode> BFSPropagationQueue = new();
+
+        [Key(9)]
+        public Queue<LightNode> sunlightBFSPropagationQueue = new();
+
+        private List<Vector3> blocksToAdd = [];
         public Chunk()
         {
+
             SetEbo(GL.GenBuffer());
             SetVbo(GL.GenBuffer());
             SetVao(GL.GenVertexArray());
@@ -71,6 +86,8 @@ namespace Vox.Genesis
 
             if (!isInitialized)
             {
+                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
+
                 //===================================
                 //Generate chunk height map
                 //===================================
@@ -116,7 +133,7 @@ namespace Vox.Genesis
          *       |-----|        |-----|
          *       
          *  Returns a Vector3f list containg all points. These vertices
-         *  will be assigned block types and texture infromation in GetRenderTask()
+         *  will be assigned block types and texture infromation in the render task
          *  
          */
         private List<Vector3> InterpolateChunk(List<Vector3> inVert)
@@ -251,10 +268,24 @@ namespace Vox.Genesis
          */
         public Vector3 GetLocation()
         {
-            return (OpenTK.Mathematics.Vector3) location;
+            return location;
         }
 
-        public float[] GetVertices()
+        public bool ContainsBlockAt(Vector3 block)
+        {
+            Vertex[] vertex = GetRenderTask().GetVertexData();
+            for (int i = 0; i < vertex.Length; i += 8)
+            {
+              //  Logger.Info(new Vector3(vertex[i], vertex[i + 1], vertex[i + 2]) + "         " + block);
+                if (vertex[i].x == block.X && 
+                    vertex[i + 1].y == block.Y && 
+                    vertex[i + 2].z == block.Z)
+                    return true;
+            }
+            return false;
+        }
+
+        public Vertex[] GetVertices()
         {
             return renderTask.GetVertexData();
         }
@@ -314,6 +345,10 @@ namespace Vox.Genesis
             return returnRegion;
         }
 
+        public void DidChange(bool f)
+        {
+            didChange = f;
+        }
         /**
          * Generates or regenerates this Chunks RenderTask. The RenderTask is
          * used to graphically render the Chunk. Calling this method will, if
@@ -326,12 +361,12 @@ namespace Vox.Genesis
         public RenderTask GetRenderTask()
         {
             List<Vector3> nonInterpolated = [];
-            List<float> vertices = [];
+            List<Vertex> vertices = [];
             List<int> elements = [];
             int elementCounter = 0;
 
-            BlockModel model = ModelLoader.GetModel(BlockType.DIRT_BLOCK);
             Array values = Enum.GetValues(typeof(BlockType));
+
             Random random = new();
 
             if (didChange || renderTask == null)
@@ -339,43 +374,60 @@ namespace Vox.Genesis
                 for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
                     for (int z = 0; z < heightMap.GetLength(1); z++) //columns       
                         nonInterpolated.Add(new Vector3(location.X + x, heightMap[z, x], location.Z + z));
-                
+
+                //Populate sunlight map before interpolating
+              //  foreach (Vector3 v in nonInterpolated)
+              //  {
+                    //Does not need propagation algorithm, sunlight level always at 16 for top most blocks
+                    //SetSunlight((int) v.X, (int)v.Y, (int)v.Z, 15);
+               //     PropagateEmissiveBlock((int)v.X, (int)v.Y, (int)v.Z, 15);
+               // }
+;               
+                //Add any player placed blocks to the mesh before interpolation.
+                nonInterpolated.AddRange(blocksToAdd);
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
+
                 for (int i = 0; i < interpolatedChunk.Count; i++)
                 {
                     int randomIndex = random.Next(values.Length);
-                    BlockType? randomBlock = (BlockType?) values.GetValue(randomIndex);
-                    if (randomBlock != null)
-                        model = ModelLoader.GetModel((BlockType) randomBlock);
+                    BlockType? randomBlock;
+                    if (randomIndex > 0)
+                        randomBlock = (BlockType?) values.GetValue(randomIndex - 1);
                     else
-                        model = ModelLoader.GetModel(BlockType.GRASS_BLOCK);
+                        randomBlock = (BlockType?)values.GetValue(randomIndex);
 
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "south", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "north", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "up", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "down", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "west", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, "east", new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z)));
+                    BlockModel model;
+                    if (randomBlock != null)
+                        model = ModelLoader.GetModel((BlockType)randomBlock);
+                    else
+                        model = ModelLoader.GetModel(BlockType.TEST_BLOCK);
+
+
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.NORTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP,    new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.DOWN,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.WEST,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z),  this));
+                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.EAST,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z),  this));
 
                     elements.AddRange([
                         elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 80000,
-                    elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
-                    elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
-                    elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
-                    elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
-                    elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
-                ]);
+                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
+                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
+                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
+                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
+                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
+                    ]);
 
                     elementCounter += 24;
-                }
+                }   
 
                 //Updates chunk data
-               // object chunkLock = new();
-               // lock (chunkLock)
-               // {
-                    renderTask = new RenderTask(vertices, elements, GetVbo(), GetEbo(), GetVao());
+                lock (chunkLock)
+                {
+                    renderTask = new RenderTask(vertices , elements, GetVbo(), GetEbo(), GetVao());
                     didChange = false;
-               // }
+                }
             }
             return renderTask;
         }
@@ -530,64 +582,6 @@ namespace Vox.Genesis
         {
             return modelMatrix;
         }
-        /*
-        @Serial
-    private void writeObject(ObjectOutputStream o)
-        {
-            writeChunk(o, this);
-        }
-
-        @Serial
-    private void readObject(ObjectInputStream o)
-        {
-            if (!isInitialized)
-            {
-                return;
-            }
-            this.chunkBlocks = readChunk(o).chunkBlocks;
-        }
-
-        private void writeChunk(OutputStream stream, Chunk c)
-        {
-            if (this.equals(c)) return;
-            System.out.println("Writing chunk for " + c.GetRegion());
-            Main.executor.execute(()-> {
-                try
-                {
-                    FSTObjectOutput out = Main.GetInstance().GetObjectOutput(stream);
-                out.writeObject(c, Chunk.class);
-                out.flush();
-    } catch (Exception e) {
-                logger.warning(e.GetMessage());
-            }
-        });
-    }
-
-    private Chunk readChunk(InputStream stream)
-{
-
-    AtomicReference<Chunk> c = new AtomicReference<>();
-    Main.executor.execute(()-> {
-        FSTObjectInput in = Main.GetInstance().GetObjectInput(stream);
-        try
-        {
-            c.set((Chunk) in.readObject(Chunk.class));
-stream.close();
-            } catch (Exception ignored) {
-            }
-
-            try
-{ in.close();
-}
-catch (Exception e) { e.printStackTrace(); }
-        });
-return c.Get();
-    }
-
-    /**
-     * @return True if this chunk should be re-rendered on the next frame, false if this chunk
-     * has not been modified in any way and therefore should not be re-rendered.
-     */
 
         /**
        * Retrieves the Y value for any given x,z column in any chunk
@@ -658,27 +652,138 @@ return c.Get();
         {
             return heightMap;
         }
-        /**
-         * Each Chunk is identified by its location in three-dimensional space,
-         * this value is unique to all chunks and is therefore used to compare
-         * Chunk objects to each other in conjunction with the chunks heightmap.
-         * Two chunks will be equal if their location and heightmap are the same.
-         *
-         * @param obj The object to compare
-         * @return True if the chunks are equal, false if not
-         */
-     //   public bool Equals(object? obj)
-     //   {
-      //      if (obj?.GetType() == typeof(Chunk))
-      //      {
-      //          if (GetLocation().X.Equals(((Chunk)obj).GetLocation().X)
-      //              && GetLocation().Z.Equals(((Chunk)obj).GetLocation().Z))
-      //              return true;
-      //      }
-      //      else return false;
-      //      return true;
-       // }
 
+
+        //========================
+        //Light helper functions
+        //========================
+
+        public void SetBlockLight(int x, int y, int z, int val)
+        {
+
+            lightmap[x,y,z] = (short) ((lightmap[x,y,z] & 0xF0) | val);
+
+        }
+
+        // Get the bits XXXX0000
+        public int GetSunlight(int x, int y, int z)
+        {
+            return (lightmap[x,y,z] >> 4) & 0xF;
+        }
+
+        // Set the bits XXXX0000
+        public void SetSunlight(int x, int y, int z, int val)
+        {
+            x = Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
+            y = Math.Abs(y) % RegionManager.CHUNK_BOUNDS;
+            z = Math.Abs(z) % RegionManager.CHUNK_BOUNDS;
+            lightmap[x,y,z] = (byte) ((lightmap[x,y,z] & 0xF) | (val << 4));
+
+        }
+
+        public int GetRedLight(int x, int y, int z)
+        {
+            return (lightmap[y,z,x] >> 8) & 0xF;
+        }
+
+        public void SetRedLight(int x, int y, int z, int val)
+        {
+            lightmap[y,z,x] = (short) ((lightmap[x,y,z] & 0xF0FF) | (val << 8));
+        }
+
+        public int GetGreenLight(int x, int y, int z)
+        {
+
+            return(lightmap[y,z,x] >> 4) & 0xF;
+
+        }
+
+        public void SetGreenLight(int x, int y, int z, int val)
+        {
+            lightmap[y,z,x] = (short) ((lightmap[x,y,z] & 0xFF0F) | (val << 4));
+        }
+
+        public int GetBlueLight(int x, int y, int z)
+        {
+
+            return lightmap[y,z,x] & 0xF;
+
+        }
+
+        public void SetBlueLight(int x, int y, int z, int val)
+        {
+
+            lightmap[y,z,x] = (short) ((lightmap[x,y,z] & 0xFFF0) | (val));
+        }
+
+        // Get the bits 0000XXXX
+        public int GetBlockLight(int x, int y, int z)
+        {
+            return lightmap[x,y,z] & 0xF;
+        }
+
+        private void PropagateEmissiveBlock(int x, int y, int z, int val)
+        {
+            int bounds = RegionManager.CHUNK_BOUNDS;
+            int height = RegionManager.CHUNK_HEIGHT;
+            SetBlockLight(x, y, z, val);
+
+            short index = (short) (y * bounds * bounds + z * bounds + x);
+            BFSPropagationQueue.Enqueue(new(index, this));
+
+            while (BFSPropagationQueue.Count > 0)
+            {
+
+                // Get a reference to the front node.
+                LightNode node = BFSPropagationQueue.Dequeue();
+
+                int idx = node.Index;
+
+                Chunk chunk = node.Chunk;
+
+
+                // Extract x, y, and z from our chunk.
+                // Depending on how you access data in your chunk, this may be optional
+
+                int x1 = index % bounds;
+
+                int y1 = index / (bounds * bounds);
+
+                int z1 = (index % (bounds * bounds)) / bounds;
+
+                // Grab the light level of the current node       
+
+                int lightLevel = chunk.GetBlockLight(x, y, z);
+
+                //Look at all neighbouring voxels to that node.
+                //if their light level is 2 or more levels less than
+                //the current node, then set their light level to
+                //the current nodes light level - 1, and then add
+                //them to the queue.
+
+                //  if (chunk->getBlock(x - 1, y, z).opaque == false
+                if (chunk.GetBlockLight(x - 1, y, z) + 2 <= lightLevel)
+                {
+
+                    // Set its light level
+
+                    chunk.SetBlockLight(x - 1, y, z, lightLevel - 1);
+
+                    // Emplace new node to queue. (could use push as well)
+                    BFSPropagationQueue.Enqueue(new(index, chunk));
+
+                }
+
+                // Check other five neighbors
+            }
+        }
+
+        public void AddBlockToChunk(Vector3 v)
+        {
+            blocksToAdd.Add(v);
+            DidChange(true);
+            GetRenderTask();
+        }
         public override string ToString()
         {
             return "Chunk[" + location.X + "," + location.Z + "]";

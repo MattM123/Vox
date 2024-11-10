@@ -1,4 +1,6 @@
-﻿using System.Drawing;
+﻿using System.ComponentModel;
+using System.Drawing;
+using System.Security.Cryptography;
 using MessagePack;
 using Newtonsoft.Json;
 using OpenTK.Mathematics;
@@ -8,10 +10,10 @@ namespace Vox.Genesis
 
     public class RegionManager : List<Region>
     {
-        public static List<Region> VisibleRegions = new();
+        public static List<Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 400;
-        private static int RENDER_DISTANCE = 10;
+        private static int RENDER_DISTANCE = 12;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
         public static long WORLD_SEED;
@@ -27,7 +29,12 @@ namespace Vox.Genesis
         public RegionManager(string path)
         {
             worldDir = path;
-            WORLD_SEED = path.GetHashCode();
+            //WORLD_SEED = path.GetHashCode();
+
+            byte[] buffer = new byte[8];
+            RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
+            WORLD_SEED = BitConverter.ToInt64(buffer, 0);
+         
             Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
 
             ChunkCache.SetBounds(CHUNK_BOUNDS);
@@ -153,6 +160,7 @@ namespace Vox.Genesis
             }
         }
 
+        
         public static Region GetGlobalRegionFromChunkCoords(int x, int z)
         {
             Region returnRegion = null;
@@ -195,15 +203,32 @@ namespace Vox.Genesis
 
         public static Chunk GetGlobalChunkFromCoords(int x, int z)
         {
-            Vector3 chunkLoc = new(x, 0, z);
+            //Calculates chunk coordinates
+            int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
+            int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
+
+            Vector3 chunkLoc = new(chunkXCoord, 0, chunkZCoord);
             foreach (Region region in VisibleRegions)
             {
                 Chunk output = region.BinarySearchChunkWithLocation(0, region.GetChunks().Count - 1, chunkLoc);
-                if (output != null)
-                    return output;
+                try
+                {
+                    if (!output.Equals(null))
+                    {
+                        return output;
+                    }
+                }
+                catch (NullReferenceException)
+                {
+                   continue;
+                }
             }
+
             return new Chunk().Initialize(x, z);
+
         }
+
+
     }
 }
 

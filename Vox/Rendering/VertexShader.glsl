@@ -1,9 +1,10 @@
 #version 410 core
 
 layout(location = 0) in vec3 position;
-layout(location = 1) in float aTexLayer;
-layout(location = 2) in float aTexCoord;
-layout(location = 3) in vec3 normal;
+layout(location = 1) in int aTexLayer;
+layout(location = 2) in int aTexCoord;
+layout(location = 3) in int aSunlight;
+layout(location = 4) in vec3 aNormal;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
@@ -17,13 +18,14 @@ uniform int chunkSize;
 
 out vec4 fColor;
 out vec2 ftexCoords;
-out vec3 fnormal;
+flat out int fsunlight;
 out vec3 fragPos;
-out vec3 vertexPos;
+out vec3 fnormal;
 flat out float fTexLayer;
     
 
 void main() {
+
     if (isMenuRendered == 1)
         gl_Position = vec4(position, 1.0) * modelMatrix * viewMatrix * projectionMatrix;
     else
@@ -40,7 +42,7 @@ void main() {
 
         //passthrough
         fTexLayer = aTexLayer;
-        vertexPos = position;
+        fsunlight = aSunlight;
 
         vec2 texCoords[4] = vec2[4](
             vec2(0.0f, 0.0f),
@@ -50,7 +52,7 @@ void main() {
         );
 
         fragPos = vec3(vec4(position, 1.0) * modelMatrix);
-        ftexCoords = texCoords[int(aTexCoord)];
-        fnormal = normal * mat3(transpose(inverse(modelMatrix)));
+        ftexCoords = texCoords[aTexCoord];
+        fnormal = aNormal * mat3(transpose(inverse(modelMatrix)));
     }
 } 

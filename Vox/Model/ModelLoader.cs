@@ -11,7 +11,7 @@ namespace Vox.Model
 {
     public static class ModelLoader
     {
-        private static Dictionary<BlockType, BlockModel> models = [];
+        private static readonly Dictionary<BlockType, BlockModel> models = [];
         static ModelLoader() { }
         public static void LoadModels()
         {
@@ -33,6 +33,7 @@ namespace Vox.Model
             models.Add(BlockType.GRASS_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\grass.json"))));
             models.Add(BlockType.DIRT_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\dirt.json"))));
             models.Add(BlockType.STONE_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json"))));
+            models.Add(BlockType.TEST_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json"))));
 
         }
         public static Dictionary<BlockType, BlockModel> GetModels()

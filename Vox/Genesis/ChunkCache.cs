@@ -109,16 +109,15 @@ namespace Vox.Genesis
 
             if (chunk != null)
             {
-                Region region = chunk.GetRegion();
 
                 if (!chunks.Contains(chunk))
                     chunks.Add(chunk);
 
-                if (!regions.Contains(region))
-                        regions.Add(region);
+                if (!regions.Contains(chunkRegion))
+                        regions.Add(chunkRegion);
 
-                    if (!region.GetChunks().Contains(chunk))
-                        region.BinaryInsertChunkWithLocation(0, region.GetChunks().Count - 1, chunk.GetLocation());
+                    if (!chunkRegion.GetChunks().Contains(chunk))
+                        chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.GetChunks().Count - 1, chunk.GetLocation());
                     
             }
             else
@@ -198,11 +197,14 @@ namespace Vox.Genesis
 
             GetQuadrantChunks();
             GetCardinalChunks();
-            if (!chunks.Contains(playerChunk))
+            Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords((int) playerChunk.xLoc, (int) playerChunk.zLoc);
+            Chunk chunk = chunkRegion.GetChunkWithLocation(new(playerChunk.xLoc, 0, playerChunk.zLoc));
+            if (!chunkRegion.GetChunks().Contains(playerChunk))
             {
-                playerChunk.GetRegion().BinaryInsertChunkWithLocation(0, playerChunk.GetRegion().GetChunks().Count - 1, playerChunk.GetLocation());
+                chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.GetChunks().Count - 1, new(playerChunk.xLoc, 0, playerChunk.zLoc));
                 chunks.Add(playerChunk);
             }
+
 
             return chunks;
         }

@@ -30,39 +30,45 @@ uniform vec3 viewPos;
 
 uniform vec3 playerPos;
 uniform int chunkSize;
-uniform int renderDistance;
+uniform vec3 playerMin;
+uniform vec3 playerMax;
 
 flat in float fTexLayer;
-in vec3 fnormal;
+flat in int fsunlight;
 in vec2 ftexCoords;
 in vec3 fragPos;
-in vec4 vertexPos;
-
+in vec3 fnormal;
+in vec3 vertexPos;
+in vec4 fColor;
 out vec4 color;
 
 
 void main()
-{
-
-    //ambient
-    vec3 ambient = light.ambient * material.ambient; //Remember to use the material here.
-
+{          
+ 
     //diffuse 
     vec3 norm = normalize(fnormal);
     vec3 lightDir = normalize(light.position - fragPos);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = light.diffuse * (diff * material.diffuse); //Remember to use the material here.
-
+  
     //specular
     vec3 viewDir = normalize(viewPos - fragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
 
+    float sunDot = dot(-lightDir, norm);
+    float falloff = dot(vec3(0,1,0), -lightDir);
+    float ambient = clamp(0.5 * falloff, 0, 1);
+    float value = clamp(ambient + (max(0, sunDot) * falloff), 0.1, 1.0);
+
     //Now the result sum has changed a bit, since we now set the objects color in each element, we now dont have to
     //multiply the light with the object here, instead we do it for each element seperatly. This allows much better control
     //over how each element is applied to different objects.
-    vec3 result = ambient + diffuse + specular;
-
-    color = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer))) * vec4(result, 1.0);
-}
+    float sunlightIntensity = max(light.position.y * 0.96f + 0.6f, 0.02f);
+    float lightIntensity = fsunlight * sunlightIntensity + sunDot;
+    vec3 result = value + diffuse + specular;
+   
+    color = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer))) * vec4(result, 1.0));// * lightIntensity;
+ }
