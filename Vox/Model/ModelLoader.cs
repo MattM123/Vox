@@ -18,13 +18,14 @@ namespace Vox.Model
             Directory.CreateDirectory(Window.assets + "BlockModels");
 
             //Copies block models into foler if not present
+            string[] fileModels = Directory.EnumerateFiles(Path.Combine(Window.assets, "BlockModels")).ToArray();
             string[] projmodels = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockModels").ToArray();
-            if (Directory.EnumerateFiles(Window.assets + "BlockModels").ToArray().Length == 0)
+            if (fileModels.Length != projmodels.Length)
             {
                 Logger.Info("Reloading block models");
                 for (int i = 0; i < projmodels.Length; i++)
                 {
-                    File.Copy(projmodels[i], Window.assets + "BlockModels\\" + Path.GetFileName(projmodels[i]));
+                    File.Copy(projmodels[i], Window.assets + "BlockModels\\" + Path.GetFileName(projmodels[i]), true);
                     Logger.Debug($"Loaded model {Path.GetFileName(projmodels[i])}");
                 }
             }
@@ -34,7 +35,7 @@ namespace Vox.Model
             models.Add(BlockType.DIRT_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\dirt.json"))));
             models.Add(BlockType.STONE_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json"))));
             models.Add(BlockType.TEST_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json"))));
-
+            models.Add(BlockType.TARGET_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\target.json"))));
         }
         public static Dictionary<BlockType, BlockModel> GetModels()
         {

@@ -227,8 +227,6 @@ namespace Vox.Genesis
             return new Chunk().Initialize(x, z);
 
         }
-
-
     }
 }
 

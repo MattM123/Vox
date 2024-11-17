@@ -7,6 +7,7 @@ namespace Vox.Texturing
         GRASS_FULL,
         GRASS_SIDE,
         STONE,
+        TARGET,
         TEST,
     }
 }

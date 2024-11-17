@@ -40,7 +40,7 @@ namespace Vox.Texturing
                 Logger.Info("Reloading default textures");
                 for (int i = 0; i < projTex.Length; i++)
                 {
-                    File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])));
+                    File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])), true);
                     Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
                 }
                 //update int value
@@ -108,7 +108,7 @@ namespace Vox.Texturing
                 Logger.Info("Reloading default textures");
                 for (int i = 0; i < projTex.Length; i++)
                 {
-                    File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])));
+                    File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])), true);
                     Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
                 }
                 //update int value

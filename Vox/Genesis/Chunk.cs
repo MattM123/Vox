@@ -271,23 +271,33 @@ namespace Vox.Genesis
             return location;
         }
 
-        public bool ContainsBlockAt(Vector3 block)
+        //Contains face at?
+        //face plane determined from forward direction
+        public bool ContainsBlockAt(Vector3 block, out Vertex? v)
         {
-            Vertex[] vertex = GetRenderTask().GetVertexData();
-            for (int i = 0; i < vertex.Length; i += 8)
+            Vertex[] vertex = GetVertices();
+            v = null;
+            for (int i = 0; i < vertex.Length; i++)
             {
-              //  Logger.Info(new Vector3(vertex[i], vertex[i + 1], vertex[i + 2]) + "         " + block);
-                if (vertex[i].x == block.X && 
-                    vertex[i + 1].y == block.Y && 
-                    vertex[i + 2].z == block.Z)
+                if (vertex[i].x == block.X &&
+                    vertex[i].y == block.Y &&
+                    vertex[i].z == block.Z) 
+                {
+                    //fix: all vertices in the cube are based on one vertex
+                    //so this will only return SOUTH or NORTH face vertex since
+                    //those are defined first when the render task is being created.
+                    //Need it so it returns a certain FACE. Have face as parameter? How do i determine 
+                    //how which face to input?
+                    v = vertex[i];
                     return true;
+                }
             }
             return false;
         }
 
         public Vertex[] GetVertices()
         {
-            return renderTask.GetVertexData();
+            return GetRenderTask().GetVertexData();
         }
         public int[] GetElements()
         {
@@ -391,8 +401,8 @@ namespace Vox.Genesis
                 {
                     int randomIndex = random.Next(values.Length);
                     BlockType? randomBlock;
-                    if (randomIndex > 0)
-                        randomBlock = (BlockType?) values.GetValue(randomIndex - 1);
+                    if (randomIndex > 1)
+                        randomBlock = (BlockType?) values.GetValue(randomIndex - 2);
                     else
                         randomBlock = (BlockType?)values.GetValue(randomIndex);
 

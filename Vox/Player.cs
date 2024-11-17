@@ -24,7 +24,7 @@ namespace Vox
         private static Vector3 playerMin;
         private static Vector3 playerMax;
         private static Vector3 velocity = Vector3.Zero;
-        public readonly float moveSpeed = 5.0f;
+        public readonly float moveSpeed = 3.0f;
         private Vector3 desiredMovement = Vector3.Zero;
         private float forward = 0f;
         private float right = 0f;
@@ -32,8 +32,8 @@ namespace Vox
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
         private List<Vector3> viewBlock = [];
-        public readonly float reachDistance = 5f;
-        private Vertex[] viewTarget = [];
+        public readonly float reachDistance = 10f;
+        public Vertex[] viewTarget = [];
         private BlockType playerSelectedBlock = BlockType.TEST_BLOCK;
         private Vector3 targetVertex = Vector3.Zero;
 
@@ -62,43 +62,101 @@ namespace Vox
         /*
          * Updates the outline on the block the player is looking at.
          * Returns the Vector3 that the block mesh is created from.
+         * 
+         * out bool: True if their is already a bloc kat the view target,
+         * false otherwise
+         * 
+         * out Vertex: The vertex struct that is in view target.
+         * 
          */
-        public Vector3 UpdateViewTarget()
+        public Vector3 UpdateViewTarget(out bool b, out Face face)
         {
-            //Update the player picked block based on view target
-            BlockModel model = ModelLoader.GetModel(playerSelectedBlock);
-            Vector3 direction = GetForwardDirection().Normalized();
+            b = false;
+            face = Face.ALL;
 
-            float stepSize = 0.01f;  // Distance to step along the ray each iteration
+            //Update the player picked block based on view target
+            BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
+           
+
+            float stepSize = 0.5f;  // Distance to step along the ray each iteration
             float maxDistance = reachDistance;  // Maximum reach distance for the ray
-            Vector3 currentPosition = position;
+            Vector3 rayOrigin = position;
+            Vector3 blockPosition = Vector3.Zero;
+
 
             for (float distance = 0; distance < maxDistance; distance += stepSize)
             {
-                // Move the current position along the forward direction
-                currentPosition += direction * stepSize;
+                Vector3 rayDirection = GetForwardDirection().Normalized();
 
-                // I cooked hard with this one
-                targetVertex = new(
-                    (float)Math.Round(currentPosition.X + (direction.X * reachDistance)),
-                    (float)Math.Round(currentPosition.Y + (direction.Y * reachDistance)),
-                    (float)Math.Round(currentPosition.Z + (direction.Z * reachDistance))
-                );
-                
-                //populate the block vertexes for the draw call
-                List<Vertex> viewBlock = [];
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, targetVertex, null));
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.NORTH, targetVertex, null));
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.UP,    targetVertex, null));
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.DOWN,  targetVertex, null));
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.WEST,  targetVertex, null));
-                viewBlock.AddRange(ModelUtils.GetCuboidFace(model, Face.EAST,  targetVertex, null));
+                // Calculate the current position along the ray
+                Vector3 currentPosition = rayOrigin + rayDirection * distance;
 
-                viewTarget = [.. viewBlock];
-                return targetVertex;
+                // Determine the block at the current position
+                 blockPosition = new Vector3(
+                       (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.X - Math.Round(currentPosition.X + (rayDirection.X * reachDistance)))))))),
+                       (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Y - Math.Round(currentPosition.Y + (rayDirection.Y * reachDistance)))))))),
+                       (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Z - Math.Round(currentPosition.Z + (rayDirection.Z * reachDistance))))))))
+                 );
+
+                if (RegionManager.GetGlobalChunkFromCoords((int) blockPosition.X, (int) blockPosition.Z).ContainsBlockAt(blockPosition, out _))
+                {
+                    Vector3 blockCenter = targetVertex + new Vector3(0.5f, 0.5f, 0.5f);
+                    Vector3 localHit = currentPosition - blockCenter;
+
+                    // Compare which axis is most aligned with the ray direction
+                    Vector3 absLocalHit = new Vector3(MathF.Abs(localHit.X), MathF.Abs(localHit.Y), MathF.Abs(localHit.Z));
+                    if (absLocalHit.X > absLocalHit.Y && absLocalHit.X > absLocalHit.Z)
+                    {
+                        face = (localHit.X > 0 ? Face.WEST : Face.EAST);
+                    }
+                    else if (absLocalHit.Y > absLocalHit.X && absLocalHit.Y > absLocalHit.Z)
+                    {
+                        face = (localHit.Y > 0 ? Face.DOWN : Face.UP);
+                    }
+                    else
+                    {
+                        face = (localHit.Z > 0 ? Face.NORTH : Face.SOUTH);
+                    }
+                    return blockPosition;
+
+                }
+             //   Vector3 targetVertex = new Vector3(
+             //       rayDirection.X > 0 ? MathF.Floor(rayOrigin.X) : MathF.Ceiling(rayOrigin.X) - 1,
+             //       rayDirection.Y > 0 ? MathF.Floor(rayOrigin.Y) : MathF.Ceiling(rayOrigin.Y) - 1,
+             //       rayDirection.Z > 0 ? MathF.Floor(rayOrigin.Z) : MathF.Ceiling(rayOrigin.Z) - 1
+             //   );
+
+
+            //   targetVertex = new Vector3(                                                                                                                                
+            //           (float)Math.Round(test.X + (rayDirection.X * (reachDistance - Math.Abs(test.X - (Math.Round(test.X + (rayDirection.X * reachDistance))))))),
+            //           (float)Math.Round(test.Y + (rayDirection.Y * (reachDistance - Math.Abs(test.Y - (Math.Round(test.Y + (rayDirection.Y * reachDistance))))))),
+            //           (float)Math.Round(test.Z + (rayDirection.Z * (reachDistance - Math.Abs(test.Z - (Math.Round(test.Z + (rayDirection.Z * reachDistance)))))))
+            //     );
+
+
+
+                //   targetVertex = new Vector3(
+                //         (float)Math.Round(rayOrigin.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(rayOrigin.X - Math.Round(rayOrigin.X + (rayDirection.X * reachDistance)))))))),
+                //         (float)Math.Round(rayOrigin.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(rayOrigin.Y - Math.Round(rayOrigin.Y + (rayDirection.Y * reachDistance)))))))),
+                //         (float)Math.Round(rayOrigin.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(rayOrigin.Z - Math.Round(rayOrigin.Z + (rayDirection.Z * reachDistance))))))))
+                //   );
+                //  targetVertex = new Vector3(
+                //        (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.X - Math.Round(currentPosition.X + (rayDirection.X * reachDistance)))))))),
+                //        (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Y - Math.Round(currentPosition.Y + (rayDirection.Y * reachDistance)))))))),
+                //        (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Z - Math.Round(currentPosition.Z + (rayDirection.Z * reachDistance))))))))
+                //  );
             }
             //Returns the last block the player was looking at
             return targetVertex;
+        }
+
+        public Vector3 GetForwardDirection()
+        {
+            Matrix4 viewMatrix = GetViewMatrix();
+
+            //Gets Z Axis from player matrix
+            return Vector3.Normalize(new(-viewMatrix.Column2.Xyz));
+
         }
 
         public BlockType GetPlayerSelectedBlock()
@@ -278,7 +336,7 @@ namespace Vox
         public void Update(float deltaTime)
         {
             //Update pick block
-            UpdateViewTarget();
+            UpdateViewTarget(out _, out _);
 
             // Apply gravity to Y-velocity
             if (velocity.Y > terminalVelocity && !IsGrounded) // Prevent exceeding terminal velocity
@@ -298,7 +356,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-         //   CheckChunkCollision(deltaTime);
+            CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change
@@ -528,14 +586,7 @@ namespace Vox
         {
             return new Vector2(yaw, pitch);
         }
-        public Vector3 GetForwardDirection()
-        {
-            Matrix4 viewMatrix = GetViewMatrix();
 
-            //Gets Z Axis from player matrix
-            return Vector3.Normalize(new(-viewMatrix.Column2.Xyz));
-
-        }
 
         public Vector3 GetRightDirection()
         {
@@ -564,23 +615,20 @@ namespace Vox
             Vector2 lookDir = GetLookDir();
 
             // Clamp the pitch and yaw
-            float clampedYaw = Math.Clamp(lookDir.X, minPitch, maxPitch); // X-axis controls pitch (up/down)
-            float clampedPitch = Math.Clamp(lookDir.Y, minYaw, maxYaw);
-
+            float clampedPitch = Math.Clamp(lookDir.X, minPitch, maxPitch); // Pitch (up/down)
+            float clampedYaw = Math.Clamp(lookDir.Y, minYaw, maxYaw);       // Yaw (left/right)
 
             // Create rotation matrices
-            Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(clampedPitch));
-            Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(clampedYaw));
-            Quaternion localRotation = pitchRotation * yawRotation;
-
-            Vector3 localScale = new(1, 1, 1);
+            Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(clampedPitch));
+            Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(clampedYaw));
+            Quaternion localRotation = yawRotation * pitchRotation;
 
             Matrix3.CreateFromQuaternion(localRotation, out Matrix3 rotation);
 
-            matrix.Row0 = new(rotation.Row0 * localScale.X, 0);
-            matrix.Row1 = new(rotation.Row1 * localScale.Y, 0);
-            matrix.Row2 = new(rotation.Row2 * localScale.Z, 0);
-            matrix.Row3 = new(GetPosition(), 1);
+            matrix.Row0 = new Vector4(rotation.Row0, 0);
+            matrix.Row1 = new Vector4(rotation.Row1, 0);
+            matrix.Row2 = new Vector4(rotation.Row2, 0);
+            matrix.Row3 = new Vector4(GetPosition(), 1);
         }
         /**
          * Instantiates the players view matrix witch is later
@@ -592,17 +640,27 @@ namespace Vox
         {
             if (!Window.IsMenuRendered())
             {
-                Vector3 lookPoint = new(yaw, 0f, pitch);
+                // Starting with a forward direction of -Z axis in local space
+                Vector3 forward = new Vector3(0, 0, -1);
 
-                // Create rotation matrices
-                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(GetLookDir().Y));
-                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitX, MathHelper.DegreesToRadians(GetLookDir().X));
-                lookPoint += position;
+                // Get look direction in radians
+                Vector2 lookDir = GetLookDir();
+                float yaw = MathHelper.DegreesToRadians(lookDir.Y); // Pitch (up/down)
+                float pitch = MathHelper.DegreesToRadians(lookDir.X);   // Yaw (left/right)
 
+                // Apply yaw around Y-axis and pitch around X-axis
+                Quaternion yawRotation = Quaternion.FromAxisAngle(Vector3.UnitY, yaw);
+                Quaternion pitchRotation = Quaternion.FromAxisAngle(Vector3.UnitX, pitch);
 
-                lookPoint = Vector3.Transform(lookPoint, pitchRotation * yawRotation);
-                return Matrix4.LookAt(position, lookPoint, new(0, 1, 0));
+                // Combine rotations
+                Quaternion rotation = yawRotation * pitchRotation;
+                Vector3 direction = Vector3.Transform(forward, rotation);
 
+                // Calculate the look point based on the direction
+                Vector3 lookPoint = position + direction;
+
+                // Return the view matrix
+                return Matrix4.LookAt(position, lookPoint, Vector3.UnitY);
             }
             else
             {

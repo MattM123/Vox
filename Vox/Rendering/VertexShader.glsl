@@ -15,21 +15,31 @@ uniform int isMenuRendered;
 uniform int renderDistance;
 uniform vec3 playerPos;
 uniform int chunkSize;
+uniform vec3 targetVertex;
+uniform vec3 forwardDir;
 
 out vec4 fColor;
 out vec2 ftexCoords;
+out vec3 fforwardDir;
 flat out int fsunlight;
 out vec3 fragPos;
 out vec3 fnormal;
+out vec4 fTargetVertex;
 flat out float fTexLayer;
     
 
 void main() {
 
-    if (isMenuRendered == 1)
+    if (isMenuRendered == 1) {
         gl_Position = vec4(position, 1.0) * modelMatrix * viewMatrix * projectionMatrix;
-    else
-        gl_Position = vec4(position, 1.0) * chunkModelMatrix * viewMatrix * projectionMatrix;
+        fragPos = vec3(vec4(position, 1.0) * modelMatrix);
+    }
+    else {
+        gl_Position =   vec4(position, 1.0) * chunkModelMatrix * viewMatrix * projectionMatrix;
+        fTargetVertex = vec4(targetVertex, 1.0) * chunkModelMatrix;
+        fforwardDir =   normalize(mat3(chunkModelMatrix) * forwardDir);
+        fragPos =       fragPos = (chunkModelMatrix * vec4(position, 1.0)).xyz;
+    }
 
     //Render partial mesh if chunk is on the edge of render distance by
     //calculating the distance between the current vertex position and the player's position
@@ -51,7 +61,7 @@ void main() {
             vec2(1.0f, 1.0f)
         );
 
-        fragPos = vec3(vec4(position, 1.0) * modelMatrix);
+
         ftexCoords = texCoords[aTexCoord];
         fnormal = aNormal * mat3(transpose(inverse(modelMatrix)));
     }

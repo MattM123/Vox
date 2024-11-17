@@ -2,6 +2,7 @@
 using System.Drawing.Printing;
 using System.Runtime.InteropServices;
 using MessagePack;
+using Vox.Model;
 using Vox.Texturing;
 
 namespace Vox.Rendering
@@ -28,9 +29,11 @@ namespace Vox.Rendering
         public float normalY;
         [Key(8)]
         public float normalZ;
+        [Key(9)]
+        public Face face;
 
         public Vertex(float x, float y, float z,
-            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ)
+            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, Face face)
         {
             this.x = x;
             this.y = y;
@@ -41,7 +44,7 @@ namespace Vox.Rendering
             this.normalX = normalX;
             this.normalY = normalY;
             this.normalZ = normalZ;
-
+            this.face = face;
         }
     }
 }
