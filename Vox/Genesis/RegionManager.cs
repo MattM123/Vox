@@ -10,10 +10,10 @@ namespace Vox.Genesis
 
     public class RegionManager : List<Region>
     {
-        public static List<Region> VisibleRegions = [];
+        public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 400;
-        private static int RENDER_DISTANCE = 12;
+        private static int RENDER_DISTANCE = 6;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
         public static long WORLD_SEED;
@@ -53,44 +53,39 @@ namespace Vox.Genesis
          *
          * @param r The region to leave
          */
-        public static void LeaveRegion(Region r)
+        public static void LeaveRegion(string rIndex)
         {
 
-            WriteRegion(r);
-            Logger.Info($"Writing {r}");
-            VisibleRegions.Remove(r);
-
-            //mark for garbage collection
-            r = null;
+            WriteRegion(VisibleRegions[rIndex]);
+            Logger.Info($"Writing {VisibleRegions[rIndex]}");
+            VisibleRegions.Remove(rIndex);
         }
 
         /**
          * Generates or loads an already generated region from filesystem when the players
          * render distance intersects with the regions bounds.
          */
-        public static Region EnterRegion(Region r)
+        public static Region EnterRegion(string rIndex)
         {
             //If region is already visible
-            if (VisibleRegions.Contains(r))
-                return r;
+            if (VisibleRegions.ContainsKey(rIndex))
+                return VisibleRegions[rIndex];
 
             //Gets region from files if it's written to file but not visible
-            Region region = TryGetRegionFromFile(r.x, r.z);
-            VisibleRegions.Add(region);
-            return r;
+            Region region = TryGetRegionFromFile(rIndex);
+            VisibleRegions.Add(rIndex, region);
+            return region;
 
         }
 
         public static void WriteRegion(Region r)
         {
+
             string path = Path.Combine(worldDir, "regions", $"{r.GetBounds().X}.{r.GetBounds().Y}.dat");
 
             byte[] serializedRegion = MessagePackSerializer.Serialize(r);
             
             File.WriteAllBytes(path, serializedRegion);
-
-            //mark for garbage collection
-            r = null;
         }
 
         public static Region? ReadRegion(string path)
@@ -99,6 +94,7 @@ namespace Vox.Genesis
 
             // Deserialize the byte array back into an object
             Region region = MessagePackSerializer.Deserialize<Region>(serializedData);
+            Logger.Info($"Reading Region from file {region}");
 
             return region;
 
@@ -114,24 +110,24 @@ namespace Vox.Genesis
         public static void UpdateVisibleRegions()
         {
             //Updates regions within render distance
-            List<Region> updatedRegions = ChunkCache.GetRegions();
+            Dictionary<string, Region> updatedRegions = ChunkCache.GetRegions();
 
-            if (VisibleRegions.Count > 0)
+            if (VisibleRegions.Count() > 0)
             {
 
                 //Retrieves from file or generates any region that is visible
-                for (int i = 0; i < updatedRegions.Count; i++)
+                for (int i = 0; i < updatedRegions.Count(); i++)
                 {
                     //Enter region if not found in visible regions
-                   if (!VisibleRegions.Contains(updatedRegions[i]))
-                        EnterRegion(updatedRegions[i]);
+                   if (!VisibleRegions.ContainsKey(updatedRegions.Keys.ElementAt(i)))
+                        EnterRegion(updatedRegions.Keys.ElementAt(i));
                 }
 
                 //Write to file and de-render any regions that are no longer visible
-                for (int i = 0; i < VisibleRegions.Count; i++)
+                for (int i = 0; i < VisibleRegions.Count(); i++)
                 {
-                    if (!updatedRegions.Contains(VisibleRegions[i]))
-                        LeaveRegion(VisibleRegions[i]);
+                    if (!updatedRegions.ContainsKey(VisibleRegions.Keys.ElementAt(i)))
+                        LeaveRegion(VisibleRegions.Keys.ElementAt(i));
                 }
             }
         }
@@ -140,93 +136,67 @@ namespace Vox.Genesis
          * Attempts to get a region from file.
          * Returns an empty region to write later if it theres no file to read.
          */
-        public static Region TryGetRegionFromFile(int x, int z)
+        public static Region TryGetRegionFromFile(string rIndex)
         {
-            //Check if region is already in files
-            string path = Path.Combine(worldDir, "regions", x + "." + z + ".dat");
-            bool exists = File.Exists(path);
+            int[] index = rIndex.Split('|').Select(int.Parse).ToArray();
+            string path = Path.Combine(worldDir, "regions", index[0] + "." + index[1] + ".dat");
 
-            if (exists)
+
+            if (!VisibleRegions.TryGetValue(rIndex, out Region? value) && !File.Exists(path)) {
+                Logger.Info($"Generating new region {rIndex}");
+                return new Region(index[0], index[1]);
+
+            } else if (VisibleRegions.TryGetValue(rIndex, out Region? val) && !File.Exists(path))
             {
-                Logger.Info($"Reading Existing Region at {x},{z}");
+                return val;
+
+            }
+            else if (!VisibleRegions.TryGetValue(rIndex, out Region? v) && File.Exists(path))
+            {               
                 return ReadRegion(path);
             }
             else
             {
-               
-                Logger.Info($"Generating New Region at   {x},{z}");
-                return new Region(x, z);
-                
+                return VisibleRegions[rIndex];
             }
-        }
 
+        }
+ 
+          public static Region GetGlobalRegionFromChunkCoords(int x, int z)
+          {
+              Region returnRegion = null;
         
-        public static Region GetGlobalRegionFromChunkCoords(int x, int z)
-        {
-            Region returnRegion = null;
+              int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
+              int xUpperLimit;
+              if (x < 0)
+                  xUpperLimit = xLowerLimit - REGION_BOUNDS;
+              else
+                  xUpperLimit = xLowerLimit + REGION_BOUNDS;
+        
+        
+              int zLowerLimit = ((z / REGION_BOUNDS) * REGION_BOUNDS);
+              int zUpperLimit;
+              if (z < 0)
+                  zUpperLimit = zLowerLimit - REGION_BOUNDS;
+              else
+                  zUpperLimit = zLowerLimit + REGION_BOUNDS;
+        
 
-            int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
-            int xUpperLimit;
-            if (x < 0)
-                xUpperLimit = xLowerLimit - REGION_BOUNDS;
-            else
-                xUpperLimit = xLowerLimit + REGION_BOUNDS;
+            // returnRegion ??= new Region(xUpperLimit, zUpperLimit);
+            return new Region(xUpperLimit, zUpperLimit);
+          }
 
+          public static Chunk GetGlobalChunkFromCoords(int x, int z)
+          {
+              //Calculates chunk coordinates
+              int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
+              int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
 
-            int zLowerLimit = ((z / REGION_BOUNDS) * REGION_BOUNDS);
-            int zUpperLimit;
-            if (z < 0)
-                zUpperLimit = zLowerLimit - REGION_BOUNDS;
-            else
-                zUpperLimit = zLowerLimit + REGION_BOUNDS;
+              string regionIdx = Region.GetRegionIndex(chunkXCoord, chunkZCoord);
 
-
-            //Calculates region coordinates player inhabits
-            int regionXCoord = xUpperLimit;
-            int regionZCoord = zUpperLimit;
-
-            lock (lockObj)
-            {
-                foreach (Region region in VisibleRegions)
-                {
-                    if (regionXCoord == region.x && regionZCoord == region.z)
-                    {
-                        returnRegion = region;
-                    }
-                }
-            }
-
-            returnRegion ??= new Region(xUpperLimit, zUpperLimit);
-
-            return returnRegion;
-        }
-
-        public static Chunk GetGlobalChunkFromCoords(int x, int z)
-        {
-            //Calculates chunk coordinates
-            int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
-            int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
-
-            Vector3 chunkLoc = new(chunkXCoord, 0, chunkZCoord);
-            foreach (Region region in VisibleRegions)
-            {
-                Chunk output = region.BinarySearchChunkWithLocation(0, region.GetChunks().Count - 1, chunkLoc);
-                try
-                {
-                    if (!output.Equals(null))
-                    {
-                        return output;
-                    }
-                }
-                catch (NullReferenceException)
-                {
-                   continue;
-                }
-            }
-
-            return new Chunk().Initialize(x, z);
-
-        }
+            return TryGetRegionFromFile(regionIdx).chunks[$"{chunkXCoord}|{chunkZCoord}"];
+        
+          }
     }
 }
 

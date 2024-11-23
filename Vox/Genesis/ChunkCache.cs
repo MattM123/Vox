@@ -1,4 +1,5 @@
 ﻿
+using System.Drawing;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 
@@ -8,12 +9,11 @@ namespace Vox.Genesis
     {
         private static int renderDistance = RegionManager.GetRenderDistance();
         private static int bounds = RegionManager.CHUNK_BOUNDS;
-        private static Chunk? playerChunk;
-        private static List<Region> regions = [];
-        private static int uboModelMatrices;
-        private static int maxMatrices = 0;
+        private static Chunk? playerChunk;        
         private static bool reRenderFlag = false;
-        private static List<Chunk> chunks = [];
+        private static Dictionary<string, Chunk> chunks = new();
+        private static Dictionary<string, Region> regions = new();
+
         private static readonly object chunkLock = new();
 
         /**
@@ -26,7 +26,6 @@ namespace Vox.Genesis
          */
         public ChunkCache(int bounds, Chunk playerChunk)
         {
-            uboModelMatrices = GL.GenBuffer();
             ChunkCache.bounds = bounds;
             ChunkCache.playerChunk = playerChunk;
             reRenderFlag = true;
@@ -98,45 +97,61 @@ namespace Vox.Genesis
             }
         }
 
+        private static void PopulateCache()
+        {
+            int renderDis = renderDistance * 2 + 1;
+            Vector3 loc = playerChunk.GetLocation();
+            Vector3 start = new(loc.X + (RegionManager.CHUNK_BOUNDS * renderDis),0, loc.Z + (RegionManager.CHUNK_BOUNDS * renderDis));
+
+            for (int i = 1; i <= renderDis; i++)
+            {
+                for(int j = 1; j <= renderDis; j++)
+                {
+                    CacheHelper((int) start.X - (RegionManager.CHUNK_BOUNDS * j), (int) start.Z - (RegionManager.CHUNK_BOUNDS * i));
+                }
+            }
+        }
         //This gets called A LOT.
         private static void CacheHelper(int x, int z)
         {
-            Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords(x, z);
-            Chunk chunk = chunkRegion.GetChunkWithLocation(new(x, 0, z));
+            string regionIdx = Region.GetRegionIndex(x, z);
 
-            chunks ??= [];
-            regions ??= [];
+            //Look for region in loaded regions
+            RegionManager.VisibleRegions.TryGetValue(regionIdx, out Region? chunkRegion);
+
+            //if region is still null, try get from file system
+            if (chunkRegion == null)
+            {
+                chunkRegion = RegionManager.TryGetRegionFromFile(regionIdx);
+                RegionManager.EnterRegion(regionIdx); //cache region in memory for future additions to chunk list
+            }
+
+
+            Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{z}") ? chunkRegion.chunks[$"{x}|{z}"] : null;
 
             if (chunk != null)
             {
-
-                if (!chunks.Contains(chunk))
-                    chunks.Add(chunk);
-
-                if (!regions.Contains(chunkRegion))
-                        regions.Add(chunkRegion);
-
-                    if (!chunkRegion.GetChunks().Contains(chunk))
-                        chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.GetChunks().Count - 1, chunk.GetLocation());
+                if (!chunks.ContainsKey($"{x}|{z}"))
+                    chunks.Add($"{x}|{z}", chunk);
+    
+                if (!chunkRegion.chunks.ContainsKey($"{x}|{z}"))
+                    chunkRegion.chunks.Add($"{x}|{z}", chunk);
                     
             }
             else
             {
-                chunk = new Chunk().Initialize(x, z);
-                Region region = chunk.GetRegion();
+                Chunk c = new Chunk().Initialize(x, z);
 
-         
-                if (!chunks.Contains(chunk))
-                    chunks.Add(chunk);
-                    
+                if (!chunkRegion.chunks.ContainsKey($"{x}|{z}"))
+                    chunkRegion.chunks.Add($"{x}|{z}", c);
 
-                region.BinaryInsertChunkWithLocation(0, region.GetChunks().Count - 1, chunk.GetLocation());
+                if (!chunks.ContainsKey($"{x}|{z}"))
+                    chunks.Add($"{x}|{z}", c);
 
-                if (!regions.Contains(region))
-                    regions.Add(region);
-
-
+               
             }
+            if (!regions.ContainsKey(Region.GetRegionIndex(x, z))) 
+                regions.Add(Region.GetRegionIndex(x, z), chunkRegion);
         }
 
         /**
@@ -187,37 +202,22 @@ namespace Vox.Genesis
          * and updates chunks that surround a player in a global scope.
          * @return The list of chunks that should be rendered.
          */
-        public static List<Chunk> GetChunksToRender()
+        public static Dictionary<string, Chunk> GetChunksToRender()
         {
-            chunks.Clear();
-            chunks = null;
+              chunks.Clear();
+              regions.Clear();
 
-            regions.Clear();
-            regions = null;
-
-            GetQuadrantChunks();
-            GetCardinalChunks();
-            Region chunkRegion = RegionManager.GetGlobalRegionFromChunkCoords((int) playerChunk.xLoc, (int) playerChunk.zLoc);
-            Chunk chunk = chunkRegion.GetChunkWithLocation(new(playerChunk.xLoc, 0, playerChunk.zLoc));
-            if (!chunkRegion.GetChunks().Contains(playerChunk))
-            {
-                chunkRegion.BinaryInsertChunkWithLocation(0, chunkRegion.GetChunks().Count - 1, new(playerChunk.xLoc, 0, playerChunk.zLoc));
-                chunks.Add(playerChunk);
-            }
-
+              GetQuadrantChunks();
+              GetCardinalChunks();
+              chunks.Add($"{playerChunk.xLoc},{playerChunk.zLoc}", playerChunk);
 
             return chunks;
-        }
-
-        public static int GetModeBuffer()
-        {
-            return uboModelMatrices;
         }
         public static void ReRender(bool b)
         {
             reRenderFlag = b;
         }
-        public static List<Region> GetRegions()
+        public static Dictionary<string, Region> GetRegions()
         {
             return regions;
         }

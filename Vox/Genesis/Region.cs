@@ -1,11 +1,11 @@
-﻿using System.Drawing;
+﻿
+using System.Drawing;
 using MessagePack;
-using Vox.Comparator;
 
 namespace Vox.Genesis
 {
     [MessagePackObject]
-    public class Region : ChunkManager
+    public class Region
     {
         [Key(0)]
         public int x;
@@ -19,7 +19,8 @@ namespace Vox.Genesis
         [IgnoreMember]
         public readonly Rectangle regionBounds;
 
-
+        [Key(3)]
+        public Dictionary<string, Chunk> chunks = [];
 
         [SerializationConstructor]
         public Region(int x, int z) {
@@ -37,9 +38,9 @@ namespace Vox.Genesis
          */
         public bool DidChange()
         {
-            foreach (Chunk c in GetChunks())
+            foreach (KeyValuePair<string, Chunk> c in chunks)
             {
-                if (c.DidChange())
+                if (c.Value.DidChange())
                 {
                     didChange = true;
                     break;
@@ -65,46 +66,21 @@ namespace Vox.Genesis
             return false;
         }
 
-        //Faster contains function to deal with chunks with large regions
-        public bool Contains(int low, int high, Chunk c)
-        {
-            ChunkComparator compare = new();
-
-            while (low <= high)
-            {
-                // Find the middle element
-                int mid = (low + high) / 2;
-
-                // Check if the middle element is the target
-                if (GetChunks()[mid].Equals(c))
-                {
-                    return true;
-                }
-                // If target is smaller, ignore the right half
-                else if (compare.Compare(GetChunks()[mid].GetLocation(), c.GetLocation()) == 1)
-                {
-                    Contains(low, mid - 1, c);
-                  //  high = mid - 1;
-                }
-                // If target is larger, ignore the left half
-                else
-                {
-                    Contains(mid + 1, high, c);
-                   // low = mid + 1;
-                }
-            }
-
-            // If we reach here, the target is not in the array
-            return false;
-        }
         public override string ToString()
         {
 
-            if (GetChunks().Count > 0)
-                return "(" + GetChunks().Count + " Chunks) Region[" + regionBounds.X
+            if (chunks.Count() > 0)
+                return "(" + chunks.Count() + " Chunks) Region[" + regionBounds.X
                         + ", " + regionBounds.Y + "]";
            else
                 return "(Empty) Region[" + regionBounds.X + ", " + regionBounds.Y + "]";
+        }
+
+        //Gets the region index given chunk coordinates
+        public static string GetRegionIndex(int chunkX, int chunkZ)
+        {
+            Rectangle bounds = RegionManager.GetGlobalRegionFromChunkCoords(chunkX, chunkZ).GetBounds();
+            return $"{bounds.X}|{bounds.Y}";
         }
 
         public override int GetHashCode()

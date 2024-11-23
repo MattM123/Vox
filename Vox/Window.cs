@@ -159,10 +159,10 @@ namespace Vox
             shaders.SetIntFloatUniform("isMenuRendered", 1);
 
             shaders.CreateUniform("playerMin");
-            shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+       //     shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
 
             shaders.CreateUniform("playerMax");
-            shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+       //     shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
 
             shaders.CreateUniform("renderDistance");
             shaders.CreateUniform("playerPos");
@@ -177,7 +177,7 @@ namespace Vox
             shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
             shaders.CreateUniform("targetVertex");
-            shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _));
+       //     shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _));
             //lightinf uniforms
             shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
             shaders.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
@@ -259,7 +259,7 @@ namespace Vox
                 GetPlayer().Update((float)args.Time);
                 shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
                 shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
-                shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _));
+                shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _));
                 shaders.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
             }
 
@@ -354,12 +354,44 @@ namespace Vox
                 if (e.Button == MouseButton.Left)
                 {
 
+                    Vector3 lookAt = GetPlayer().UpdateViewTarget(out Face lookFace);
                     //     else if (v != null && !b)
                     //     {
                     //         Logger.Info("Added block at origin");
                     //         RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(v.Value.x, v.Value.y, v.Value.z));
                     //     }
-                    //  switch 
+                    if (lookFace != Face.ALL)
+                    {
+
+                        int chunkX = (int) (lookAt.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS;
+                        int chunkZ = (int) (lookAt.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS;
+                        Logger.Debug(lookFace);
+                        switch (lookFace)
+                        {
+                            case Face.NORTH:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z + 1));
+                                break;
+                            case Face.SOUTH:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z - 1));
+                                break;
+
+                            case Face.UP:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y + 1, lookAt.Z));
+                                break;
+                            case Face.DOWN:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y - 1, lookAt.Z));
+                                break;
+
+                            case Face.EAST:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X - 1, lookAt.Y, lookAt.Z));
+                                break;
+                            case Face.WEST:
+                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X + 1, lookAt.Y, lookAt.Z));
+                                break;
+
+
+                        }
+                    }
                     //  Vertex? vOut;
                     //  if (RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)vert.Z).ContainsBlockAt(vert, out vOut))
                     //  {
@@ -556,7 +588,7 @@ namespace Vox
                 ImGui.Text("Position: X:" + GetPlayer().GetPosition().X + " Y:" + GetPlayer().GetPosition().Y + " Z:" + GetPlayer().GetPosition().Z);
                 ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
                 ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
-                ImGui.Text("Looking At: " + GetPlayer().UpdateViewTarget(out _, out _));
+                ImGui.Text("Looking At: " + GetPlayer().UpdateViewTarget(out _));
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -569,8 +601,8 @@ namespace Vox
                     * (RegionManager.GetRenderDistance() + RegionManager.GetRenderDistance() + 1));
 
                 string str = "Visible Regions:\n";
-                foreach (Region r in ChunkCache.GetRegions())
-                    str += r.ToString() + "\n";
+                foreach (KeyValuePair<string, Region> r in ChunkCache.GetRegions())
+                    str += $"[{r.Key}] {r.Value}\n";
 
                 ImGui.Text(str);
                 ImGui.Text("");
@@ -650,7 +682,7 @@ namespace Vox
             GL.EnableVertexAttribArray(4);
 
             // Block face
-            GL.VertexAttribPointer(5, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
+            GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
             GL.EnableVertexAttribArray(5);
 
             /*==================================
@@ -677,7 +709,7 @@ namespace Vox
                      player.GetChunkWithPlayer().GetLocation().Z);
 
             //Updates the chunks to render when the player has moved into a new chunk
-            List<Chunk> chunksToRender = ChunkCache.GetChunksToRender();
+            Dictionary<string, Chunk> chunksToRender = ChunkCache.GetChunksToRender();
             if (!player.GetChunkWithPlayer().Equals(globalPlayerChunk))
             {
                 RegionManager.UpdateVisibleRegions();
@@ -694,19 +726,19 @@ namespace Vox
 
             //Per chunk primitive information calculated in thread pool and later sent to GPU for drawing
             ConcurrentBag<RenderTask> renderTasks = [];
-            CountdownEvent countdown = new(chunksToRender.Count);
+            CountdownEvent countdown = new(chunksToRender.Count());
             object lockObj = new();
-            foreach (Chunk c in chunksToRender)
+
+            foreach (KeyValuePair<string, Chunk> c in chunksToRender)
             {
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
-                    renderTasks.Add(c.GetRenderTask());
-               
+                    renderTasks.Add(c.Value.GetRenderTask());
                     countdown.Signal();
                 }));
             }
             countdown.Wait();
-           
+      
             /*======================================================
             Getting vertex and element information for rendering
             ========================================================*/
@@ -744,7 +776,7 @@ namespace Vox
                 GL.EnableVertexAttribArray(4);
 
                 // Block face
-                GL.VertexAttribPointer(5, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
+                GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
                 GL.EnableVertexAttribArray(5);
 
                 int vbo = renderTask.GetVbo();
@@ -791,7 +823,7 @@ namespace Vox
 
         public static void RenderBlockTarget()
         {
-            Vector3 vert = GetPlayer().UpdateViewTarget(out bool b, out Face face);
+            Vector3 vert = GetPlayer().UpdateViewTarget(out Face face);
             BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
             if (face != Face.ALL)// && RegionManager.GetGlobalChunkFromCoords((int) vert.X, (int) vert.Z).ContainsBlockAt(vert, out _))
             {

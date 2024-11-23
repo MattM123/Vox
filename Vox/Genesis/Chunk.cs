@@ -58,8 +58,9 @@ namespace Vox.Genesis
 
         [Key(9)]
         public Queue<LightNode> sunlightBFSPropagationQueue = new();
-
-        private List<Vector3> blocksToAdd = [];
+        
+        [Key(10)]
+        public List<float> blocksToAdd = [];
         public Chunk()
         {
 
@@ -303,58 +304,6 @@ namespace Vox.Genesis
         {
             return renderTask.GetElementData();
         }
-        /**
-         * If this region is currently visible to the player (in-memory), this region will
-         * be returned populated with chunk data. This region will otherwise be an empty object
-         * which would need to be populated with data by the RegionManager when the player
-         * enters the region.
-         *
-         * @return Returns the region that the chunk belongs to.
-         */
-        public Region GetRegion()
-        {
-            Region returnRegion = null;
-
-            int x = (int)GetLocation().X;
-            int xLowerLimit = x / RegionManager.REGION_BOUNDS * RegionManager.REGION_BOUNDS;
-            int xUpperLimit;
-            if (x < 0)
-                xUpperLimit = xLowerLimit - RegionManager.REGION_BOUNDS;
-            else
-                xUpperLimit = xLowerLimit + RegionManager.REGION_BOUNDS;
-
-
-            int z = (int)GetLocation().Z;
-            int zLowerLimit = z / RegionManager.REGION_BOUNDS * RegionManager.REGION_BOUNDS;
-            int zUpperLimit;
-            if (z < 0)
-                zUpperLimit = zLowerLimit - RegionManager.REGION_BOUNDS;
-            else
-                zUpperLimit = zLowerLimit + RegionManager.REGION_BOUNDS;
-
-
-            //Calculates region coordinates chunk inhabits
-            int regionXCoord = xUpperLimit;
-            int regionZCoord = zUpperLimit;
-
-            List<Region> regions = RegionManager.VisibleRegions;
-            foreach (Region region in regions)
-            {
-                Rectangle regionBounds = region.GetBounds();
-                if (regionXCoord == regionBounds.X && regionZCoord == regionBounds.Y)
-                {
-                    returnRegion = region;
-                }
-            }
-
-            if (returnRegion == null)
-            {
-                return RegionManager.EnterRegion(new(xUpperLimit, zUpperLimit));
-            }
-
-            return returnRegion;
-        }
-
         public void DidChange(bool f)
         {
             didChange = f;
@@ -392,9 +341,13 @@ namespace Vox.Genesis
                     //SetSunlight((int) v.X, (int)v.Y, (int)v.Z, 15);
                //     PropagateEmissiveBlock((int)v.X, (int)v.Y, (int)v.Z, 15);
                // }
-;               
+;
                 //Add any player placed blocks to the mesh before interpolation.
-                nonInterpolated.AddRange(blocksToAdd);
+                List<Vector3> toVert = [];
+                for (int i = 0; i < blocksToAdd.Count; i += 3)
+                    toVert.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
+
+                nonInterpolated.AddRange(toVert);
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
 
                 for (int i = 0; i < interpolatedChunk.Count; i++)
@@ -412,7 +365,7 @@ namespace Vox.Genesis
                     else
                         model = ModelLoader.GetModel(BlockType.TEST_BLOCK);
 
-
+                    //TODO: Implement binary meshing here
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.NORTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
                     vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP,    new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
@@ -430,7 +383,7 @@ namespace Vox.Genesis
                     ]);
 
                     elementCounter += 24;
-                }   
+                }
 
                 //Updates chunk data
                 lock (chunkLock)
@@ -790,7 +743,7 @@ namespace Vox.Genesis
 
         public void AddBlockToChunk(Vector3 v)
         {
-            blocksToAdd.Add(v);
+            blocksToAdd.AddRange([v.X, v.Y,v.Z]);
             DidChange(true);
             GetRenderTask();
         }
