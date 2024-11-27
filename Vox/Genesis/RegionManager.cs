@@ -13,7 +13,7 @@ namespace Vox.Genesis
         public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 400;
-        private static int RENDER_DISTANCE = 6;
+        private static int RENDER_DISTANCE = 8;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 16;
         public static long WORLD_SEED;
@@ -188,11 +188,11 @@ namespace Vox.Genesis
 
           public static Chunk GetGlobalChunkFromCoords(int x, int z)
           {
-              //Calculates chunk coordinates
-              int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
-              int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
+            //Calculates chunk coordinates
+            int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
+            int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
 
-              string regionIdx = Region.GetRegionIndex(chunkXCoord, chunkZCoord);
+            string regionIdx = Region.GetRegionIndex(chunkXCoord, chunkZCoord);
 
             return TryGetRegionFromFile(regionIdx).chunks[$"{chunkXCoord}|{chunkZCoord}"];
         

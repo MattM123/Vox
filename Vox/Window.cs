@@ -57,6 +57,7 @@ namespace Vox
         private static int vbo, ebo, vao = 0;
         private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
         private static int crosshairTex;
+        private static Matrix4 pMatrix;
 
         //used for player and lighting projection matrices
         private static float FAR = 500.0f;
@@ -139,7 +140,7 @@ namespace Vox
             //Matrix setup
             //========================
 
-            Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
+            pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
 
             viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -10f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
 
@@ -355,70 +356,36 @@ namespace Vox
                 {
 
                     Vector3 lookAt = GetPlayer().UpdateViewTarget(out Face lookFace);
-                    //     else if (v != null && !b)
-                    //     {
-                    //         Logger.Info("Added block at origin");
-                    //         RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(v.Value.x, v.Value.y, v.Value.z));
-                    //     }
                     if (lookFace != Face.ALL)
                     {
 
-                        int chunkX = (int) (lookAt.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS;
-                        int chunkZ = (int) (lookAt.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS;
                         Logger.Debug(lookFace);
                         switch (lookFace)
                         {
                             case Face.NORTH:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z + 1));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X + 1, lookAt.Y, lookAt.Z));
                                 break;
                             case Face.SOUTH:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z - 1));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X - 1, lookAt.Y, lookAt.Z));
                                 break;
 
                             case Face.UP:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y + 1, lookAt.Z));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X, lookAt.Y + 1, lookAt.Z));
                                 break;
                             case Face.DOWN:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X, lookAt.Y - 1, lookAt.Z));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X, lookAt.Y - 1, lookAt.Z));
                                 break;
 
                             case Face.EAST:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X - 1, lookAt.Y, lookAt.Z));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z + 1));
                                 break;
                             case Face.WEST:
-                                RegionManager.GetGlobalChunkFromCoords(chunkX, chunkZ).AddBlockToChunk(new(lookAt.X + 1, lookAt.Y, lookAt.Z));
+                                RegionManager.GetGlobalChunkFromCoords((int) lookAt.X, (int) lookAt.Z).AddBlockToChunk(new(lookAt.X, lookAt.Y, lookAt.Z - 1));
                                 break;
 
 
                         }
                     }
-                    //  Vertex? vOut;
-                    //  if (RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)vert.Z).ContainsBlockAt(vert, out vOut))
-                    //  {
-                    //
-                    //      //Block already exists in block space player is lookint at
-                    //      //Add the block adjacent to the blockface player is looking at
-                    //      Logger.Info(vOut.Value.face);
-                    //
-                    //      Vector3 adjacent = Vector3.Add(vert, new(vOut.Value.normalX, vOut.Value.normalY, vOut.Value.normalZ));
-                    //      Vertex? v;
-                    //      if (RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)vert.Z).ContainsBlockAt(vert, out v))
-                    //      {
-                    //          Logger.Info($"Cannot add adjacent block, both origin[{vert}] and adjacent[{adjacent}] blocks already exist. Normal adjacent: {new Vector3(vOut.Value.normalX, vOut.Value.normalY, vOut.Value.normalZ)}");
-                    //          Logger.Info(v.Value.face);
-                    //      }
-                    //      else
-                    //      {
-                    //          RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)vert.Z).AddBlockToChunk(adjacent);
-                    //          Logger.Info($"Chunk already contains {vert}, adding adjacent block {adjacent}. Normal adjacent: {new Vector3(vOut.Value.normalX, vOut.Value.normalY, vOut.Value.normalZ)}");
-                    //          Logger.Info(v.Value.face);
-                    //      }
-                    //  }
-                    //
-                    //  else
-                    //  {
-                    //      RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)vert.Z).AddBlockToChunk(vert);
-                    //      Logger.Info($"Adding block[{vert}] to chunk");
                 }
                 
             }
@@ -818,7 +785,7 @@ namespace Vox
                 }
             }
 
-            RenderBlockTarget();
+          //  RenderBlockTarget();
         }
 
         public static void RenderBlockTarget()
@@ -831,33 +798,27 @@ namespace Vox
                 switch (face)
                 {
                     case Face.UP:
-                       // RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x, vert.y + 1, v.Value.z));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.UP, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.UP, new(vert.X, vert.Y + 1, vert.Z), null);
                         break;
 
                     case Face.DOWN:
-                       // RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x, vert.y - 1, v.Value.z));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.DOWN, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.DOWN, new(vert.X, vert.Y - 1, vert.Z), null);
                         break;
 
                     case Face.SOUTH:
-                     //   RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x, vert.y, vert.z - 1));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.SOUTH, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.SOUTH, new(vert.X - 1, vert.Y, vert.Z), null);
                         break;
 
                     case Face.NORTH:
-                      //  RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x, vert.y, vert.z + 1));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.NORTH, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.NORTH, new(vert.X + 1, vert.Y, vert.Z), null);
                         break;
 
                     case Face.EAST:
-                      //  RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x + 1, vert.y, v.Value.z));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.EAST, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.EAST, new(vert.X, vert.Y, vert.Z + 1), null);
                         break;
 
                     case Face.WEST:
-                      //  RegionManager.GetGlobalChunkFromCoords((int)v.Value.x, (int)v.Value.z).AddBlockToChunk(new Vector3(vert.x - 1, vert.y, v.Value.z));
-                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.WEST, new(vert.X, vert.Y, vert.Z), null);
+                        GetPlayer().viewTarget = ModelUtils.GetCuboidFace(model, Face.WEST, new(vert.X, vert.Y, vert.Z - 1), null);
                         break;
 
                 }

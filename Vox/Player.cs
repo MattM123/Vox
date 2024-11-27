@@ -22,7 +22,7 @@ namespace Vox
         private static Vector3 playerMin;
         private static Vector3 playerMax;
         private static Vector3 velocity = Vector3.Zero;
-        public readonly float moveSpeed = 3.0f;
+        public readonly float moveSpeed = 5.0f;
         private Vector3 desiredMovement = Vector3.Zero;
         private float forward = 0f;
         private float right = 0f;
@@ -30,12 +30,12 @@ namespace Vox
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
         private List<Vector3> viewBlock = [];
-        public readonly float reachDistance = 10f;
+        public readonly float reachDistance = 5f;
         public Vertex[] viewTarget = [];
         private BlockType playerSelectedBlock = BlockType.TEST_BLOCK;
         private Vector3 targetVertex = Vector3.Zero;
 
-        private static float gravity = 9.8f;// 9.8f;      // Gravity constant
+        private static float gravity = 0f;// 9.8f;      // Gravity constant
         private static float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
@@ -78,7 +78,7 @@ namespace Vox
             float stepSize = 0.5f;  // Distance to step along the ray each iteration
             float maxDistance = reachDistance;  // Maximum reach distance for the ray
             Vector3 rayOrigin = position;
-            Vector3 blockPosition = Vector3.Zero;
+            Vector3 blockCenter = Vector3.Zero;
 
 
             for (float distance = 0; distance < maxDistance; distance += stepSize)
@@ -89,38 +89,44 @@ namespace Vox
                 Vector3 currentPosition = rayOrigin + rayDirection * distance;
 
                 // Determine the block at the current position
-                 blockPosition = new Vector3(
-                       (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.X - Math.Round(currentPosition.X + (rayDirection.X * reachDistance)))))))),
-                       (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Y - Math.Round(currentPosition.Y + (rayDirection.Y * reachDistance)))))))),
-                       (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Z - Math.Round(currentPosition.Z + (rayDirection.Z * reachDistance))))))))
+                 blockCenter = new Vector3(
+                    (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - Math.Abs(currentPosition.X - currentPosition.X + (rayDirection.X * reachDistance))))) + 0.5f,
+                    (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - Math.Abs(currentPosition.Y - currentPosition.Y + (rayDirection.Y * reachDistance))))) + 0.5f,
+                    (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - Math.Abs(currentPosition.Z - currentPosition.Z + (rayDirection.Z * reachDistance))))) + 0.5f
                  );
+                //  blockPosition = new Vector3(
+                //     (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.X - Math.Round(currentPosition.X + (rayDirection.X * reachDistance)))))))),
+                //     (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Y - Math.Round(currentPosition.Y + (rayDirection.Y * reachDistance)))))))),
+                //     (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Z - Math.Round(currentPosition.Z + (rayDirection.Z * reachDistance))))))))
+                //  );
 
-                string chunkIdx = $"{blockPosition.X}|{blockPosition.Z}";
+                Vector3 localHit = currentPosition - blockCenter;
+
+                // Compare which axis is most aligned with the ray direction
+                Vector3 absLocalHit = new(MathF.Abs(localHit.X), MathF.Abs(localHit.Y), MathF.Abs(localHit.Z));
+                if (absLocalHit.X > absLocalHit.Y && absLocalHit.X > absLocalHit.Z)
+                {
+                    face = (localHit.X > 0 ? Face.WEST : Face.EAST);
+                }
+                else if (absLocalHit.Y > absLocalHit.X && absLocalHit.Y > absLocalHit.Z)
+                {
+                    face = (localHit.Y > 0 ? Face.DOWN : Face.UP);
+                }
+                else
+                {
+                    face = (localHit.Z > 0 ? Face.NORTH : Face.SOUTH);
+                }
+
+                targetVertex = blockCenter - new Vector3(0.5f, 0.5f, 0.5f);
+
+                string chunkIdx = $"{targetVertex.X * RegionManager.CHUNK_BOUNDS / RegionManager.CHUNK_BOUNDS}|{targetVertex.Z * RegionManager.CHUNK_BOUNDS / RegionManager.CHUNK_BOUNDS}";
                 int[] index = chunkIdx.Split('|').Select(int.Parse).ToArray();
                 string regionIdx = Region.GetRegionIndex(index[0], index[1]);
 
-                    Vector3 blockCenter = targetVertex + new Vector3(0.5f, 0.5f, 0.5f);
-                    Vector3 localHit = currentPosition - blockCenter;
-                Logger.Info(localHit + " " + targetVertex);
 
-                    // Compare which axis is most aligned with the ray direction
-                    Vector3 absLocalHit = new Vector3(MathF.Abs(localHit.X), MathF.Abs(localHit.Y), MathF.Abs(localHit.Z));
-                    if (absLocalHit.X > absLocalHit.Y && absLocalHit.X > absLocalHit.Z)
-                    {
-                        face = (localHit.X > 0 ? Face.WEST : Face.EAST);
-                    }
-                    else if (absLocalHit.Y > absLocalHit.X && absLocalHit.Y > absLocalHit.Z)
-                    {
-                        face = (localHit.Y > 0 ? Face.DOWN : Face.UP);
-                    }
-                    else
-                    {
-                        face = (localHit.Z > 0 ? Face.NORTH : Face.SOUTH);
-                    }
-
-                return blockPosition;
             }
             //Returns the last block the player was looking at
+
             return targetVertex;
         }
 
@@ -492,42 +498,6 @@ namespace Vox
             string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
 
             return RegionManager.TryGetRegionFromFile(playerRegionIdx);
-
-         //   Genesis.Region? returnRegion = null;
-         //
-         //   int x = (int)GetPosition().X;
-         //   int xLowerLimit = ((x / RegionManager.REGION_BOUNDS) * RegionManager.REGION_BOUNDS);
-         //   int xUpperLimit;
-         //   if (x < 0)
-         //       xUpperLimit = xLowerLimit - RegionManager.REGION_BOUNDS;
-         //   else
-         //       xUpperLimit = xLowerLimit + RegionManager.REGION_BOUNDS;
-         //
-         //
-         //   int z = (int)GetPosition().Z;
-         //   int zLowerLimit = ((z / RegionManager.REGION_BOUNDS) * RegionManager.REGION_BOUNDS);
-         //   int zUpperLimit;
-         //   if (z < 0)
-         //       zUpperLimit = zLowerLimit - RegionManager.REGION_BOUNDS;
-         //   else
-         //       zUpperLimit = zLowerLimit + RegionManager.REGION_BOUNDS;
-         //
-         //
-         //   //Calculates region coordinates player inhabits
-         //   int regionXCoord = xUpperLimit;
-         //   int regionZCoord = zUpperLimit;
-         //
-         //   foreach (Region region in RegionManager.VisibleRegions)
-         //   {
-         //       System.Drawing.Rectangle regionBounds = region.GetBounds();
-         //       if (regionXCoord == regionBounds.X && regionZCoord == regionBounds.Y)
-         //       {
-         //           returnRegion = region;
-         //       }
-         //   }
-         //   returnRegion ??= new(regionXCoord, regionZCoord);
-         //
-         //   return returnRegion;
         }
 
 
@@ -554,23 +524,6 @@ namespace Vox
 
 
             return value;
-
-        //    //Calculates chunk coordinates player inhabits
-        //    int chunkXCoord = (int)GetPosition().X / RegionManager.CHUNK_BOUNDS * RegionManager.CHUNK_BOUNDS;
-        //    int chunkZCoord = (int)GetPosition().Z / RegionManager.CHUNK_BOUNDS * RegionManager.CHUNK_BOUNDS;
-        //
-        //
-        //    Region r = GetRegionWithPlayer();
-        //    Chunk? c = r.chunks.ContainsKey(Region.HashCellCoords(chunkXCoord, chunkZCoord)) ? r.chunks[Region.HashCellCoords(chunkXCoord, chunkZCoord)] : null;
-        //
-        //    if (c == null)
-        //    {
-        //        Chunk d = new Chunk().Initialize(chunkXCoord, chunkZCoord);
-        //        d.GetRenderTask();
-        //        r.chunks.Add(Region.HashCellCoords(chunkXCoord, chunkZCoord), new Chunk().Initialize(chunkXCoord, chunkZCoord));
-        //        return d;
-        //    }
-        //    return c;
         }
 
         public static void SetLookDir(float x, float y)

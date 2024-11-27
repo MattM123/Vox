@@ -26,6 +26,7 @@ out vec3 fragPos;
 out vec3 fnormal;
 out vec4 fTargetVertex;
 flat out float fTexLayer;
+out vec3 vertexPos;
     
 
 void main() {
@@ -38,7 +39,7 @@ void main() {
         gl_Position =   vec4(position, 1.0) * chunkModelMatrix * viewMatrix * projectionMatrix;
         fTargetVertex = vec4(targetVertex, 1.0) * chunkModelMatrix;
         fforwardDir =   normalize(mat3(chunkModelMatrix) * forwardDir);
-        fragPos =       fragPos = (chunkModelMatrix * vec4(position, 1.0)).xyz;
+        fragPos =       (chunkModelMatrix * vec4(position, 1.0)).xyz;
     }
 
     //Render partial mesh if chunk is on the edge of render distance by
@@ -53,6 +54,7 @@ void main() {
         //passthrough
         fTexLayer = aTexLayer;
         fsunlight = aSunlight;
+        vertexPos = position;
 
         vec2 texCoords[4] = vec2[4](
             vec2(0.0f, 0.0f),

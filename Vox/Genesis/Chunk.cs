@@ -1,5 +1,8 @@
 ﻿
+using System.Collections;
 using System.Drawing;
+using System.Linq;
+using System.Reflection;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -61,6 +64,7 @@ namespace Vox.Genesis
         
         [Key(10)]
         public List<float> blocksToAdd = [];
+
         public Chunk()
         {
 
@@ -348,41 +352,91 @@ namespace Vox.Genesis
                     toVert.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
 
                 nonInterpolated.AddRange(toVert);
+
+                //add bit meshing here
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
 
-                for (int i = 0; i < interpolatedChunk.Count; i++)
+                int randomIndex = random.Next(values.Length);
+                BlockType? randomBlock;
+                if (randomIndex > 1)
+                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
+                else
+                    randomBlock = (BlockType?)values.GetValue(randomIndex);
+
+                BlockModel model;
+                if (randomBlock != null)
+                    model = ModelLoader.GetModel((BlockType)randomBlock);
+                else
+                    model = ModelLoader.GetModel(BlockType.TEST_BLOCK);
+
+
+                //Populate top faces of chunk
+                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
                 {
-                    int randomIndex = random.Next(values.Length);
-                    BlockType? randomBlock;
-                    if (randomIndex > 1)
-                        randomBlock = (BlockType?) values.GetValue(randomIndex - 2);
-                    else
-                        randomBlock = (BlockType?)values.GetValue(randomIndex);
+                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                    {
+                        foreach (Vector3 v in interpolatedChunk)
+                        {
 
-                    BlockModel model;
-                    if (randomBlock != null)
-                        model = ModelLoader.GetModel((BlockType)randomBlock);
-                    else
-                        model = ModelLoader.GetModel(BlockType.TEST_BLOCK);
+                            //Top face check X and Z
+                            if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
+                            {
+                                //    bool up = nonInterpolated.Contains(new(v.X, v.Y + 1, v.Z));
+                                //    if (!up)
+                                //    {
+                                vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                elementCounter += 4;
+                              //  }
 
-                    //TODO: Implement binary meshing here
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.NORTH, new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP,    new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.DOWN,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z), this));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.WEST,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z),  this));
-                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.EAST,  new Vector3(interpolatedChunk[i].X, interpolatedChunk[i].Y, interpolatedChunk[i].Z),  this));
+                                //East face check z + 1
+                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
+                                if (!east)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
+                            
+                                //West face check z - 1
+                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
+                                if (!west)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
 
-                    elements.AddRange([
-                        elementCounter,      elementCounter + 1,  elementCounter + 2,   elementCounter + 3, 80000,
-                        elementCounter + 4,  elementCounter + 5,  elementCounter + 6,   elementCounter + 7, 80000,
-                        elementCounter + 8,  elementCounter + 9,  elementCounter + 10,  elementCounter + 11, 80000,
-                        elementCounter + 12, elementCounter + 13, elementCounter + 14,  elementCounter + 15, 80000,
-                        elementCounter + 16, elementCounter + 17, elementCounter + 18,  elementCounter + 19, 80000,
-                        elementCounter + 20, elementCounter + 21, elementCounter + 22,  elementCounter + 23, 80000,
-                    ]);
+                                //North face check x + 1
+                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
+                                if (!north)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
 
-                    elementCounter += 24;
+                                //South face check x - 1
+                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
+                                if (!south)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
+                                //Bottom face
+                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
+                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
+                            }
+
+
+                        }
+                    }
                 }
 
                 //Updates chunk data

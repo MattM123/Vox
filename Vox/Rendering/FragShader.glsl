@@ -88,11 +88,12 @@ void main()
 
     // Threshold for line width
     float lineWidth = 0.1; // Adjust to control line thickness
+    vec3 test;
 
     if (distanceToAxis < lineWidth) {
         // Visualize forward axis with a solid color or gradient
-        float intensity = (alignment + 1.0) / 2.0; // Normalize alignment to [0, 1]
-        vec3 forwardColor = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), intensity); // Blue to Red gradient
+        float intensity = (alignment + 8.0) / 2.0; // Normalize alignment to [0, 1]
+        vec3 forwardColor = mix(vec3(1.0, 0.0, 1.0), vec3(1.0, 1.0, 1.0), intensity); // Blue to Red gradient
         color = vec4(forwardColor, 1.0);
 
     } else {
@@ -144,7 +145,7 @@ void main()
     
          // Render the line if the fragment is close enough to an edge
          if (minDistance < lineThickness) {
-             color = vec4(1.0, 0.0, 0.0, 1.0);
+             color = vec4(1.0, 1.0, 0.0, 1.0);
          } else {
     
     
