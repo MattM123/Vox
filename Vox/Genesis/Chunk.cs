@@ -345,7 +345,7 @@ namespace Vox.Genesis
                     //SetSunlight((int) v.X, (int)v.Y, (int)v.Z, 15);
                //     PropagateEmissiveBlock((int)v.X, (int)v.Y, (int)v.Z, 15);
                // }
-;
+
                 //Add any player placed blocks to the mesh before interpolation.
                 List<Vector3> toVert = [];
                 for (int i = 0; i < blocksToAdd.Count; i += 3)
@@ -353,7 +353,6 @@ namespace Vox.Genesis
 
                 nonInterpolated.AddRange(toVert);
 
-                //add bit meshing here
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
 
                 int randomIndex = random.Next(values.Length);
@@ -370,7 +369,6 @@ namespace Vox.Genesis
                     model = ModelLoader.GetModel(BlockType.TEST_BLOCK);
 
 
-                //Populate top faces of chunk
                 for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
                 {
                     for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
@@ -381,13 +379,13 @@ namespace Vox.Genesis
                             //Top face check X and Z
                             if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
                             {
-                                //    bool up = nonInterpolated.Contains(new(v.X, v.Y + 1, v.Z));
-                                //    if (!up)
-                                //    {
-                                vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                elementCounter += 4;
-                              //  }
+                                 bool up = nonInterpolated.Contains(new(v.X, v.Y + 1, v.Z));
+                                if (!up)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
+                                    elementCounter += 4;
+                                }
 
                                 //East face check z + 1
                                 bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
@@ -433,8 +431,6 @@ namespace Vox.Genesis
                                     elementCounter += 4;
                                 }
                             }
-
-
                         }
                     }
                 }

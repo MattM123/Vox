@@ -2,6 +2,7 @@
 using System.Drawing.Printing;
 using System.Runtime.InteropServices;
 using MessagePack;
+using OpenTK.Mathematics;
 using Vox.Model;
 using Vox.Texturing;
 
@@ -45,6 +46,11 @@ namespace Vox.Rendering
             this.normalY = normalY;
             this.normalZ = normalZ;
             this.face = face;
+        }
+
+        public Vector3 GetVector()
+        {
+            return new(x, y, z);
         }
     }
 }

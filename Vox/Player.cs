@@ -1,5 +1,6 @@
 ﻿
 using System;
+using System.Drawing;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -7,6 +8,7 @@ using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
 using Vox.Texturing;
+using Region = Vox.Genesis.Region;
 
 namespace Vox
 {
@@ -15,8 +17,8 @@ namespace Vox
         public static Vector3 position = Vector3.Zero;
         private static float yaw = 0f;
         private static float pitch = 0f;
-        private static readonly float halfWidth = 1f;
-        private static readonly float halfDepth = 1f;
+        private static readonly float halfWidth = 0.8f;
+        private static readonly float halfDepth = 0.8f;
         private static readonly float playerHeight = 20f;
         private static Vector3 prevPos = Vector3.Zero;
         private static Vector3 playerMin;
@@ -26,6 +28,8 @@ namespace Vox
         private Vector3 desiredMovement = Vector3.Zero;
         private float forward = 0f;
         private float right = 0f;
+        public static Vector3 vecTest = Vector3.Zero;
+        public static Vector3 vecTest1 = Vector3.Zero;
         private bool IsGrounded = false;
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
@@ -35,8 +39,8 @@ namespace Vox
         private BlockType playerSelectedBlock = BlockType.TEST_BLOCK;
         private Vector3 targetVertex = Vector3.Zero;
 
-        private static float gravity = 0f;// 9.8f;      // Gravity constant
-        private static float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
+        private static readonly float gravity = 0f;// 9.8f;      // Gravity constant
+        private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
          * Region 0,0.
@@ -67,9 +71,10 @@ namespace Vox
          * out Vertex: The vertex struct that is in view target.
          * 
          */
-        public Vector3 UpdateViewTarget(out Face face)
+        public Vector3 UpdateViewTarget(out Face playerFacing, out Face blockFace, out BlockDetail block)
         {
-            face = Face.ALL;
+            playerFacing = Face.ALL;
+            blockFace = Face.ALL;
 
             //Update the player picked block based on view target
             BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
@@ -78,56 +83,89 @@ namespace Vox
             float stepSize = 0.5f;  // Distance to step along the ray each iteration
             float maxDistance = reachDistance;  // Maximum reach distance for the ray
             Vector3 rayOrigin = position;
-            Vector3 blockCenter = Vector3.Zero;
-
+            Vector3 target = Vector3.Zero;
+            Vector3 currentPosition = Vector3.Zero;
+            block = new();
+            Vector3 rayDirection = GetForwardDirection();
 
             for (float distance = 0; distance < maxDistance; distance += stepSize)
             {
-                Vector3 rayDirection = GetForwardDirection().Normalized();
+   
 
-                // Calculate the current position along the ray
-                Vector3 currentPosition = rayOrigin + rayDirection * distance;
+                // Calculate the current position along the ray, round to make divisible by stepSize
+                currentPosition = rayOrigin + rayDirection * distance;
+                vecTest1 = currentPosition;
 
-                // Determine the block at the current position
-                 blockCenter = new Vector3(
-                    (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - Math.Abs(currentPosition.X - currentPosition.X + (rayDirection.X * reachDistance))))) + 0.5f,
-                    (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - Math.Abs(currentPosition.Y - currentPosition.Y + (rayDirection.Y * reachDistance))))) + 0.5f,
-                    (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - Math.Abs(currentPosition.Z - currentPosition.Z + (rayDirection.Z * reachDistance))))) + 0.5f
-                 );
-                //  blockPosition = new Vector3(
-                //     (float)Math.Round(currentPosition.X + (rayDirection.X * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.X - Math.Round(currentPosition.X + (rayDirection.X * reachDistance)))))))),
-                //     (float)Math.Round(currentPosition.Y + (rayDirection.Y * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Y - Math.Round(currentPosition.Y + (rayDirection.Y * reachDistance)))))))),
-                //     (float)Math.Round(currentPosition.Z + (rayDirection.Z * (reachDistance - ((float)Math.Round((float)Math.Abs(currentPosition.Z - Math.Round(currentPosition.Z + (rayDirection.Z * reachDistance))))))))
-                //  );
+                target = new(
+                    (float)Math.Round(currentPosition.X),
+                    (float)Math.Round(currentPosition.Y),
+                    (float)Math.Round(currentPosition.Z)
+                );
 
-                Vector3 localHit = currentPosition - blockCenter;
+                block = new(
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.NORTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.SOUTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.UP,    target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.DOWN,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.EAST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.WEST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z))
+                );
 
-                // Compare which axis is most aligned with the ray direction
-                Vector3 absLocalHit = new(MathF.Abs(localHit.X), MathF.Abs(localHit.Y), MathF.Abs(localHit.Z));
-                if (absLocalHit.X > absLocalHit.Y && absLocalHit.X > absLocalHit.Z)
-                {
-                    face = (localHit.X > 0 ? Face.WEST : Face.EAST);
-                }
-                else if (absLocalHit.Y > absLocalHit.X && absLocalHit.Y > absLocalHit.Z)
-                {
-                    face = (localHit.Y > 0 ? Face.DOWN : Face.UP);
-                }
+
+                //calculate direction player is facing from their view matrix
+                Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
+                if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)    
+                    playerFacing = (rayDirection.X > 0 ? Face.EAST : Face.WEST);
+               
+                else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
+                    playerFacing = (rayDirection.Y > 0 ? Face.UP : Face.DOWN);   
+                
                 else
+                    playerFacing = (rayDirection.Z > 0 ? Face.NORTH : Face.SOUTH);
+
+
+
+                Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
+                Vector3 localHitVector = Vector3.Normalize(blockCenter - currentPosition);
+                Vector3 absoluteLocalHitVector = new(Math.Abs(localHitVector.X), Math.Abs(localHitVector.Y), Math.Abs(localHitVector.Z));
+
+
+                //Create block view matrix to calculate blockface player is looking at
+                Matrix4 blockViewMat = Matrix4.LookAt(blockCenter, currentPosition, new Vector3(0.0f, 1f, 0.0f));
+
+                //TODO: Slightly off
+                Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
+                Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
+                Vector3 centerMinuCurrPos = Vector3.Subtract(blockCenter, Vector3.Normalize(currentPosition));
+                vecTest = Vector3.Subtract(blockCenter, currentPosition);
+
+              if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
+                  blockFace = (blockForwardDir.X > 0 ? Face.EAST : Face.WEST);
+             
+             
+              else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
+                  blockFace = (blockForwardDir.Y > 0 ? Face.DOWN : Face.UP);
+             
+              else
+                  blockFace = (blockForwardDir.Z > 0 ? Face.NORTH : Face.SOUTH);
+
+                // if (Vector3.Distance(currentPosition, target) < reachDistance)
+                if (block.IsIntersectingBlock(currentPosition))
                 {
-                    face = (localHit.Z > 0 ? Face.NORTH : Face.SOUTH);
-                }
 
-                targetVertex = blockCenter - new Vector3(0.5f, 0.5f, 0.5f);
+                    //Returns the last block the player was looking at
+                    Window.GetShaders().SetVector3Uniform("targetVertex", target);
 
-                string chunkIdx = $"{targetVertex.X * RegionManager.CHUNK_BOUNDS / RegionManager.CHUNK_BOUNDS}|{targetVertex.Z * RegionManager.CHUNK_BOUNDS / RegionManager.CHUNK_BOUNDS}";
-                int[] index = chunkIdx.Split('|').Select(int.Parse).ToArray();
-                string regionIdx = Region.GetRegionIndex(index[0], index[1]);
-
-
+                    viewTarget = block.GetVertexData();
+       
+                    return block.GetLowerCorner();
+                } 
             }
             //Returns the last block the player was looking at
+            Window.GetShaders().SetVector3Uniform("targetVertex", target);
 
-            return targetVertex;
+            viewTarget = block.GetVertexData();
+            return block.GetLowerCorner();
         }
 
         public Vector3 GetForwardDirection()
@@ -239,7 +277,7 @@ namespace Vox
             {
       
                 highestNormal.Normalize();
-                if (highestNormal.Y > 0.5f || Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.X) && Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.Z))
+                if (highestNormal.Y > 1.5f || Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.X) && Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.Z))
                 {
                     IsGrounded = true;   // Set the grounded flag
                     velocity.Y = 0;      // Stop vertical movement (falling)
@@ -315,8 +353,6 @@ namespace Vox
 
         public void Update(float deltaTime)
         {
-            //Update pick block
-            UpdateViewTarget(out _);
 
             // Apply gravity to Y-velocity
             if (velocity.Y > terminalVelocity && !IsGrounded) // Prevent exceeding terminal velocity
@@ -336,7 +372,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-            CheckChunkCollision(deltaTime);
+          //  CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change
@@ -459,7 +495,7 @@ namespace Vox
         }
         private void ApplyFriction(float deltaTime)
         {
-            float friction = 0.5f; // Damping factor, adjust as needed
+            float friction = 0.9f; // Damping factor, adjust as needed
             velocity *= (1 - friction * deltaTime);
         }
         public void MoveForward(float inc)
@@ -493,10 +529,9 @@ namespace Vox
         public Region GetRegionWithPlayer()
         {
 
-            string playerChunkIdx = $"{Math.Floor(position.X)}|{Math.Floor(position.Z)}";
+            string playerChunkIdx = $"{Math.Floor(position.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
             int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
             string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
-
             return RegionManager.TryGetRegionFromFile(playerRegionIdx);
         }
 
@@ -510,20 +545,7 @@ namespace Vox
          */
         public Chunk GetChunkWithPlayer()
         {
-
-            string playerChunkIdx = $"{Math.Floor(position.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
-            int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
-            Region r = RegionManager.EnterRegion(playerRegionIdx);
-
-            if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
-            {
-                value = new Chunk().Initialize(index[0], index[1]);
-                r.chunks.Add(playerChunkIdx, value);
-            }
-
-
-            return value;
+            return RegionManager.GetGlobalChunkFromCoords((int)position.X, (int)position.Z);
         }
 
         public static void SetLookDir(float x, float y)

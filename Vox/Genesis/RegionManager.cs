@@ -162,41 +162,45 @@ namespace Vox.Genesis
 
         }
  
-          public static Region GetGlobalRegionFromChunkCoords(int x, int z)
-          {
-              Region returnRegion = null;
-        
-              int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
-              int xUpperLimit;
-              if (x < 0)
-                  xUpperLimit = xLowerLimit - REGION_BOUNDS;
-              else
-                  xUpperLimit = xLowerLimit + REGION_BOUNDS;
-        
-        
-              int zLowerLimit = ((z / REGION_BOUNDS) * REGION_BOUNDS);
-              int zUpperLimit;
-              if (z < 0)
-                  zUpperLimit = zLowerLimit - REGION_BOUNDS;
-              else
-                  zUpperLimit = zLowerLimit + REGION_BOUNDS;
-        
+        public static Region GetGlobalRegionFromChunkCoords(int x, int z)
+        {
+            Region returnRegion = null;
+    
+            int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
+            int xUpperLimit;
+            if (x < 0)
+                xUpperLimit = xLowerLimit - REGION_BOUNDS;
+            else
+                xUpperLimit = xLowerLimit + REGION_BOUNDS;
+    
+    
+            int zLowerLimit = ((z / REGION_BOUNDS) * REGION_BOUNDS);
+            int zUpperLimit;
+            if (z < 0)
+                zUpperLimit = zLowerLimit - REGION_BOUNDS;
+            else
+                zUpperLimit = zLowerLimit + REGION_BOUNDS;
+    
 
             // returnRegion ??= new Region(xUpperLimit, zUpperLimit);
             return new Region(xUpperLimit, zUpperLimit);
-          }
+        }
 
-          public static Chunk GetGlobalChunkFromCoords(int x, int z)
-          {
-            //Calculates chunk coordinates
-            int chunkXCoord = x / CHUNK_BOUNDS * CHUNK_BOUNDS;
-            int chunkZCoord = z / CHUNK_BOUNDS * CHUNK_BOUNDS;
+        public static Chunk GetGlobalChunkFromCoords(int x, int z)
+        {
 
-            string regionIdx = Region.GetRegionIndex(chunkXCoord, chunkZCoord);
+            string playerChunkIdx = $"{Math.Floor((float) x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+            int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
+            string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
+            Region r = EnterRegion(playerRegionIdx);
 
-            return TryGetRegionFromFile(regionIdx).chunks[$"{chunkXCoord}|{chunkZCoord}"];
-        
-          }
+            if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
+            {
+                value = new Chunk().Initialize(index[0], index[1]);
+                r.chunks.Add(playerChunkIdx, value);
+            }
+            return value;
+        }
     }
 }
 

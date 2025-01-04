@@ -27,7 +27,14 @@ out vec3 fnormal;
 out vec4 fTargetVertex;
 flat out float fTexLayer;
 out vec3 vertexPos;
-    
+
+uniform vec3 blockCenter;
+uniform vec3 curPos;
+uniform vec3 localHit;
+
+out vec4 fblockCenter;
+out vec4 fcurPos;
+out vec4 flocalHit;
 
 void main() {
 
@@ -40,6 +47,9 @@ void main() {
         fTargetVertex = vec4(targetVertex, 1.0) * chunkModelMatrix;
         fforwardDir =   normalize(mat3(chunkModelMatrix) * forwardDir);
         fragPos =       (chunkModelMatrix * vec4(position, 1.0)).xyz;
+        fblockCenter =  vec4(blockCenter, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
+        fcurPos =       vec4(curPos, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
+        flocalHit =     vec4(localHit, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
     }
 
     //Render partial mesh if chunk is on the edge of render distance by
