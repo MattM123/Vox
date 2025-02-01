@@ -71,10 +71,10 @@ namespace Vox
          * out Vertex: The vertex struct that is in view target.
          * 
          */
-        public Vector3 UpdateViewTarget(out Face playerFacing, out Face blockFace, out BlockDetail block)
+        public BlockDetail UpdateViewTarget(out Face playerFacing, out Vector3 blockFace)
         {
             playerFacing = Face.ALL;
-            blockFace = Face.ALL;
+            blockFace = Vector3.Zero;
 
             //Update the player picked block based on view target
             BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
@@ -85,7 +85,7 @@ namespace Vox
             Vector3 rayOrigin = position;
             Vector3 target = Vector3.Zero;
             Vector3 currentPosition = Vector3.Zero;
-            block = new();
+            BlockDetail block = new();
             Vector3 rayDirection = GetForwardDirection();
 
             for (float distance = 0; distance < maxDistance; distance += stepSize)
@@ -116,7 +116,7 @@ namespace Vox
                 Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
                 if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)    
                     playerFacing = (rayDirection.X > 0 ? Face.EAST : Face.WEST);
-               
+                
                 else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
                     playerFacing = (rayDirection.Y > 0 ? Face.UP : Face.DOWN);   
                 
@@ -139,15 +139,20 @@ namespace Vox
                 Vector3 centerMinuCurrPos = Vector3.Subtract(blockCenter, Vector3.Normalize(currentPosition));
                 vecTest = Vector3.Subtract(blockCenter, currentPosition);
 
-              if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
-                  blockFace = (blockForwardDir.X > 0 ? Face.EAST : Face.WEST);
-             
-             
-              else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
-                  blockFace = (blockForwardDir.Y > 0 ? Face.DOWN : Face.UP);
-             
-              else
-                  blockFace = (blockForwardDir.Z > 0 ? Face.NORTH : Face.SOUTH);
+                Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
+
+                if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
+                    //blockFace = (blockForwardDir.X > 0 ? Face.EAST : Face.WEST);
+                    blockFace = new(blockFaceToAdd.X, 0, 0);
+
+
+                else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
+                    //blockFace = (blockForwardDir.Y > 0 ? Face.DOWN : Face.UP);
+                    blockFace = new(0, blockFaceToAdd.Y, 0);
+
+                else
+                    blockFace = new(0, 0, blockFaceToAdd.Z);
+                    //blockFace = (blockForwardDir.Z > 0 ? Face.NORTH : Face.SOUTH);
 
                 // if (Vector3.Distance(currentPosition, target) < reachDistance)
                 if (block.IsIntersectingBlock(currentPosition))
@@ -158,14 +163,14 @@ namespace Vox
 
                     viewTarget = block.GetVertexData();
        
-                    return block.GetLowerCorner();
+                    return block;
                 } 
             }
             //Returns the last block the player was looking at
             Window.GetShaders().SetVector3Uniform("targetVertex", target);
 
             viewTarget = block.GetVertexData();
-            return block.GetLowerCorner();
+            return block;
         }
 
         public Vector3 GetForwardDirection()
@@ -372,7 +377,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-          //  CheckChunkCollision(deltaTime);
+            CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change

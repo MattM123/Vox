@@ -182,7 +182,7 @@ namespace Vox
             shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
             shaders.CreateUniform("targetVertex");
-            shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _));
+            shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _).GetLowerCorner());
             //lightinf uniforms
             shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
             shaders.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
@@ -264,7 +264,6 @@ namespace Vox
                 GetPlayer().Update((float)args.Time);
                 shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
                 shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
-               // shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _));
                 shaders.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
             }
 
@@ -356,12 +355,18 @@ namespace Vox
             if (!IsMenuRendered())
             {
                 BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
-                Vector3 vert = GetPlayer().UpdateViewTarget(out _, out _, out BlockDetail block);
+                BlockDetail block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace);
                 if (e.Button == MouseButton.Left)
                 {
-                   // if (block.IsSurrounded())
+                    Console.WriteLine("Surr: " + block.IsSurrounded() + " RENDERED: " + block.IsRendered());
+                    if (block.IsSurrounded() && !block.IsRendered())
                         RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z).AddBlockToChunk(block.GetLowerCorner());
-                }
+                    else if (block.IsRendered())
+                    {
+                        Console.WriteLine("TEST");
+                        RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z).AddBlockToChunk(block.GetLowerCorner() + blockFace);
+                    }
+                }   
                 
             }
         }
@@ -530,10 +535,10 @@ namespace Vox
                 ImGui.Text("Position: X:" + GetPlayer().GetPosition().X + " Y:" + GetPlayer().GetPosition().Y + " Z:" + GetPlayer().GetPosition().Z);
                 ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
                 ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
-                
+
                 Face f = Face.ALL;
-                Vector3 targ = GetPlayer().UpdateViewTarget(out f, out _, out _);
-                ImGui.Text("Facing: " + f);
+                BlockDetail block = GetPlayer().UpdateViewTarget(out f, out Vector3 blockface);
+                ImGui.Text("Facing Add: " + blockface);
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -768,15 +773,14 @@ namespace Vox
         public static void RenderBlockTarget()
         {
 
-            Vector3 vert = GetPlayer().UpdateViewTarget(out _, out Face face, out BlockDetail block);
-            Console.WriteLine(block.IsSurrounded());
-            if (block.IsSurrounded())
+            BlockDetail block = GetPlayer().UpdateViewTarget(out _, out Vector3 blockFace);
+            if (block.IsSurrounded() && !block.IsRendered())
             {
                 BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
 
                 /*==================================
-              Render View Target Block Outline
-              ====================================*/
+                Render View Target Block Outline
+                ====================================*/
                 Vertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
 
                 if (viewBlockVertices.Length > 0)
@@ -794,6 +798,37 @@ namespace Vox
 
                 }
             }
+          //else if (block.IsSurrounded() && block.IsRendered())
+          //{
+          //    BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
+          //
+          //    /*==================================
+          //    Render View Target Block Outline
+          //    ====================================*/
+          //
+          //    Vertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
+          //
+          //    //Add offset to prevent placing a block in a position that already contains one
+          //    for (int i = 0; i < viewBlockVertices.Length; i++)
+          //    {
+          //        viewBlockVertices[i].SetVector(viewBlockVertices[i].GetVector() + blockFace);
+          //    }
+          //
+          //    if (viewBlockVertices.Length > 0)
+          //    {
+          //
+          //        int viewVBO = GL.GenBuffer();
+          //
+          //        // Bind and upload vertex data
+          //        GL.BindBuffer(BufferTarget.ArrayBuffer, viewVBO);
+          //        GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<Vertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
+          //
+          //
+          //        //Draw the view target outline
+          //        GL.DrawElements(PrimitiveType.TriangleStrip, 24, DrawElementsType.UnsignedInt, 0);
+          //
+          //    }
+          //}
         }
 
 

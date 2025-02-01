@@ -52,5 +52,10 @@ namespace Vox.Rendering
         {
             return new(x, y, z);
         }
+
+        public void SetVector(Vector3 v)
+        {
+            x = v.X; y = v.Y; z = v.Z;
+        }
     }
 }

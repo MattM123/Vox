@@ -1,6 +1,4 @@
 ﻿
-
-using System.Drawing;
 using OpenTK.Mathematics;
 using Vox.Genesis;
 using Vox.Rendering;
@@ -62,9 +60,7 @@ public class BlockDetail
      * Given a 3d point, checks weather it intersects the cube
      */
     public bool IsIntersectingBlock(Vector3 v)
-    {
-      
-        
+    {    
         return v.X >= lowerCorner.X && v.X <= upperCorner.X &&
                v.Y >= lowerCorner.Y && v.Y <= upperCorner.Y &&
                v.Z >= lowerCorner.Z && v.Z <= upperCorner.Z;
@@ -84,12 +80,40 @@ public class BlockDetail
     public bool IsSurrounded()
     {
         List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
+        List<Vector3> surroundingCubes =
+    [
+        // Face-adjacent cubes
+        lowerCorner + new Vector3(1, 0, 0), upperCorner + new Vector3(1, 0, 0),             // Positive X
+        lowerCorner + new Vector3(-1, 0, 0), upperCorner + new Vector3(-1, 0, 0),           // Negative X
+        lowerCorner + new Vector3(0, 1, 0), upperCorner + new Vector3(0, 1, 0),             // Positive Y
+        lowerCorner + new Vector3(0, -1, 0), upperCorner + new Vector3(0, -1, 0),           // Negative Y
+        lowerCorner + new Vector3(0, 0, 1), upperCorner + new Vector3(0, 0, 1),             // Positive Z
+        lowerCorner + new Vector3(0, 0, -1), upperCorner + new Vector3(0, 0, -1),           // Negative Z
 
+         // Edge-adjacent (diagonal) cubes
+        lowerCorner + new Vector3(1, 1, 0), upperCorner + new Vector3(1, 1, 0),             // +X +Y
+        lowerCorner + new Vector3(-1, 1, 0), upperCorner + new Vector3(-1, 1, 0),           // -X +Y
+        lowerCorner + new Vector3(1, -1, 0), upperCorner + new Vector3(1, -1, 0),           // +X -Y
+        lowerCorner + new Vector3(-1, -1, 0), upperCorner + new Vector3(-1, -1, 0)          // -X -Y
+    ];
+
+        for (int i = 0; i < vertList.Count; i += 24)
+        {
+            for (int j = 0; j < surroundingCubes.Count; j++)
+                if (vertList[i].GetVector().Equals(surroundingCubes[j]))
+                    return true;
+        }
+        return false;   
+    }
+
+    public bool IsRendered()
+    {
+        List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
         for (int i = 0; i < vertList.Count; i += 24)
         {
             if (vertList[i].GetVector().Equals(lowerCorner))
                 return true;
         }
-        return false;   
+        return false;
     }
 }
