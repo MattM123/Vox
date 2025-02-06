@@ -76,6 +76,10 @@ namespace Vox.Texturing
             return modelMatrix;
         }
 
+        public void SetVertexData(List<Vertex> vertexData)
+        {
+            this.vertexData = vertexData;
+        }
         public override string ToString()
         {
             return $"    VBO: {vbo},\n " +

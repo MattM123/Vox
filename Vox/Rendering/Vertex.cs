@@ -32,9 +32,11 @@ namespace Vox.Rendering
         public float normalZ;
         [Key(9)]
         public Face face;
+        [Key(10)]
+        public float excludeFlag;
 
         public Vertex(float x, float y, float z,
-            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, Face face)
+            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, Face face, float excludeFlag)
         {
             this.x = x;
             this.y = y;
@@ -46,6 +48,7 @@ namespace Vox.Rendering
             this.normalY = normalY;
             this.normalZ = normalZ;
             this.face = face;
+            this.excludeFlag = excludeFlag;
         }
 
         public Vector3 GetVector()
@@ -56,6 +59,10 @@ namespace Vox.Rendering
         public void SetVector(Vector3 v)
         {
             x = v.X; y = v.Y; z = v.Z;
+        }
+        public void SetExclude(float exclude)
+        {
+            excludeFlag = exclude;
         }
     }
 }

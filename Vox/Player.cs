@@ -28,8 +28,6 @@ namespace Vox
         private Vector3 desiredMovement = Vector3.Zero;
         private float forward = 0f;
         private float right = 0f;
-        public static Vector3 vecTest = Vector3.Zero;
-        public static Vector3 vecTest1 = Vector3.Zero;
         private bool IsGrounded = false;
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
@@ -94,7 +92,6 @@ namespace Vox
 
                 // Calculate the current position along the ray, round to make divisible by stepSize
                 currentPosition = rayOrigin + rayDirection * distance;
-                vecTest1 = currentPosition;
 
                 target = new(
                     (float)Math.Round(currentPosition.X),
@@ -137,7 +134,6 @@ namespace Vox
                 Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
                 Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
                 Vector3 centerMinuCurrPos = Vector3.Subtract(blockCenter, Vector3.Normalize(currentPosition));
-                vecTest = Vector3.Subtract(blockCenter, currentPosition);
 
                 Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
 

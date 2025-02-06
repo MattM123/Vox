@@ -16,6 +16,7 @@ public class BlockDetail
     private Vertex[] down;
     private Vector3 upperCorner = Vector3.Zero;
     private Vector3 lowerCorner = Vector3.Zero;
+    private List<Vector3> faceAdjacentBlocks = [];
 
     public BlockDetail() { }
     public BlockDetail(Vertex[] north, Vertex[] south, Vertex[] up, Vertex[] down, Vertex[] east, Vertex[] west)
@@ -54,6 +55,16 @@ public class BlockDetail
         }
         //Determine lower corder of cube
         lowerCorner = sharedWestSouth[0].y < sharedWestSouth[1].y ? sharedWestSouth[0].GetVector() : sharedWestSouth[1].GetVector();
+
+        // Face-adjacent cubes
+        faceAdjacentBlocks.AddRange([
+            lowerCorner + new Vector3(1, 0, 0), upperCorner + new Vector3(1, 0, 0),             // Positive X
+            lowerCorner + new Vector3(-1, 0, 0), upperCorner + new Vector3(-1, 0, 0),           // Negative X
+            lowerCorner + new Vector3(0, 1, 0), upperCorner + new Vector3(0, 1, 0),             // Positive Y
+            lowerCorner + new Vector3(0, -1, 0), upperCorner + new Vector3(0, -1, 0),           // Negative Y
+            lowerCorner + new Vector3(0, 0, 1), upperCorner + new Vector3(0, 0, 1),             // Positive Z
+            lowerCorner + new Vector3(0, 0, -1), upperCorner + new Vector3(0, 0, -1)]           // Negative Z
+        );           
     }
 
     /*
@@ -81,21 +92,16 @@ public class BlockDetail
     {
         List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
         List<Vector3> surroundingCubes =
-    [
-        // Face-adjacent cubes
-        lowerCorner + new Vector3(1, 0, 0), upperCorner + new Vector3(1, 0, 0),             // Positive X
-        lowerCorner + new Vector3(-1, 0, 0), upperCorner + new Vector3(-1, 0, 0),           // Negative X
-        lowerCorner + new Vector3(0, 1, 0), upperCorner + new Vector3(0, 1, 0),             // Positive Y
-        lowerCorner + new Vector3(0, -1, 0), upperCorner + new Vector3(0, -1, 0),           // Negative Y
-        lowerCorner + new Vector3(0, 0, 1), upperCorner + new Vector3(0, 0, 1),             // Positive Z
-        lowerCorner + new Vector3(0, 0, -1), upperCorner + new Vector3(0, 0, -1),           // Negative Z
+        [
+             // Edge-adjacent (diagonal) cubes
+            lowerCorner + new Vector3(1, 1, 0), upperCorner + new Vector3(1, 1, 0),             // +X +Y
+            lowerCorner + new Vector3(-1, 1, 0), upperCorner + new Vector3(-1, 1, 0),           // -X +Y
+            lowerCorner + new Vector3(1, -1, 0), upperCorner + new Vector3(1, -1, 0),           // +X -Y
+            lowerCorner + new Vector3(-1, -1, 0), upperCorner + new Vector3(-1, -1, 0)          // -X -Y
+        ];
 
-         // Edge-adjacent (diagonal) cubes
-        lowerCorner + new Vector3(1, 1, 0), upperCorner + new Vector3(1, 1, 0),             // +X +Y
-        lowerCorner + new Vector3(-1, 1, 0), upperCorner + new Vector3(-1, 1, 0),           // -X +Y
-        lowerCorner + new Vector3(1, -1, 0), upperCorner + new Vector3(1, -1, 0),           // +X -Y
-        lowerCorner + new Vector3(-1, -1, 0), upperCorner + new Vector3(-1, -1, 0)          // -X -Y
-    ];
+        //Face adjacent cubes
+        surroundingCubes.AddRange(faceAdjacentBlocks);
 
         for (int i = 0; i < vertList.Count; i += 24)
         {
@@ -115,5 +121,10 @@ public class BlockDetail
                 return true;
         }
         return false;
+    }
+
+    public List<Vector3> GetFaceAdjacentBlocks()
+    {
+        return faceAdjacentBlocks;
     }
 }

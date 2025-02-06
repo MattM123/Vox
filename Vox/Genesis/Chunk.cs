@@ -3,6 +3,8 @@ using System.Collections;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Xml.Linq;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -63,7 +65,10 @@ namespace Vox.Genesis
         public Queue<LightNode> sunlightBFSPropagationQueue = new();
         
         [Key(10)]
-        public List<float> blocksToAdd = [];
+        public List<Vector3> blocksToAdd = [];
+
+        [Key(11)]
+        public List<Vector3> blocksToExclude = [];
 
         public Chunk()
         {
@@ -188,8 +193,6 @@ namespace Vox.Genesis
                     //Adds base by default since that will always be visible and rendered
                     if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
                     {
-                        // inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                        //inVert.Add(new Block(col + GetLocation().X, base1, row + GetLocation().Z, BlockType.DIRT_BLOCK));
                         output.Add(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z));
                     }
 
@@ -205,8 +208,6 @@ namespace Vox.Genesis
                             for (int i = 0; i < numOfBlocks; i++)
                             {
                                 if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    //  inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
                                     output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
@@ -221,8 +222,6 @@ namespace Vox.Genesis
                             for (int i = 0; i < numOfBlocks; i++)
                             {
                                 if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    //   inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
                                     output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
@@ -237,8 +236,6 @@ namespace Vox.Genesis
                             for (int i = 0; i < numOfBlocks; i++)
                             {
                                 if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    //  inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
                                     output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
@@ -252,9 +249,7 @@ namespace Vox.Genesis
 
                             for (int i = 0; i < numOfBlocks; i++)
                             {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    // inVert.Add(new Block(modelMatrix.transformPosition(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)), BlockType.DIRT_BLOCK));
-                                    //inVert.Add(new Block(col + GetLocation().X, base1 - i, row + GetLocation().Z, BlockType.DIRT_BLOCK));
+                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z))) 
                                     output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
                             }
                         }
@@ -266,61 +261,14 @@ namespace Vox.Genesis
         }
 
         /**
-         * Since the location of each chunk is unique this is used as an
-         * identifier by the ChunkManager to retrieve, insert, and
-         * effectively sort chunks.
-         * @return The corner vertex of this chunk.
-         */
-        public Vector3 GetLocation()
-        {
-            return location;
-        }
-
-        //Contains face at?
-        //face plane determined from forward direction
-        public bool ContainsBlockAt(Vector3 block, out Vertex? v)
-        {
-            Vertex[] vertex = GetVertices();
-            v = null;
-            for (int i = 0; i < vertex.Length; i++)
-            {
-                if (vertex[i].x == block.X &&
-                    vertex[i].y == block.Y &&
-                    vertex[i].z == block.Z) 
-                {
-                    //fix: all vertices in the cube are based on one vertex
-                    //so this will only return SOUTH or NORTH face vertex since
-                    //those are defined first when the render task is being created.
-                    //Need it so it returns a certain FACE. Have face as parameter? How do i determine 
-                    //how which face to input?
-                    v = vertex[i];
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public Vertex[] GetVertices()
-        {
-            return GetRenderTask().GetVertexData();
-        }
-        public int[] GetElements()
-        {
-            return renderTask.GetElementData();
-        }
-        public void DidChange(bool f)
-        {
-            didChange = f;
-        }
-        /**
-         * Generates or regenerates this Chunks RenderTask. The RenderTask is
-         * used to graphically render the Chunk. Calling this method will, if
-         * needed, automatically update this chunks vertex and element data and
-         * return a new RenderTask that can be passed to the GPU when drawing.
-         *
-         * @return A RenderTask whose regularly updated contents can be
-         * used in GL draw calls to render this Chunk graphically
-         */
+ * Generates or regenerates this Chunks RenderTask. The RenderTask is
+ * used to graphically render the Chunk. Calling this method will, if
+ * needed, automatically update this chunks vertex and element data and
+ * return a new RenderTask that can be passed to the GPU when drawing.
+ *
+ * @return A RenderTask whose regularly updated contents can be
+ * used in GL draw calls to render this Chunk graphically
+ */
         public RenderTask GetRenderTask()
         {
             List<Vector3> nonInterpolated = [];
@@ -335,25 +283,33 @@ namespace Vox.Genesis
             if (didChange || renderTask == null)
             {
                 for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
-                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns       
+                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns
                         nonInterpolated.Add(new Vector3(location.X + x, heightMap[z, x], location.Z + z));
 
                 //Populate sunlight map before interpolating
-              //  foreach (Vector3 v in nonInterpolated)
-              //  {
-                    //Does not need propagation algorithm, sunlight level always at 16 for top most blocks
-                    //SetSunlight((int) v.X, (int)v.Y, (int)v.Z, 15);
-               //     PropagateEmissiveBlock((int)v.X, (int)v.Y, (int)v.Z, 15);
-               // }
+                //  foreach (Vector3 v in nonInterpolated)
+                //  {
+                //Does not need propagation algorithm, sunlight level always at 16 for top most blocks
+                //SetSunlight((int) v.X, (int)v.Y, (int)v.Z, 15);
+                //     PropagateEmissiveBlock((int)v.X, (int)v.Y, (int)v.Z, 15);
+                // }
 
-                //Add any player placed blocks to the mesh before interpolation.
-                List<Vector3> toVert = [];
-                for (int i = 0; i < blocksToAdd.Count; i += 3)
-                    toVert.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
 
-                nonInterpolated.AddRange(toVert);
+
 
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
+
+                //Add any player placed blocks to the mesh after interpolation.
+                List<Vector3> toVert = [];
+                foreach (Vector3 v in blocksToAdd)
+                    interpolatedChunk.Add(v);
+                
+
+                //Remove any blocks marked for exclusion after interpolation
+                //(i.e player broke a block)
+                foreach (Vector3 v in blocksToExclude)
+                    interpolatedChunk.Remove(v);
+
 
                 int randomIndex = random.Next(values.Length);
                 BlockType? randomBlock;
@@ -379,7 +335,7 @@ namespace Vox.Genesis
                             //Top face check X and Z
                             if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
                             {
-                                 bool up = nonInterpolated.Contains(new(v.X, v.Y + 1, v.Z));
+                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
                                 if (!up)
                                 {
                                     vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
@@ -395,7 +351,7 @@ namespace Vox.Genesis
                                     elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
                                     elementCounter += 4;
                                 }
-                            
+
                                 //West face check z - 1
                                 bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
                                 if (!west)
@@ -416,7 +372,6 @@ namespace Vox.Genesis
 
                                 //South face check x - 1
                                 bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
-                                if (!south)
                                 {
                                     vertices.AddRange(ModelUtils.GetCuboidFace(model, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
                                     elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
@@ -438,7 +393,7 @@ namespace Vox.Genesis
                 //Updates chunk data
                 lock (chunkLock)
                 {
-                    renderTask = new RenderTask(vertices , elements, GetVbo(), GetEbo(), GetVao());
+                    renderTask = new RenderTask(vertices, elements, GetVbo(), GetEbo(), GetVao());
                     didChange = false;
                 }
             }
@@ -446,15 +401,50 @@ namespace Vox.Genesis
         }
 
         /**
+         * Since the location of each chunk is unique this is used as a
+         * key to retrieve from spatial hashing storage.
+         * @return The corner vertex of this chunk.
+         */
+        public Vector3 GetLocation()
+        {
+            return location;
+        }
+
+        public bool ContainsBlockAt(Vector3 block)
+        {
+            if (GetVertices().Where(v =>
+                v.GetVector().X == block.X
+                && v.GetVector().Y == block.Y
+                && v.GetVector().Z == block.Z).ToList().Count > 0)
+            { 
+                return true;
+            }
+
+            return false;
+        }
+
+        public List<Vertex> GetVertices()
+        {
+            return [.. GetRenderTask().GetVertexData()];
+        }
+        public int[] GetElements()
+        {
+            return renderTask.GetElementData();
+        }
+
+        /**
          * This flag should only be updated to true when the chunk needs to re-render.
          * Ex. If a block was destroyer or placed or otherwise modified
          * */
-        public void SetChange(bool b)
+        public void DidChange(bool f)
         {
-            didChange = b;
+            didChange = f;
         }
-        public bool DidChange() { return didChange; }
 
+
+    
+        public bool DidChange() { return didChange; }
+        
         /**
          * Searches for an index to insert a new Block at in O(log n) time complexity.
          * Ensures the list is sorted by the Blocks location as new Blocks are inserted into it.
@@ -793,9 +783,48 @@ namespace Vox.Genesis
 
         public void AddBlockToChunk(Vector3 v)
         {
-            blocksToAdd.AddRange([v.X, v.Y,v.Z]);
+            blocksToExclude.Remove(v);
+
+            blocksToAdd.Add(v);
             DidChange(true);
             GetRenderTask();
+        }
+
+        public void RemoveBlockFromChunk(Vector3 v)
+        {
+            blocksToAdd.Remove(v);
+            blocksToExclude.Add(v);
+
+            //Check for terrain holes after removing a block
+            BlockDetail detail = new(
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.NORTH, v, this),
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.SOUTH, v, this),
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.UP,    v, this),
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.DOWN,  v, this),
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.EAST,  v, this),
+                ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TEST_BLOCK), Face.WEST,  v, this)
+            );
+        
+            //Fill in holes resulting from a removed block
+            //Only works when underground
+            foreach (Vector3 adjBlock in detail.GetFaceAdjacentBlocks())
+            {
+                if ((adjBlock.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
+                    || adjBlock.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
+                    || v.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z)
+                    || v.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
+                    && !blocksToExclude.Contains(adjBlock))
+
+                {
+                    Console.WriteLine("Filling in terrain hole at " + adjBlock);
+                    AddBlockToChunk(adjBlock);
+                }
+             
+            }
+            
+            DidChange(true);
+            GetRenderTask();
+
         }
         public override string ToString()
         {

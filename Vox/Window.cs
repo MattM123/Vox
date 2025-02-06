@@ -352,22 +352,27 @@ namespace Vox
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
             base.OnMouseDown(e);
+
             if (!IsMenuRendered())
             {
-                BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
                 BlockDetail block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace);
+                Chunk actionChunk = RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z);
+
                 if (e.Button == MouseButton.Left)
                 {
-                    Console.WriteLine("Surr: " + block.IsSurrounded() + " RENDERED: " + block.IsRendered());
+                    Console.WriteLine("Add Block: " + block.GetLowerCorner());
                     if (block.IsSurrounded() && !block.IsRendered())
-                        RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z).AddBlockToChunk(block.GetLowerCorner());
+                        actionChunk.AddBlockToChunk(block.GetLowerCorner());
                     else if (block.IsRendered())
-                    {
-                        Console.WriteLine("TEST");
-                        RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z).AddBlockToChunk(block.GetLowerCorner() + blockFace);
-                    }
-                }   
-                
+                        actionChunk.AddBlockToChunk(block.GetLowerCorner() + blockFace);
+                }
+                if (e.Button == MouseButton.Right)
+                {
+                    Console.WriteLine("Remove Block: " + block.GetLowerCorner());
+                  //  if (block.IsRendered())
+                        actionChunk.RemoveBlockFromChunk(block.GetLowerCorner());
+                }
+
             }
         }
 
@@ -585,7 +590,7 @@ namespace Vox
             GL.BindVertexArray(vao);
 
             //Vertices
-            Vertex[] vertexBuffer = menuChunk.GetVertices();
+            Vertex[] vertexBuffer = menuChunk.GetVertices().ToArray();
 
             // Create VBO upload the vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
@@ -610,6 +615,7 @@ namespace Vox
             int sunlightSize = 1;
             int normalSize = 3;
             int faceSize = 1;
+            int flagSize = 1;
 
             // Position
             GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
@@ -632,8 +638,12 @@ namespace Vox
             GL.EnableVertexAttribArray(4);
 
             // Block face
-            GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
+            GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize) * sizeof(float));
             GL.EnableVertexAttribArray(5);
+
+            // Exclude flag
+            GL.VertexAttribPointer(6, flagSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize + faceSize) * sizeof(float));
+            GL.EnableVertexAttribArray(6);
 
             /*==================================
             Drawing
@@ -696,14 +706,15 @@ namespace Vox
             foreach (RenderTask renderTask in renderTasks)
             {
                 /*=====================================
-                Vertex attribute definitions for shaders
-                ======================================*/
+                 Vertex attribute definitions for shaders
+                 ======================================*/
                 int posSize = 3;
                 int layerSize = 1;
                 int coordSize = 1;
                 int sunlightSize = 1;
                 int normalSize = 3;
                 int faceSize = 1;
+                int flagSize = 1;
 
                 // Position
                 GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
@@ -721,13 +732,17 @@ namespace Vox
                 GL.VertexAttribPointer(3, sunlightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize) * sizeof(float));
                 GL.EnableVertexAttribArray(3);
 
-                // Normal
+                // Sunlight
                 GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize) * sizeof(float));
                 GL.EnableVertexAttribArray(4);
 
                 // Block face
-                GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize) * sizeof(float));
+                GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize) * sizeof(float));
                 GL.EnableVertexAttribArray(5);
+
+                // Exclude flag
+                GL.VertexAttribPointer(6, flagSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize + faceSize) * sizeof(float));
+                GL.EnableVertexAttribArray(6);
 
                 int vbo = renderTask.GetVbo();
                 int ebo = renderTask.GetEbo();
