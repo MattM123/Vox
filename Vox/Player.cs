@@ -7,7 +7,6 @@ using OpenTK.Mathematics;
 using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
-using Vox.Texturing;
 using Region = Vox.Genesis.Region;
 
 namespace Vox

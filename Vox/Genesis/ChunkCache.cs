@@ -54,9 +54,7 @@ namespace Vox.Genesis
          */
         private static void GetQuadrantChunks()
         {
-            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
-
-            for (int y = 0; y < 0 - (renderDistance / 2); y++)
+            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
             {
                 //Top left quadrant
                 Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
@@ -152,42 +150,39 @@ namespace Vox.Genesis
          */
         private static void GetCardinalChunks()
         {
-            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
-
-            //Positive X
-            for (int i = 1; i <= renderDistance; i++)
+            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
             {
-                int x = (int)playerChunk.GetLocation().X + (i * bounds);
-                int z = (int)playerChunk.GetLocation().Z;
-                int y = (int)playerChunk.GetLocation().Y;
-                CacheHelper(x, y, z);
-            }
+                //Positive X
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X + (i * bounds);
+                    int z = (int)playerChunk.GetLocation().Z;
+                    CacheHelper(x, y, z);
+                }
 
-            //Negative X
-            for (int i = 1; i <= renderDistance; i++)
-            {
-                int x = (int)playerChunk.GetLocation().X - (i * bounds);
-                int z = (int)playerChunk.GetLocation().Z;
-                int y = (int)playerChunk.GetLocation().Y;
-                CacheHelper(x, y, z);
-            }
+                //Negative X
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X - (i * bounds);
+                    int z = (int)playerChunk.GetLocation().Z;
+                    CacheHelper(x, y, z);
+                }
 
-            //Positive Y
-            for (int i = 1; i <= renderDistance; i++)
-            {
-                int x = (int)playerChunk.GetLocation().X;
-                int z = (int)playerChunk.GetLocation().Z + (i * bounds);
-                int y = (int)playerChunk.GetLocation().Y;
-                CacheHelper(x, y, z);
-            }
-            //Negative Y
-            for (int i = 1; i <= renderDistance; i++)
-            {
+                //Positive Y
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X;
+                    int z = (int)playerChunk.GetLocation().Z + (i * bounds);
+                    CacheHelper(x, y, z);
+                }
+                //Negative Y
+                for (int i = 1; i <= renderDistance; i++)
+                {
 
-                int x = (int)playerChunk.GetLocation().X;
-                int z = (int)playerChunk.GetLocation().Z - (i * bounds);
-                int y = (int)playerChunk.GetLocation().Y;
-                CacheHelper(x, y, z);
+                    int x = (int)playerChunk.GetLocation().X;
+                    int z = (int)playerChunk.GetLocation().Z - (i * bounds);
+                    CacheHelper(x, y, z);
+                }
             }
         }
 
@@ -203,7 +198,7 @@ namespace Vox.Genesis
 
               GetQuadrantChunks();
               GetCardinalChunks();
-              chunks.Add($"{playerChunk.xLoc}|{playerChunk.zLoc}", playerChunk);
+              chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
 
             return chunks;
         }

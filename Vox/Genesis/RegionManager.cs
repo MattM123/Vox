@@ -41,6 +41,13 @@ namespace Vox.Genesis
             ChunkCache.SetRenderDistance(RENDER_DISTANCE);
         }
 
+        public static int PollChunkMemory()
+        {
+            int count = 0;
+            foreach (KeyValuePair<string, Region> pair in VisibleRegions)
+                count += pair.Value.chunks.Count;
+            return count;
+        }
         public static void SetRenderDistance(int i)
         {
             RENDER_DISTANCE = i;
@@ -55,9 +62,10 @@ namespace Vox.Genesis
          */
         public static void LeaveRegion(string rIndex)
         {
-            Console.WriteLine(rIndex);
-            Logger.Info($"Writing {VisibleRegions[rIndex]}");
+            Logger.Info($"Leaving {VisibleRegions[rIndex]}");
+            WriteRegion(rIndex);
             VisibleRegions.Remove(rIndex);
+            
         }
 
         /**
@@ -77,8 +85,9 @@ namespace Vox.Genesis
 
         }
 
-        public static void WriteRegion(Region r)
+        public static void WriteRegion(string rIndex)
         {
+            Region r = VisibleRegions[rIndex];
 
             string path = Path.Combine(worldDir, "regions", $"{r.GetBounds().X}.{r.GetBounds().Y}.dat");
 

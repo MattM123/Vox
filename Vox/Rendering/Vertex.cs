@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
-using Vox.Texturing;
 
 namespace Vox.Rendering
 {

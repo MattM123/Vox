@@ -15,7 +15,6 @@ using Vox.Genesis;
 using Vox.GUI;
 using Vox.Model;
 using Vox.Rendering;
-using Vox.Texturing;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
@@ -369,8 +368,7 @@ namespace Vox
                 if (e.Button == MouseButton.Right)
                 {
                     Console.WriteLine("Remove Block: " + block.GetLowerCorner());
-                  //  if (block.IsRendered())
-                        actionChunk.RemoveBlockFromChunk(block.GetLowerCorner());
+                    actionChunk.RemoveBlockFromChunk(block.GetLowerCorner());
                 }
 
             }
@@ -552,10 +550,11 @@ namespace Vox
 
                 ImGui.Text("Region: " + GetPlayer().GetRegionWithPlayer().ToString());
                 ImGui.Text(GetPlayer().GetChunkWithPlayer().ToString());
-                ImGui.Text("Chunk Cache Size: " + (RegionManager.GetRenderDistance() + RegionManager.GetRenderDistance() + 1)
-                    * (RegionManager.GetRenderDistance() + RegionManager.GetRenderDistance() + 1));
+                ImGui.Text("Chunks Surrounding Player: " + ChunkCache.GetChunksToRender().Count);
 
-                string str = "Visible Regions:\n";
+                ImGui.Text("");
+                ImGui.Text("Chunks In Memory: " + RegionManager.PollChunkMemory());
+                string str = "Regions In Memory:\n";
                 foreach (KeyValuePair<string, Region> r in ChunkCache.GetRegions())
                     str += $"[{r.Key}] {r.Value}\n";
 

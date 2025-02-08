@@ -1,7 +1,7 @@
 ﻿
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
-namespace Vox.Texturing
+namespace Vox.Rendering
 {
     public class TextureLoader
     {
@@ -81,7 +81,7 @@ namespace Vox.Texturing
                     subimageData);                //Image data
                 image.Dispose();
             }
-           
+
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
             return texId;
         }
@@ -100,7 +100,7 @@ namespace Vox.Texturing
 
             string[] tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
             string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
-            
+
             //Copies textures into foler if not present
             if (tex.Length != projTex.Length)
             {
