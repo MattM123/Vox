@@ -100,12 +100,12 @@ namespace Vox
                 );
 
                 block = new(
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.NORTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.SOUTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.UP,    target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.DOWN,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.EAST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.WEST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Z))
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.NORTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.SOUTH, target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.UP,    target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.DOWN,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.EAST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
+                    ModelUtils.GetCuboidFace(ModelLoader.GetModel(BlockType.TARGET_BLOCK), Face.WEST,  target, RegionManager.GetGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z))
                 );
 
 
@@ -530,9 +530,9 @@ namespace Vox
         public Region GetRegionWithPlayer()
         {
 
-            string playerChunkIdx = $"{Math.Floor(position.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
+            string playerChunkIdx = $"{Math.Floor(position.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Y / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
             int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
+            string playerRegionIdx = Region.GetRegionIndex(index[0], index[2]);
             return RegionManager.TryGetRegionFromFile(playerRegionIdx);
         }
 
@@ -546,7 +546,7 @@ namespace Vox
          */
         public Chunk GetChunkWithPlayer()
         {
-            return RegionManager.GetGlobalChunkFromCoords((int)position.X, (int)position.Z);
+            return RegionManager.GetGlobalChunkFromCoords((int)position.X, (int)position.Y, (int)position.Z);
         }
 
         public static void SetLookDir(float x, float y)

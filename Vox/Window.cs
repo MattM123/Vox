@@ -86,7 +86,7 @@ namespace Vox
             crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
 
             ModelLoader.LoadModels();
-            menuChunk = new Chunk().Initialize(0, 0);
+            menuChunk = new Chunk().Initialize(0, 0, 0);
             menuChunk.GetRenderTask();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
@@ -356,7 +356,7 @@ namespace Vox
             if (!IsMenuRendered())
             {
                 BlockDetail block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace);
-                Chunk actionChunk = RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Z);
+                Chunk actionChunk = RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Y, (int)block.GetLowerCorner().Z);
 
                 if (e.Button == MouseButton.Left)
                 {
@@ -665,8 +665,8 @@ namespace Vox
 
             //playerChunk will be null when world first loads
             if (globalPlayerChunk == null)
-                globalPlayerChunk = new Chunk().Initialize(player.GetChunkWithPlayer().GetLocation().X + RegionManager.CHUNK_BOUNDS,
-                     player.GetChunkWithPlayer().GetLocation().Z);
+                globalPlayerChunk = new Chunk().Initialize(player.GetChunkWithPlayer().GetLocation().X ,//+ RegionManager.CHUNK_BOUNDS,
+                     player.GetChunkWithPlayer().GetLocation().Y, player.GetChunkWithPlayer().GetLocation().Z);
 
             //Updates the chunks to render when the player has moved into a new chunk
             Dictionary<string, Chunk> chunksToRender = ChunkCache.GetChunksToRender();
@@ -850,7 +850,7 @@ namespace Vox
         public static Chunk GetGlobalChunk()
         {
             if (globalPlayerChunk == null)
-                return new Chunk().Initialize(0, 0);
+                return new Chunk().Initialize(0, 0, 0);
             return globalPlayerChunk;
         }
         private static float[] GetCrosshair()

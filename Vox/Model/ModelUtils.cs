@@ -150,7 +150,7 @@ namespace Vox.Model
                         Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16),
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
-                        c ??= new Chunk().Initialize(0, 0);
+                        c ??= new Chunk().Initialize(0, 0, 0);
                         return [
                         //Position (X, Y, Z)                                                                            Texture Layer          ex Coord Idx | Sunlight level                           Normal X, Y , Z
                         new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,      model90.GetTexture(Face.SOUTH),   3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z, Face.SOUTH, 0.0f),    //top right                      
@@ -166,7 +166,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
                         
-                        c ??= new Chunk().Initialize(0, 0);
+                        c ??= new Chunk().Initialize(0, 0, 0);
 
                         return [
                         new Vertex(x + modelEle270.x2 / 16,    y + modelEle270.y2 / 16,    z + modelEle270.z2 / 16,      model270.GetTexture(Face.NORTH),  3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z, Face.NORTH, 0.0f), 
@@ -182,7 +182,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0);
+                        c ??= new Chunk().Initialize(0, 0, 0);
 
                         return [
                         new Vertex(x + modelEle180.x1 / 16,    y + modelEle180.y1 / 16,    z + modelEle180.z1 / 16,      model180.GetTexture(Face.UP),     3, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z, Face.UP, 0.0f), 
@@ -198,7 +198,7 @@ namespace Vox.Model
                             new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0);
+                        c ??= new Chunk().Initialize(0, 0, 0);
 
                         return [
                         new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,      model90.GetTexture(Face.DOWN),    3, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z, Face.DOWN, 0.0f), 
@@ -216,7 +216,7 @@ namespace Vox.Model
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
 
                         if (c == null)
-                            c = new Chunk().Initialize(0, 0);
+                            c = new Chunk().Initialize(0, 0, 0);
 
                         return [
                         new Vertex(x + modelEle90.x2  / 16,    y + modelEle90.y2 / 16,     z + modelEle90.z2 / 16,       model90.GetTexture(Face.WEST),    0, c.GetSunlight(lightX, lightY, lightZ),     normal.X, normal.Y, normal.Z, Face.WEST, 0.0f), 
@@ -233,7 +233,7 @@ namespace Vox.Model
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
 
                         if (c == null)
-                            c = new Chunk().Initialize(0, 0);
+                            c = new Chunk().Initialize(0, 0, 0);
 
                         return [
                         new Vertex(x + modelEle90.x1  / 16,    y + modelEle90.y1 / 16,     z + modelEle90.z1 / 16,       model90.GetTexture(Face.EAST),    2, c.GetSunlight(lightX, lightY, lightZ),    normal.X, normal.Y, normal.Z, Face.EAST, 0.0f), 

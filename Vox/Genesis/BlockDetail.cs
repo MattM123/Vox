@@ -90,7 +90,7 @@ public class BlockDetail
      */
     public bool IsSurrounded()
     {
-        List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
+        List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
         List<Vector3> surroundingCubes =
         [
              // Edge-adjacent (diagonal) cubes
@@ -114,7 +114,7 @@ public class BlockDetail
 
     public bool IsRendered()
     {
-        List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
+        List<Vertex> vertList = [.. RegionManager.GetGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GetRenderTask().GetVertexData()];
         for (int i = 0; i < vertList.Count; i += 24)
         {
             if (vertList[i].GetVector().Equals(lowerCorner))

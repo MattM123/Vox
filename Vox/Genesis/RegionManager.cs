@@ -55,8 +55,7 @@ namespace Vox.Genesis
          */
         public static void LeaveRegion(string rIndex)
         {
-
-            WriteRegion(VisibleRegions[rIndex]);
+            Console.WriteLine(rIndex);
             Logger.Info($"Writing {VisibleRegions[rIndex]}");
             VisibleRegions.Remove(rIndex);
         }
@@ -127,7 +126,9 @@ namespace Vox.Genesis
                 for (int i = 0; i < VisibleRegions.Count(); i++)
                 {
                     if (!updatedRegions.ContainsKey(VisibleRegions.Keys.ElementAt(i)))
+                    {
                         LeaveRegion(VisibleRegions.Keys.ElementAt(i));
+                    }
                 }
             }
         }
@@ -186,17 +187,17 @@ namespace Vox.Genesis
             return new Region(xUpperLimit, zUpperLimit);
         }
 
-        public static Chunk GetGlobalChunkFromCoords(int x, int z)
+        public static Chunk GetGlobalChunkFromCoords(int x, int y, int z)
         {
 
-            string playerChunkIdx = $"{Math.Floor((float) x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+            string playerChunkIdx = $"{Math.Floor((float) x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
             int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = Region.GetRegionIndex(index[0], index[1]);
+            string playerRegionIdx = Region.GetRegionIndex(index[0], index[2]);
             Region r = EnterRegion(playerRegionIdx);
 
             if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
             {
-                value = new Chunk().Initialize(index[0], index[1]);
+                value = new Chunk().Initialize(index[0], index[1], index[2]);
                 r.chunks.Add(playerChunkIdx, value);
             }
             return value;

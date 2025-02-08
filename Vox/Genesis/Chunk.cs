@@ -1,10 +1,4 @@
-﻿
-using System.Collections;
-using System.Drawing;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Xml.Linq;
+﻿using System.Diagnostics;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -26,9 +20,12 @@ namespace Vox.Genesis
         public float zLoc;
 
         [Key(2)]
-        public readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+        public float yLoc;
 
         [Key(3)]
+        public readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+
+        [Key(4)]
         public bool isInitialized = false;
 
         [IgnoreMember]
@@ -46,13 +43,13 @@ namespace Vox.Genesis
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
 
-        [Key(4)]
+        [Key(5)]
         public bool didChange = false;
 
-        [Key(5)]
+        [Key(6)]
         public RenderTask renderTask;
         
-        [Key(6)]
+        [Key(7)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
 
         [IgnoreMember]
@@ -70,6 +67,9 @@ namespace Vox.Genesis
         [Key(11)]
         public List<Vector3> blocksToExclude = [];
 
+        [Key(12)]
+        public bool IsVisible = true;
+
         public Chunk()
         {
 
@@ -85,21 +85,22 @@ namespace Vox.Genesis
          * @param z coordinate of top left chunk corner
          * @return Returns the chunk
          */
-        public Chunk Initialize(float x, float z)
+        public Chunk Initialize(float x, float y, float z)
         {
             xLoc = x;
             zLoc = z;
-            location = new Vector3(xLoc, 0, zLoc);
+            yLoc = y;
+            location = new Vector3(xLoc, yLoc, zLoc);
 
             //Generic model matrix applicable to every chunk object
             modelMatrix = Matrix4.CreateTranslation(0, 0, 0);
 
-            if (!isInitialized)
+            if (!isInitialized && IsVisible)
             {
-                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
+                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
                 //===================================
-                //Generate chunk height map
+                //Generate surface chunk height map
                 //===================================
 
                 int xCount = 0;
@@ -261,14 +262,14 @@ namespace Vox.Genesis
         }
 
         /**
- * Generates or regenerates this Chunks RenderTask. The RenderTask is
- * used to graphically render the Chunk. Calling this method will, if
- * needed, automatically update this chunks vertex and element data and
- * return a new RenderTask that can be passed to the GPU when drawing.
- *
- * @return A RenderTask whose regularly updated contents can be
- * used in GL draw calls to render this Chunk graphically
- */
+         * Generates or regenerates this Chunks RenderTask. The RenderTask is
+         * used to graphically render the Chunk. Calling this method will, if
+         * needed, automatically update this chunks vertex and element data and
+         * return a new RenderTask that can be passed to the GPU when drawing.
+         *
+         * @return A RenderTask whose regularly updated contents can be
+         * used in GL draw calls to render this Chunk graphically
+         */
         public RenderTask GetRenderTask()
         {
             List<Vector3> nonInterpolated = [];
