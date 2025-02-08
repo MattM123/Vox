@@ -58,16 +58,16 @@ namespace Vox.Genesis
         [IgnoreMember]
         private readonly object chunkLock = new();
 
-        [Key(8)]
+        [Key(7)]
         public Queue<LightNode> BFSPropagationQueue = new();
 
-        [Key(9)]
+        [Key(8)]
         public Queue<LightNode> sunlightBFSPropagationQueue = new();
         
-        [Key(10)]
+        [Key(9)]
         public List<Vector3> blocksToAdd = [];
 
-        [Key(11)]
+        [Key(10)]
         public List<Vector3> blocksToExclude = [];
 
         public Chunk()
