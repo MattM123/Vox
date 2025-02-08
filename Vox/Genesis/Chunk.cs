@@ -14,62 +14,61 @@ namespace Vox.Genesis
     {
         [Key(0)]
         public float xLoc;
-
+ 
         [Key(1)]
         public float zLoc;
-
+ 
         [Key(2)]
         public float yLoc;
-
+ 
         [Key(3)]
         public readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
-
+ 
         [Key(4)]
         public bool IsInitialized = false;
-
+ 
         [Key(5)]
         public bool didChange = false;
-
+ 
         [Key(6)]
         public RenderTask renderTask;
-        
+ 
         [Key(7)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
-
+ 
         [Key(8)]
         public Queue<LightNode> BFSPropagationQueue = new();
-
+ 
         [Key(9)]
         public Queue<LightNode> sunlightBFSPropagationQueue = new();
-        
+ 
         [Key(10)]
         public List<float> blocksToAdd = [];
-
+ 
         [Key(11)]
         public List<float> blocksToExclude = [];
-
+ 
         [IgnoreMember]
         public bool IsEmpty = true;
-
+ 
         [IgnoreMember]
         private readonly object chunkLock = new();
-
+ 
         [IgnoreMember]
         private Vector3 location;
-
+ 
         [IgnoreMember]
         private int vbo = 0;
-
+ 
         [IgnoreMember]
         private int ebo = 0;
-
+ 
         [IgnoreMember]
         private int vao = 0;
-
+ 
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
-
-
+      
         public Chunk()
         {
 
