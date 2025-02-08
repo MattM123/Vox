@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using MessagePack;
+﻿using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
 using Vox.Rendering;

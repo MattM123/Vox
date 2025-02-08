@@ -8,15 +8,15 @@ using Vox.Rendering;
  */
 public class BlockDetail
 {
-    private Vertex[] north;
-    private Vertex[] south;
-    private Vertex[] east;
-    private Vertex[] west;
-    private Vertex[] up;
-    private Vertex[] down;
-    private Vector3 upperCorner = Vector3.Zero;
-    private Vector3 lowerCorner = Vector3.Zero;
-    private List<Vector3> faceAdjacentBlocks = [];
+    private readonly Vertex[] north;
+    private readonly Vertex[] south;
+    private readonly Vertex[] east;
+    private readonly Vertex[] west;
+    private readonly Vertex[] up;
+    private readonly Vertex[] down;
+    private readonly Vector3 upperCorner = Vector3.Zero;
+    private readonly Vector3 lowerCorner = Vector3.Zero;
+    private readonly List<Vector3> faceAdjacentBlocks = [];
 
     public BlockDetail() { }
     public BlockDetail(Vertex[] north, Vertex[] south, Vertex[] up, Vertex[] down, Vertex[] east, Vertex[] west)
