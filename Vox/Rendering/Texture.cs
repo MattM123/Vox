@@ -1,5 +1,4 @@
-﻿
-namespace Vox.Texturing
+﻿namespace Vox.Rendering
 {
     public enum Texture
     {

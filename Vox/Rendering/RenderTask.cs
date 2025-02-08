@@ -1,9 +1,8 @@
 ﻿using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Genesis;
-using Vox.Rendering;
 
-namespace Vox.Texturing
+namespace Vox.Rendering
 {
     /**
      * RenderTask objects store GL primitive data relative to each chunk.
@@ -25,8 +24,8 @@ namespace Vox.Texturing
 
         [Key(0)]
         public List<Vertex> vertexData;
-            
-        [Key(1)]        
+
+        [Key(1)]
         public List<int> elementData;
 
         [Key(2)]
@@ -37,12 +36,12 @@ namespace Vox.Texturing
 
         [Key(4)]
         public int vao;
-        
+
         private Matrix4 modelMatrix;
 
         [SerializationConstructor]
-        public RenderTask(List<Vertex> vertexData, List<int> elementData, int vbo, int ebo, int vao) 
-        { 
+        public RenderTask(List<Vertex> vertexData, List<int> elementData, int vbo, int ebo, int vao)
+        {
             this.vertexData = vertexData;
             this.elementData = elementData;
             this.vbo = vbo;

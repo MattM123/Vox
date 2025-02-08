@@ -4,8 +4,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Schema;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.AssetManagement;
-using Vox.Texturing;
-
+using Vox.Rendering;
 
 namespace Vox.Model
 {

@@ -54,65 +54,53 @@ namespace Vox.Genesis
          */
         private static void GetQuadrantChunks()
         {
-            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
-
-            //Top left quadrant
-            Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
-            for (int x = (int)TLstart.X; x > TLstart.X - (renderDistance * bounds); x -= bounds)
+            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
             {
-                for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
+                //Top left quadrant
+                Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
+                for (int x = (int)TLstart.X; x > TLstart.X - (renderDistance * bounds); x -= bounds)
                 {
-                    CacheHelper(x, z);
+                    for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
+                    {
+                        CacheHelper(x, y, z);
+                    }
                 }
-            }
 
-            //Top right quadrant
-            Vector3 TRStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
-            for (int x = (int)TRStart.X; x < TRStart.X + (renderDistance * bounds); x += bounds)
-            {
-                for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
+                //Top right quadrant
+                Vector3 TRStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
+                for (int x = (int)TRStart.X; x < TRStart.X + (renderDistance * bounds); x += bounds)
                 {
-                    CacheHelper(x, z);
+                    for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
+                    {
+                        CacheHelper(x, y, z);
+                    }
                 }
-            }
 
-            //Bottom right quadrant
-            Vector3 BRStart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
-            for (int x = (int)BRStart.X; x > BRStart.X - (renderDistance * bounds); x -= bounds)
-            {
-                for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
+                //Bottom right quadrant
+                Vector3 BRStart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
+                for (int x = (int)BRStart.X; x > BRStart.X - (renderDistance * bounds); x -= bounds)
                 {
-                    CacheHelper(x, z);
+                    for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
+                    {
+                        CacheHelper(x, y, z);
+                    }
                 }
-            }
 
-            //Bottom left quadrant
-            Vector3 BLStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
-            for (int x = (int)BLStart.X; x < BLStart.X + (renderDistance * bounds); x += bounds)
-            {
-                for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
+                //Bottom left quadrant
+                Vector3 BLStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
+                for (int x = (int)BLStart.X; x < BLStart.X + (renderDistance * bounds); x += bounds)
                 {
-                    CacheHelper(x, z);
-                }
-            }
-        }
-
-        private static void PopulateCache()
-        {
-            int renderDis = renderDistance * 2 + 1;
-            Vector3 loc = playerChunk.GetLocation();
-            Vector3 start = new(loc.X + (RegionManager.CHUNK_BOUNDS * renderDis),0, loc.Z + (RegionManager.CHUNK_BOUNDS * renderDis));
-
-            for (int i = 1; i <= renderDis; i++)
-            {
-                for(int j = 1; j <= renderDis; j++)
-                {
-                    CacheHelper((int) start.X - (RegionManager.CHUNK_BOUNDS * j), (int) start.Z - (RegionManager.CHUNK_BOUNDS * i));
+                    for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
+                    {
+                        CacheHelper(x, y, z);
+                    }
                 }
             }
         }
+
+
         //This gets called A LOT.
-        private static void CacheHelper(int x, int z)
+        private static void CacheHelper(int x, int y, int z)
         {
             string regionIdx = Region.GetRegionIndex(x, z);
 
@@ -127,26 +115,26 @@ namespace Vox.Genesis
             }
 
 
-            Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{z}") ? chunkRegion.chunks[$"{x}|{z}"] : null;
+            Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}") ? chunkRegion.chunks[$"{x}|{y}|{z}"] : null;
 
             if (chunk != null)
             {
-                if (!chunks.ContainsKey($"{x}|{z}"))
-                    chunks.Add($"{x}|{z}", chunk);
+                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunks.Add($"{x}|{y}|{z}", chunk);
     
-                if (!chunkRegion.chunks.ContainsKey($"{x}|{z}"))
-                    chunkRegion.chunks.Add($"{x}|{z}", chunk);
+                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunkRegion.chunks.Add($"{x}|{y}|{z}", chunk);
                     
             }
             else
             {
-                Chunk c = new Chunk().Initialize(x, z);
+                Chunk c = new Chunk().Initialize(x, y, z);
 
-                if (!chunkRegion.chunks.ContainsKey($"{x}|{z}"))
-                    chunkRegion.chunks.Add($"{x}|{z}", c);
+                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
 
-                if (!chunks.ContainsKey($"{x}|{z}"))
-                    chunks.Add($"{x}|{z}", c);
+                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunks.Add($"{x}|{y}|{z}", c);
 
                
             }
@@ -162,38 +150,39 @@ namespace Vox.Genesis
          */
         private static void GetCardinalChunks()
         {
-            Region playerRegion = Window.GetPlayer().GetRegionWithPlayer();
-
-            //Positive X
-            for (int i = 1; i <= renderDistance; i++)
+            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
             {
-                int x = (int) playerChunk.GetLocation().X + (i * bounds);
-                int z = (int) playerChunk.GetLocation().Z;
-                CacheHelper(x, z);
-            }
+                //Positive X
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X + (i * bounds);
+                    int z = (int)playerChunk.GetLocation().Z;
+                    CacheHelper(x, y, z);
+                }
 
-            //Negative X
-            for (int i = 1; i <= renderDistance; i++)
-            {
-                int x = (int)playerChunk.GetLocation().X - (i * bounds);
-                int z = (int)playerChunk.GetLocation().Z;
-                CacheHelper(x, z);
-            }
+                //Negative X
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X - (i * bounds);
+                    int z = (int)playerChunk.GetLocation().Z;
+                    CacheHelper(x, y, z);
+                }
 
-            //Positive Y
-            for (int i = 1; i <= renderDistance; i++)
-            {
-                int x = (int)playerChunk.GetLocation().X;
-                int z = (int)playerChunk.GetLocation().Z + (i * bounds);
-                CacheHelper(x, z);
-            }
-            //Negative Y
-            for (int i = 1; i <= renderDistance; i++)
-            {
+                //Positive Y
+                for (int i = 1; i <= renderDistance; i++)
+                {
+                    int x = (int)playerChunk.GetLocation().X;
+                    int z = (int)playerChunk.GetLocation().Z + (i * bounds);
+                    CacheHelper(x, y, z);
+                }
+                //Negative Y
+                for (int i = 1; i <= renderDistance; i++)
+                {
 
-                int x = (int)playerChunk.GetLocation().X;
-                int z = (int)playerChunk.GetLocation().Z - (i * bounds);
-                CacheHelper(x, z);
+                    int x = (int)playerChunk.GetLocation().X;
+                    int z = (int)playerChunk.GetLocation().Z - (i * bounds);
+                    CacheHelper(x, y, z);
+                }
             }
         }
 
@@ -209,7 +198,7 @@ namespace Vox.Genesis
 
               GetQuadrantChunks();
               GetCardinalChunks();
-              chunks.Add($"{playerChunk.xLoc},{playerChunk.zLoc}", playerChunk);
+              chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
 
             return chunks;
         }

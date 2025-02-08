@@ -1,15 +1,8 @@
-﻿
-using System.Collections;
-using System.Drawing;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Xml.Linq;
+﻿using System.Diagnostics;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
 using Vox.Rendering;
-using Vox.Texturing;
 using GL = OpenTK.Graphics.OpenGL4.GL;
 
 
@@ -21,55 +14,61 @@ namespace Vox.Genesis
     {
         [Key(0)]
         public float xLoc;
-
+ 
         [Key(1)]
         public float zLoc;
-
+ 
         [Key(2)]
-        public readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
-
+        public float yLoc;
+ 
         [Key(3)]
-        public bool isInitialized = false;
-
-        [IgnoreMember]
-        private Vector3 location;
-
-        [IgnoreMember]
-        private int vbo = 0;
-
-        [IgnoreMember]
-        private int ebo = 0;
-
-        [IgnoreMember]
-        private int vao = 0;
-
-        [IgnoreMember]
-        private static Matrix4 modelMatrix = new();
-
+        public readonly int[,] heightMap = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+ 
         [Key(4)]
-        public bool didChange = false;
-
+        public bool IsInitialized = false;
+ 
         [Key(5)]
-        public RenderTask renderTask;
-        
+        public bool didChange = false;
+ 
         [Key(6)]
+        public RenderTask renderTask;
+ 
+        [Key(7)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
-
+ 
+        [Key(8)]
+        public Queue<LightNode> BFSPropagationQueue = new();
+ 
+        [Key(9)]
+        public Queue<LightNode> sunlightBFSPropagationQueue = new();
+ 
+        [Key(10)]
+        public List<float> blocksToAdd = [];
+ 
+        [Key(11)]
+        public List<float> blocksToExclude = [];
+ 
+        [IgnoreMember]
+        public bool IsEmpty = true;
+ 
         [IgnoreMember]
         private readonly object chunkLock = new();
-
-        [Key(7)]
-        public Queue<LightNode> BFSPropagationQueue = new();
-
-        [Key(8)]
-        public Queue<LightNode> sunlightBFSPropagationQueue = new();
-        
-        [Key(9)]
-        public List<Vector3> blocksToAdd = [];
-
-        [Key(10)]
-        public List<Vector3> blocksToExclude = [];
-
+ 
+        [IgnoreMember]
+        private Vector3 location;
+ 
+        [IgnoreMember]
+        private int vbo = 0;
+ 
+        [IgnoreMember]
+        private int ebo = 0;
+ 
+        [IgnoreMember]
+        private int vao = 0;
+ 
+        [IgnoreMember]
+        private static Matrix4 modelMatrix = new();
+      
         public Chunk()
         {
 
@@ -85,21 +84,22 @@ namespace Vox.Genesis
          * @param z coordinate of top left chunk corner
          * @return Returns the chunk
          */
-        public Chunk Initialize(float x, float z)
+        public Chunk Initialize(float x, float y, float z)
         {
             xLoc = x;
             zLoc = z;
-            location = new Vector3(xLoc, 0, zLoc);
+            yLoc = y;
+            location = new Vector3(xLoc, yLoc, zLoc);
 
             //Generic model matrix applicable to every chunk object
             modelMatrix = Matrix4.CreateTranslation(0, 0, 0);
 
-            if (!isInitialized)
+            if (!IsInitialized)
             {
-                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_HEIGHT, RegionManager.CHUNK_BOUNDS];
+                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
                 //===================================
-                //Generate chunk height map
+                //Generate surface chunk height map
                 //===================================
 
                 int xCount = 0;
@@ -121,6 +121,7 @@ namespace Vox.Genesis
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
                 }
+                IsInitialized = true;
             }
             return this;
         }
@@ -261,14 +262,15 @@ namespace Vox.Genesis
         }
 
         /**
- * Generates or regenerates this Chunks RenderTask. The RenderTask is
- * used to graphically render the Chunk. Calling this method will, if
- * needed, automatically update this chunks vertex and element data and
- * return a new RenderTask that can be passed to the GPU when drawing.
- *
- * @return A RenderTask whose regularly updated contents can be
- * used in GL draw calls to render this Chunk graphically
- */
+         * Generates or regenerates this Chunks RenderTask. The RenderTask is
+         * used to graphically render the Chunk. Calling this method will, if
+         * needed, automatically update this chunks vertex and element data and
+         * return a new RenderTask that can be passed to the GPU when drawing.
+         *
+         * @return A RenderTask whose regularly updated contents can be
+         * used in GL draw calls to render this Chunk graphically
+         */
+
         public RenderTask GetRenderTask()
         {
             List<Vector3> nonInterpolated = [];
@@ -279,7 +281,7 @@ namespace Vox.Genesis
             Array values = Enum.GetValues(typeof(BlockType));
 
             Random random = new();
-
+            
             if (didChange || renderTask == null)
             {
                 for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
@@ -299,16 +301,15 @@ namespace Vox.Genesis
 
                 List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
 
-                //Add any player placed blocks to the mesh after interpolation.
-                List<Vector3> toVert = [];
-                foreach (Vector3 v in blocksToAdd)
-                    interpolatedChunk.Add(v);
-                
+                //Add any player placed blocks to the mesh.
+                for (int i = 0; i < blocksToAdd.Count; i += 3)
+                    interpolatedChunk.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
 
-                //Remove any blocks marked for exclusion after interpolation
+
+                //Remove any blocks from the mesh marked for exclusion.
                 //(i.e player broke a block)
-                foreach (Vector3 v in blocksToExclude)
-                    interpolatedChunk.Remove(v);
+                for (int i = 0; i < blocksToExclude.Count; i += 3)
+                    interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
 
 
                 int randomIndex = random.Next(values.Length);
@@ -425,7 +426,7 @@ namespace Vox.Genesis
 
         public List<Vertex> GetVertices()
         {
-            return [.. GetRenderTask().GetVertexData()];
+            return [.. renderTask.GetVertexData()];
         }
         public int[] GetElements()
         {
@@ -783,17 +784,26 @@ namespace Vox.Genesis
 
         public void AddBlockToChunk(Vector3 v)
         {
-            blocksToExclude.Remove(v);
+            for (int i = 0; i < blocksToExclude.Count; i += 3)
+            {
+                if (blocksToExclude[i] == v.X && blocksToExclude[i + 1] == v.Y && blocksToExclude[i + 2] == v.Z)
+                    blocksToExclude.RemoveRange(i, 3);
+            }
+            
 
-            blocksToAdd.Add(v);
+            blocksToAdd.AddRange([v.X, v.Y, v.Z]);
             DidChange(true);
             GetRenderTask();
         }
 
         public void RemoveBlockFromChunk(Vector3 v)
         {
-            blocksToAdd.Remove(v);
-            blocksToExclude.Add(v);
+            for (int i = 0; i < blocksToAdd.Count; i += 3)
+            {
+                if (blocksToAdd[i] == v.X && blocksToAdd[i + 1] == v.Y && blocksToAdd[i + 2] == v.Z)
+                    blocksToAdd.RemoveRange(i, 3);
+            }
+            blocksToExclude.AddRange([v.X,v.Y, v.Z]);
 
             //Check for terrain holes after removing a block
             BlockDetail detail = new(
@@ -809,11 +819,18 @@ namespace Vox.Genesis
             //Only works when underground
             foreach (Vector3 adjBlock in detail.GetFaceAdjacentBlocks())
             {
+                bool containsRange = false;
+                for (int i = 0; i < blocksToExclude.Count; i += 3)
+                {
+                    if (blocksToExclude[i] == adjBlock.X && blocksToExclude[i + 1] == adjBlock.Y && blocksToExclude[i + 2] == adjBlock.Z)
+                        containsRange = true;
+                }
+
                 if ((adjBlock.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
                     || adjBlock.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
                     || v.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z)
                     || v.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
-                    && !blocksToExclude.Contains(adjBlock))
+                    && !containsRange)
 
                 {
                     Console.WriteLine("Filling in terrain hole at " + adjBlock);
@@ -828,7 +845,7 @@ namespace Vox.Genesis
         }
         public override string ToString()
         {
-            return "Chunk[" + location.X + "," + location.Z + "]";
+            return $"Chunk[{xLoc},{yLoc},{zLoc}]";
         }
 
         public override int GetHashCode()
