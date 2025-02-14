@@ -9,7 +9,7 @@ namespace Vox.Rendering
 {
     [MessagePackObject]
     [StructLayout(LayoutKind.Sequential)]
-    public struct Vertex
+    public struct TerrainVertex
     {
         [Key(0)]
         public float x;          
@@ -22,32 +22,20 @@ namespace Vox.Rendering
         [Key(4)]
         public int texCoord;     
         [Key(5)]
-        public int sunlight;   
+        public float blockType;
         [Key(6)]
-        public float normalX;
-        [Key(7)]
-        public float normalY;
-        [Key(8)]
-        public float normalZ;
-        [Key(9)]
         public Face face;
-        [Key(10)]
-        public float excludeFlag;
 
-        public Vertex(float x, float y, float z,
-            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, Face face, float excludeFlag)
+        public TerrainVertex(float x, float y, float z,
+            Texture texLayer, int texCoord, float blockType, Face face)
         {
             this.x = x;
             this.y = y;
             this.z = z;
             this.texLayer = texLayer;
             this.texCoord = texCoord;
-            this.sunlight = sunlight;
-            this.normalX = normalX;
-            this.normalY = normalY;
-            this.normalZ = normalZ;
             this.face = face;
-            this.excludeFlag = excludeFlag;
+            this.blockType = blockType;
         }
 
         public Vector3 GetVector()
@@ -58,10 +46,6 @@ namespace Vox.Rendering
         public void SetVector(Vector3 v)
         {
             x = v.X; y = v.Y; z = v.Z;
-        }
-        public void SetExclude(float exclude)
-        {
-            excludeFlag = exclude;
         }
     }
 }

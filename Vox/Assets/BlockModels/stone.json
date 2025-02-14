@@ -1,6 +1,7 @@
 {
-    "parent": "cube_all",
-    "textures": {
-        "all": "stone"
-    }
+  "parent": "cube_all",
+  "transparent": false,
+  "textures": {
+    "all": "stone"
+  }
 }

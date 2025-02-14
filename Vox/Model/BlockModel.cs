@@ -13,6 +13,7 @@ namespace Vox.Model
 
         private Dictionary<Face, string> textures = [];
         private readonly List<Element> elements = [];
+        private bool transparent = false;
         BlockModel parentModel;
 
         private BlockModel() { }
@@ -22,7 +23,7 @@ namespace Vox.Model
             JToken? parent = jsonObject["parent"];
             JObject? jsonTextures = jsonObject["textures"] as JObject;
             JArray? jsonElements = jsonObject["elements"] as JArray;
-
+            
 
             if (parent?.ToString().Length > 0)
             {
@@ -37,7 +38,7 @@ namespace Vox.Model
 
             textures = new Dictionary<Face, string>(parentModel.textures);
             elements = new List<Element>(parentModel.elements);
-
+            transparent = jsonObject.Value<bool>("transparent");
 
             if (jsonTextures != null)
             {
@@ -65,6 +66,7 @@ namespace Vox.Model
                     }
                 }
             }
+
 
             //Map parent texture references to child model textures
             foreach (Face key in textures.Keys)
@@ -98,6 +100,7 @@ namespace Vox.Model
             }
         }
 
+        public bool IsTransparent() { return transparent; }
         public Texture GetTexture(Face side)
         {
             Enum.TryParse(textures[side], true, out Texture output);

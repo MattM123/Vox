@@ -3,8 +3,8 @@
 layout(location = 0) in vec3 position;
 layout(location = 1) in int aTexLayer;
 layout(location = 2) in int aTexCoord;
-layout(location = 3) in int aSunlight;
-layout(location = 4) in vec3 aNormal;
+layout(location = 3) in vec3 aNormal;
+layout(location = 4) in int aFace;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
@@ -21,7 +21,6 @@ uniform vec3 forwardDir;
 out vec4 fColor;
 out vec2 ftexCoords;
 out vec3 fforwardDir;
-flat out int fsunlight;
 out vec3 fragPos;
 out vec3 fnormal;
 out vec4 fTargetVertex;
@@ -63,7 +62,6 @@ void main() {
 
         //passthrough
         fTexLayer = aTexLayer;
-        fsunlight = aSunlight;
         vertexPos = position;
 
         vec2 texCoords[4] = vec2[4](

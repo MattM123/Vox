@@ -19,44 +19,36 @@ namespace Vox.Rendering
      */
 
     [MessagePackObject]
-    public class RenderTask
+    public class LightingRenderTask
     {
 
         [Key(0)]
-        public List<Vertex> vertexData;
+        public List<LightingVertex> vertexData;
 
         [Key(1)]
-        public List<int> elementData;
-
-        [Key(2)]
         public int vbo;
 
-        [Key(3)]
+        [Key(2)]
         public int ebo;
 
-        [Key(4)]
+        [Key(3)]
         public int vao;
 
         private Matrix4 modelMatrix;
 
         [SerializationConstructor]
-        public RenderTask(List<Vertex> vertexData, List<int> elementData, int vbo, int ebo, int vao)
+        public LightingRenderTask(List<LightingVertex> vertexData, int vbo, int ebo, int vao)
         {
             this.vertexData = vertexData;
-            this.elementData = elementData;
             this.vbo = vbo;
             this.ebo = ebo;
             this.vao = vao;
             modelMatrix = Chunk.GetModelMatrix();
 
         }
-        public Vertex[] GetVertexData()
+        public LightingVertex[] GetVertexData()
         {
             return [.. vertexData];
-        }
-        public int[] GetElementData()
-        {
-            return [.. elementData];
         }
         public int GetVbo()
         {
@@ -75,7 +67,7 @@ namespace Vox.Rendering
             return modelMatrix;
         }
 
-        public void SetVertexData(List<Vertex> vertexData)
+        public void SetVertexData(List<LightingVertex> vertexData)
         {
             this.vertexData = vertexData;
         }
@@ -84,8 +76,7 @@ namespace Vox.Rendering
             return $"    VBO: {vbo},\n " +
                    $"   EBO: {ebo},\n " +
                    $"   VAO:{vao},\n " +
-                   $"   Vertex Length: {vertexData.Count},\n" +
-                   $"    Elements: {elementData.Count}\n";
+                   $"   Vertex Length: {vertexData.Count}";
         }
     }
 

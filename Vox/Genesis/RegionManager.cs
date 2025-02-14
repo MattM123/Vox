@@ -1,10 +1,6 @@
-﻿using System.ComponentModel;
-using System.Drawing;
+﻿
 using System.Security.Cryptography;
 using MessagePack;
-using Newtonsoft.Json;
-using OpenTK.Mathematics;
-
 namespace Vox.Genesis
 {
 
@@ -13,9 +9,9 @@ namespace Vox.Genesis
         public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 400;
-        private static int RENDER_DISTANCE = 8;
+        private static int RENDER_DISTANCE = 4;
         public static readonly int REGION_BOUNDS = 512;
-        public static readonly int CHUNK_BOUNDS = 16;
+        public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
         private static object lockObj = new();
         /**
@@ -191,22 +187,25 @@ namespace Vox.Genesis
             else
                 zUpperLimit = zLowerLimit + REGION_BOUNDS;
     
-
-            // returnRegion ??= new Region(xUpperLimit, zUpperLimit);
+            //new empty region used for coordinate comparisons
             return new Region(xUpperLimit, zUpperLimit);
         }
 
-        public static Chunk GetGlobalChunkFromCoords(int x, int y, int z)
+        public static Chunk GetAndLoadGlobalChunkFromCoords(int x, int y, int z)
         {
 
-            string playerChunkIdx = $"{Math.Floor((float) x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|{Math.Floor((float) z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
-            int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = Region.GetRegionIndex(index[0], index[2]);
+            string playerChunkIdx = 
+                $"{Math.Floor((float) x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
+                $"{Math.Floor((float) y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
+                $"{Math.Floor((float) z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+
+            int[] chunkIdxArray = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
+            string playerRegionIdx = Region.GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
             Region r = EnterRegion(playerRegionIdx);
 
             if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
             {
-                value = new Chunk().Initialize(index[0], index[1], index[2]);
+                value = new Chunk().Initialize(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
                 r.chunks.Add(playerChunkIdx, value);
             }
             return value;

@@ -36,7 +36,8 @@ namespace Vox
 
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
-        private static ShaderProgram? shaders = null;
+        private static ShaderProgram? terrainShaders = null;
+        private static ShaderProgram? lightingShaders = null;
         private static ShaderProgram? crosshairShader = null;
         private static Player? player = null;
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
@@ -53,6 +54,7 @@ namespace Vox
         private static long menuSeed;
         private float mouseSensitivity = 0.1f;
         private static int vbo, ebo, vao = 0;
+        private static int lightVao, lightEbo, lightVbo;
         private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
         private static int crosshairTex;
         private static Matrix4 pMatrix;
@@ -79,19 +81,23 @@ namespace Vox
             ebo = GL.GenBuffer();
             vao = GL.GenVertexArray();
 
+            lightVbo = GL.GenBuffer();
+            lightVao = GL.GenVertexArray();
+
             //Load textures and models
             TextureLoader.LoadTextures();
             crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
 
             ModelLoader.LoadModels();
             menuChunk = new Chunk().Initialize(0, 0, 0);
-            menuChunk.GetRenderTask();
+            menuChunk.GetTerrainRenderTask();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
             _controller = new ImGuiController(ClientSize.X, ClientSize.Y);
-            shaders = new();
+            terrainShaders = new();
             crosshairShader = new();
+            lightingShaders = new();
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
@@ -108,13 +114,25 @@ namespace Vox
             //Shader Compilation
             //========================
 
+            //-----------------------Terrain shaders---------------------------------
             //Load main vertex shader from file
-            string vertexShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexShader.glsl");
-            shaders.CreateVertexShader(vertexShaderSource);
+            string vertexTerrainShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexTerrainShader.glsl");
+            terrainShaders.CreateVertexShader(vertexTerrainShaderSource);
 
             // Load main fragment shader from file
-            string fragmentShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragShader.glsl");
-            shaders.CreateFragmentShader(fragmentShaderSource);
+            string fragmentTerrainShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragTerrainShader.glsl");
+            terrainShaders.CreateFragmentShader(fragmentTerrainShaderSource);
+            //-----------------------Terrain shaders---------------------------------
+
+            //-----------------------Lihgting shaders---------------------------------
+            //Load main vertex shader from file
+            string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexLightingShader.glsl");
+            lightingShaders.CreateVertexShader(vertexLightingShaderSource);
+
+            // Load main fragment shader from file
+            string fragmentLightingSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragLightingShader.glsl");
+            lightingShaders.CreateFragmentShader(fragmentLightingSource);
+            //-----------------------Lihgting shaders---------------------------------
 
             //Load crosshair vertex shaders
             string vertexCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex_Crosshair.glsl");
@@ -125,14 +143,15 @@ namespace Vox
             crosshairShader.CreateFragmentShader(fragmentCrosshairSource);
 
             //Load Textures
-            shaders.UploadTexture("texture_sampler", 0);
+            terrainShaders.UploadTexture("texture_sampler", 0);
 
             // Link the shader program
-            shaders.Link();
-          //  crosshairShader.Link();
+            terrainShaders.Link();
+           // lightingShaders.Link();
 
             // Use shader for rendering
-            shaders.Bind();
+          //  terrainShaders.Bind();
+           // lightingShaders.Bind();
 
             //========================
             //Matrix setup
@@ -142,65 +161,84 @@ namespace Vox
 
             viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -10f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
 
-            shaders.CreateUniform("projectionMatrix");
-            shaders.SetMatrixUniform("projectionMatrix", pMatrix);
+            terrainShaders.CreateUniform("projectionMatrix");
+            terrainShaders.SetMatrixUniform("projectionMatrix", pMatrix);
 
-            shaders.CreateUniform("modelMatrix");
-            shaders.SetMatrixUniform("modelMatrix", modelMatricRotate);
+            lightingShaders.CreateUniform("projectionMatrix");
+            lightingShaders.SetMatrixUniform("projectionMatrix", pMatrix);
 
-            shaders.CreateUniform("viewMatrix");
-            shaders.SetMatrixUniform("viewMatrix", viewMatrix);
+            terrainShaders.CreateUniform("modelMatrix");
+            terrainShaders.SetMatrixUniform("modelMatrix", modelMatricRotate);
 
-            shaders.CreateUniform("chunkModelMatrix");
-            shaders.SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix());
+            lightingShaders.CreateUniform("modelMatrix");
+            lightingShaders.SetMatrixUniform("modelMatrix", modelMatricRotate);
 
-            shaders.CreateUniform("isMenuRendered");
-            shaders.SetIntFloatUniform("isMenuRendered", 1);
+            terrainShaders.CreateUniform("viewMatrix");
+            terrainShaders.SetMatrixUniform("viewMatrix", viewMatrix);
 
-            shaders.CreateUniform("playerMin");
-       //     shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+            lightingShaders.CreateUniform("viewMatrix");
+            lightingShaders.SetMatrixUniform("viewMatrix", viewMatrix);
 
-            shaders.CreateUniform("playerMax");
-            //     shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+            terrainShaders.CreateUniform("chunkModelMatrix");
+            terrainShaders.SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix());
 
-            shaders.CreateUniform("blockCenter");
-            shaders.CreateUniform("curPos");
-            shaders.CreateUniform("localHit");
+            lightingShaders.CreateUniform("chunkModelMatrix");
+            lightingShaders.SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix());
 
-            shaders.CreateUniform("renderDistance");
-            shaders.CreateUniform("playerPos");
+            terrainShaders.CreateUniform("isMenuRendered");
+            terrainShaders.SetIntFloatUniform("isMenuRendered", 1);
 
-            shaders.CreateUniform("forwardDir");
+            lightingShaders.CreateUniform("isMenuRendered");
+            lightingShaders.SetIntFloatUniform("isMenuRendered", 1);
+
+            terrainShaders.CreateUniform("playerMin");
+            terrainShaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+
+            terrainShaders.CreateUniform("playerMax");
+            terrainShaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+
+            terrainShaders.CreateUniform("blockCenter");
+            terrainShaders.CreateUniform("curPos");
+            terrainShaders.CreateUniform("localHit");
+
+            terrainShaders.CreateUniform("renderDistance");
+            terrainShaders.CreateUniform("playerPos");
+
+            terrainShaders.CreateUniform("forwardDir");
 
 
-            shaders.CreateUniform("chunkSize");
-            shaders.SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS);
+            terrainShaders.CreateUniform("chunkSize");
+            terrainShaders.SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS);
 
-            shaders.CreateUniform("crosshairOrtho");
-            shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
+            terrainShaders.CreateUniform("crosshairOrtho");
+            terrainShaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
-            shaders.CreateUniform("targetVertex");
-            shaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _).GetLowerCorner());
+            terrainShaders.CreateUniform("targetVertex");
+            terrainShaders.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _).GetLowerCorner());
+
             //lightinf uniforms
-            shaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
-            shaders.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
-            shaders.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
-            shaders.SetIntFloatUniform("material.shininess", 32.0f);
+            terrainShaders.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
+            terrainShaders.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
+            terrainShaders.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
+            terrainShaders.SetIntFloatUniform("material.shininess", 32.0f);
 
             // This is where we change the lights color over time using the sin function
             float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
-            lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
-            lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
-            lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
+            // lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
+            // lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
+            // lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
+            lightColor.X = (MathF.Sin(time * 2.0f) + 1) / 2f;
+            lightColor.Y = (MathF.Sin(time * 0.7f) + 1) / 2f;
+            lightColor.Z = (MathF.Sin(time * 1.3f) + 1) / 2f;
 
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
 
-            shaders.SetVector3Uniform("light.position", _lightPos);
-            shaders.SetVector3Uniform("light.ambient", ambientColor);
-            shaders.SetVector3Uniform("light.diffuse", diffuseColor);
-            shaders.SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
+            lightingShaders.SetVector3Uniform("light.position", _lightPos);
+           //shaders.SetVector3Uniform("light.ambient", ambientColor);
+           //shaders.SetVector3Uniform("light.diffuse", diffuseColor);
+           //shaders.SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
 
             
         }
@@ -228,13 +266,13 @@ namespace Vox
 
                 angle += 0.0001f;
                 renderMenu = true;
-                shaders?.SetIntFloatUniform("isMenuRendered", 1);
+                terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
                 RenderMenu();
             }
             else
             {
                 renderMenu = false;
-                shaders?.SetIntFloatUniform("isMenuRendered", 0);
+                terrainShaders?.SetIntFloatUniform("isMenuRendered", 0);
                 RenderWorld();
            
             }
@@ -260,16 +298,16 @@ namespace Vox
             if (!IsMenuRendered())
             {
                 GetPlayer().Update((float)args.Time);
-                shaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
-                shaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
-                shaders.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
+                terrainShaders.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
+                terrainShaders.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+                terrainShaders.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
             }
 
 
-            shaders.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
+            terrainShaders.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
             
             if (loadedWorld != null)
-                shaders.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
+                terrainShaders.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
 
 
             /*==================================
@@ -289,9 +327,9 @@ namespace Vox
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
-            shaders.SetVector3Uniform("light.position", _lightPos);
-            shaders.SetVector3Uniform("light.ambient", ambientColor);
-            shaders.SetVector3Uniform("light.diffuse", diffuseColor);
+            lightingShaders.SetVector3Uniform("light.position", _lightPos);
+           // shaders.SetVector3Uniform("light.ambient", ambientColor);
+           // shaders.SetVector3Uniform("light.diffuse", diffuseColor);
 
             if (player != null)
                 _lightPos = new Vector3(GetPlayer().GetPosition().X, 
@@ -301,12 +339,12 @@ namespace Vox
             {
                 modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
                 Matrix4 menuMatrix = modelMatricRotate;
-                shaders?.SetMatrixUniform("modelMatrix", menuMatrix);
+                terrainShaders?.SetMatrixUniform("modelMatrix", menuMatrix);
             } else
             {
                 CursorState = CursorState.Grabbed;
                 Player.SetLookDir(MouseState.Y, MouseState.X);
-                shaders.SetMatrixUniform("viewMatrix", player.GetViewMatrix());
+                terrainShaders.SetMatrixUniform("viewMatrix", player.GetViewMatrix());
             }
 
         }
@@ -354,7 +392,7 @@ namespace Vox
             if (!IsMenuRendered())
             {
                 BlockDetail block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace);
-                Chunk actionChunk = RegionManager.GetGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Y, (int)block.GetLowerCorner().Z);
+                Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Y, (int)block.GetLowerCorner().Z);
 
                 if (e.Button == MouseButton.Left)
                 {
@@ -585,14 +623,18 @@ namespace Vox
             Buffer binding and loading
             ====================================*/
 
+
+            //-------------------------Render and Draw Terrain---------------------------------------
+
+            
             GL.BindVertexArray(vao);
 
             //Vertices
-            Vertex[] vertexBuffer = menuChunk.GetVertices().ToArray();
+            TerrainVertex[] vertexBuffer = [.. menuChunk.GetVertices()];
 
             // Create VBO upload the vertex buffer
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<Vertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
 
             //Elements
             int[] elementBuffer = menuChunk.GetElements();
@@ -610,44 +652,84 @@ namespace Vox
             int posSize = 3;
             int layerSize = 1;
             int coordSize = 1;
-            int sunlightSize = 1;
-            int normalSize = 3;
+            int blocktypeSize = 1;
             int faceSize = 1;
-            int flagSize = 1;
 
             // Position
-            GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
+            GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), 0);
             GL.EnableVertexAttribArray(0);
 
             // Texture Layer
-            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize) * sizeof(float));
+            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), posSize * sizeof(float));
             GL.EnableVertexAttribArray(1);
 
             // Texture Coordinates
-            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize) * sizeof(float));
+            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize) * sizeof(float));
             GL.EnableVertexAttribArray(2);
 
             // Sunlight
-            GL.VertexAttribPointer(3, sunlightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize) * sizeof(float));
+            GL.VertexAttribPointer(3, blocktypeSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize) * sizeof(float));
             GL.EnableVertexAttribArray(3);
 
-            // Sunlight
-            GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize) * sizeof(float));
+            // Block face
+            GL.VertexAttribPointer(4, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + blocktypeSize) * sizeof(float));
             GL.EnableVertexAttribArray(4);
 
-            // Block face
-            GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize) * sizeof(float));
-            GL.EnableVertexAttribArray(5);
-
-            // Exclude flag
-            GL.VertexAttribPointer(6, flagSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize + faceSize) * sizeof(float));
-            GL.EnableVertexAttribArray(6);
 
             /*==================================
             Drawing
             ====================================*/
+            terrainShaders.Bind();
             GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
+            terrainShaders.Unbind();
 
+            //-------------------------Render and Draw Terrain---------------------------------------
+        
+         //   //-------------------------Render Environmental Lighting---------------------------------------
+         //
+         //   /*==================================
+         //   Buffer binding and loading
+         //   ====================================*/
+         //   GL.BindVertexArray(lightVao);
+         //
+         //   //Vertices
+         //   LightingVertex[] lightingVertexBuffer = [.. menuChunk.GetLightingRenderTask().GetVertexData()];
+         //
+         //   // Create VBO upload the vertex buffer
+         //   GL.BindBuffer(BufferTarget.ArrayBuffer, lightVbo);
+         //   GL.BufferData(BufferTarget.ArrayBuffer, lightingVertexBuffer.Length * Unsafe.SizeOf<LightingVertex>(), lightingVertexBuffer, BufferUsageHint.StaticDraw);
+         //
+         //
+         //   float[] buffints = new float[lightingVertexBuffer.Length];
+         //   GL.GetBufferSubData(BufferTarget.ArrayBuffer, 0, lightingVertexBuffer.Length, buffints);
+         //
+         //
+         //
+         //   /*=====================================
+         //   Vertex attribute definitions for shaders
+         //   ======================================*/
+         //   int lightPosSize = 3;
+         //   int lightSize = 1;
+         //
+         //   // Position
+         //   GL.VertexAttribPointer(0, lightPosSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<LightingVertex>(), 0);
+         //   GL.EnableVertexAttribArray(0);
+         //
+         //   // Texture Layer
+         //   GL.VertexAttribPointer(1, lightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<LightingVertex>(), (lightPosSize) * sizeof(float));
+         //   GL.EnableVertexAttribArray(1);
+         //
+         //   /*==================================
+         //   Drawing
+         //   ====================================*/
+         //
+         //   lightingShaders.Link();
+         //   lightingShaders.Bind();
+         //   GL.DrawArrays(PrimitiveType.Points, 0, lightingVertexBuffer.Length / 4);
+         //   lightingShaders.Unbind();
+        
+            //-------------------------Render Environmental Lighting---------------------------------------
+        
             // Delete VAO, VBO, and EBO
             GL.BindVertexArray(0);
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
@@ -683,7 +765,9 @@ namespace Vox
             //=========================================================================
 
             //Per chunk primitive information calculated in thread pool and later sent to GPU for drawing
-            ConcurrentBag<RenderTask> renderTasks = [];
+            ConcurrentBag<TerrainRenderTask> terrainRenderTasks = [];
+            ConcurrentBag<LightingRenderTask> lightingRenderTasks = [];
+
             CountdownEvent countdown = new(chunksToRender.Count());
             object lockObj = new();
 
@@ -691,7 +775,8 @@ namespace Vox
             {
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
-                    renderTasks.Add(c.Value.GetRenderTask());
+                    terrainRenderTasks.Add(c.Value.GetTerrainRenderTask());
+                    lightingRenderTasks.Add(c.Value.GetLightingRenderTask());
                     countdown.Signal();
                 }));
             }
@@ -701,46 +786,41 @@ namespace Vox
             Getting vertex and element information for rendering
             ========================================================*/
 
-            foreach (RenderTask renderTask in renderTasks)
+            foreach (TerrainRenderTask renderTask in terrainRenderTasks)
             {
                 /*=====================================
-                 Vertex attribute definitions for shaders
-                 ======================================*/
+                Vertex attribute definitions for shaders
+                ======================================*/
                 int posSize = 3;
                 int layerSize = 1;
                 int coordSize = 1;
-                int sunlightSize = 1;
-                int normalSize = 3;
+                int lightSize = 1;
+                int blocktypeSize = 1;
                 int faceSize = 1;
-                int flagSize = 1;
 
                 // Position
-                GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), 0);
+                GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), 0);
                 GL.EnableVertexAttribArray(0);
 
                 // Texture Layer
-                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize) * sizeof(float));
+                GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize) * sizeof(float));
                 GL.EnableVertexAttribArray(1);
 
                 // Texture Coordinates
-                GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize) * sizeof(float));
+                GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize) * sizeof(float));
                 GL.EnableVertexAttribArray(2);
 
                 // Sunlight
-                GL.VertexAttribPointer(3, sunlightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize) * sizeof(float));
+                GL.VertexAttribPointer(3, lightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize) * sizeof(float));
                 GL.EnableVertexAttribArray(3);
 
-                // Sunlight
-                GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize) * sizeof(float));
+                // Blocktype
+                GL.VertexAttribPointer(4, blocktypeSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize) * sizeof(float));
                 GL.EnableVertexAttribArray(4);
 
                 // Block face
-                GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize) * sizeof(float));
+                GL.VertexAttribPointer(5, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + blocktypeSize) * sizeof(float));
                 GL.EnableVertexAttribArray(5);
-
-                // Exclude flag
-                GL.VertexAttribPointer(6, flagSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vertex>(), (posSize + layerSize + coordSize + sunlightSize + faceSize + normalSize + faceSize) * sizeof(float));
-                GL.EnableVertexAttribArray(6);
 
                 int vbo = renderTask.GetVbo();
                 int ebo = renderTask.GetEbo();
@@ -748,8 +828,7 @@ namespace Vox
                 GL.BindVertexArray(vao);
 
 
-                //Gets chunk data from previously submitted Future
-                Vertex[] vertices = renderTask.GetVertexData();
+                TerrainVertex[] vertices = renderTask.GetVertexData();
                 int[] elements = renderTask.GetElementData();
 
                 //Sends chunk data to GPU for drawing
@@ -760,11 +839,11 @@ namespace Vox
                     ====================================*/
 
                     //Vertices
-                    Vertex[] vertexBuffer = vertices;
+                    TerrainVertex[] vertexBuffer = vertices;
 
                     // Create VBO upload the vertex buffer
                     GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-                    GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<Vertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
+                    GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
 
                     //Elements
                     int[] elementBuffer = elements;
@@ -794,7 +873,7 @@ namespace Vox
                 /*==================================
                 Render View Target Block Outline
                 ====================================*/
-                Vertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
+                TerrainVertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
 
                 if (viewBlockVertices.Length > 0)
                 {
@@ -803,7 +882,7 @@ namespace Vox
 
                     // Bind and upload vertex data
                     GL.BindBuffer(BufferTarget.ArrayBuffer, viewVBO);
-                    GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<Vertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
+                    GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<TerrainVertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
 
 
                     //Draw the view target outline
@@ -867,7 +946,7 @@ namespace Vox
         {
             base.OnClosing(e);
 
-            shaders?.Cleanup();
+            terrainShaders?.Cleanup();
             crosshairShader?.Cleanup();
             TextureLoader.Unbind();
         }
@@ -877,13 +956,13 @@ namespace Vox
             base.OnResize(e);
 
             //Update ortho matrix for crosshair on window resize
-            shaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
+            terrainShaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
             // Update the opengl viewport
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)e.Width / e.Height, NEAR, FAR);
-            shaders?.SetMatrixUniform("projectionMatrix", pMatrix);
+            terrainShaders?.SetMatrixUniform("projectionMatrix", pMatrix);
 
             // Tell ImGui of the new size
             _controller.WindowResized(ClientSize.X, ClientSize.Y);
@@ -901,7 +980,7 @@ namespace Vox
         }
         public static ShaderProgram GetShaders()
         {
-            return shaders;
+            return terrainShaders;
         }
         static void Main()
         {

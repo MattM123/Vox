@@ -11,18 +11,7 @@ struct Material {
 
     float shininess; //Shininess is the power the specular light is raised to
 };
-//The light contains all the values from the light source, how the ambient diffuse and specular values are from the light source.
-//This is technically what we were using in the last episode as we were only applying the phong model directly to the light.
-struct Light {
-    vec3 position;
 
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
-
-//We create the light and the material struct as uniforms.
-uniform Light light;
 uniform Material material;
 
 //We still need the view position.
@@ -41,7 +30,6 @@ in vec4 fcurPos;
 in vec4 flocalHit;
 
 flat in float fTexLayer;
-flat in int fsunlight;
 in vec4 fTargetVertex;
 in vec2 ftexCoords;
 in vec3 fragPos;
@@ -61,28 +49,27 @@ void main()
     //=========================================
 
     //diffuse 
-    vec3 norm = normalize(fnormal);
-    vec3 lightDir = normalize(light.position - fragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = light.diffuse * (diff * material.diffuse); //Remember to use the material here.
-  
-    //specular
-    vec3 viewDir = normalize(viewPos - fragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
+   //vec3 norm = normalize(fnormal);
+   //vec3 lightDir = normalize(light.position - fragPos);
+   //float diff = max(dot(norm, lightDir), 0.0);
+   //vec3 diffuse = light.diffuse * (diff * material.diffuse); //Remember to use the material here.
+   //
+   ////specular
+   //vec3 viewDir = normalize(viewPos - fragPos);
+   //vec3 reflectDir = reflect(-lightDir, norm);
+   //float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+   //vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
+   //
+   //float sunDot = dot(-lightDir, norm);
+   //float falloff = dot(vec3(0,1,0), -lightDir);
+   //float ambient = clamp(0.5 * falloff, 0, 1);
+   //float value = clamp(ambient + (max(0, sunDot) * falloff), 0.1, 1.0);
 
-    float sunDot = dot(-lightDir, norm);
-    float falloff = dot(vec3(0,1,0), -lightDir);
-    float ambient = clamp(0.5 * falloff, 0, 1);
-    float value = clamp(ambient + (max(0, sunDot) * falloff), 0.1, 1.0);
 
     //Now the result sum has changed a bit, since we now set the objects color in each element, we now dont have to
     //multiply the light with the object here, instead we do it for each element seperatly. This allows much better control
     //over how each element is applied to different objects.
-    float sunlightIntensity = max(light.position.y * 0.96f + 0.6f, 0.02f);
-    float lightIntensity = fsunlight * sunlightIntensity + sunDot;
-    vec3 result = value + diffuse + specular;
+
 
 
     //=========================================
@@ -93,6 +80,7 @@ void main()
     vec4 minBound = fTargetVertex;
     vec4 maxBound = minBound + vec4(1.01,1.01,1.01,0);
 
+    float gamma = 1.0 / 1.5; 
 
     // Check if the fragment's position is inside the bounding box
     if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
@@ -102,11 +90,14 @@ void main()
         // If inside the bounding box, combine texture with target texture
         vec4 baseTex = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)));
         vec4 targetOverlay = vec4(texture(texture_sampler, vec3(ftexCoords.xy, 4)));
-        color = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0);
+        vec4 c = mix(baseTex, targetOverlay, targetOverlay.a);
+        color = pow(c, vec4(gamma));
     
     }
     
     else {
-        color = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer))) * vec4(result, 1.0));// * lightIntensity;
+        
+       vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer))));
+       color = pow(c, vec4(gamma));
     }
  }

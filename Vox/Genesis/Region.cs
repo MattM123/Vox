@@ -1,6 +1,7 @@
 ﻿
 using System.Drawing;
 using MessagePack;
+using OpenTK.Mathematics;
 
 namespace Vox.Genesis
 {
@@ -16,11 +17,11 @@ namespace Vox.Genesis
         [Key(2)]
         public bool didChange = false;
 
-        [IgnoreMember]
-        public readonly Rectangle regionBounds;
-
         [Key(3)]
         public Dictionary<string, Chunk> chunks = [];
+
+        [IgnoreMember]
+        public readonly Rectangle regionBounds;
 
         [SerializationConstructor]
         public Region(int x, int z) {
@@ -47,6 +48,27 @@ namespace Vox.Genesis
                 }
             }
             return didChange;
+        }
+
+        public static bool IsChunkLoaded(Vector3 chunkLocation)
+        {
+            string chunkIdx = 
+                $"{Math.Floor(chunkLocation.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|" +
+                $"{Math.Floor(chunkLocation.Y / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|" +
+                $"{Math.Floor(chunkLocation.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
+           
+            int[] chunkIdxArray = chunkIdx.Split('|').Select(int.Parse).ToArray();
+            string regionIdx = GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
+
+            try
+            {
+                Region r = RegionManager.VisibleRegions[regionIdx];
+                Chunk c = r.chunks[chunkIdx];
+            } catch (KeyNotFoundException)
+            {
+                return false;
+            }
+            return  true;
         }
 
         public Rectangle GetBounds()
