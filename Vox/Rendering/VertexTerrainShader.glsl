@@ -1,10 +1,12 @@
-#version 410 core
+#version 430 core
 
 layout(location = 0) in vec3 position;
 layout(location = 1) in int aTexLayer;
 layout(location = 2) in int aTexCoord;
-layout(location = 3) in vec3 aNormal;
-layout(location = 4) in int aFace;
+layout(location = 3) in int aLight;
+layout(location = 4) in vec3 aNormal;
+layout(location = 5) in int aBlocktype;
+layout(location = 6) in int aFace;
 
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
@@ -12,12 +14,17 @@ uniform mat4 projectionMatrix;
 uniform mat4 chunkModelMatrix;
 uniform int isMenuRendered;
 
+uniform mat4 lightProjMatrix;
+uniform mat4 lightModel;
+uniform mat4 lightViewMatrix;
+
 uniform int renderDistance;
 uniform vec3 playerPos;
 uniform int chunkSize;
 uniform vec3 targetVertex;
 uniform vec3 forwardDir;
 
+out vec4 fragPosLightSpace;
 out vec4 fColor;
 out vec2 ftexCoords;
 out vec3 fforwardDir;
@@ -49,6 +56,7 @@ void main() {
         fblockCenter =  vec4(blockCenter, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
         fcurPos =       vec4(curPos, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
         flocalHit =     vec4(localHit, 1.0) * chunkModelMatrix;// * viewMatrix * projectionMatrix;
+
     }
 
     //Render partial mesh if chunk is on the edge of render distance by
@@ -71,7 +79,7 @@ void main() {
             vec2(1.0f, 1.0f)
         );
 
-
+        fragPosLightSpace = vec4(fragPos, 1.0) * lightModel * lightViewMatrix * lightProjMatrix;
         ftexCoords = texCoords[aTexCoord];
         fnormal = aNormal * mat3(transpose(inverse(modelMatrix)));
     }

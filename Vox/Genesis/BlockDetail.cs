@@ -91,7 +91,7 @@ namespace Vox.Genesis
          */
         public bool IsSurrounded()
         {
-            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GetTerrainRenderTask().GetVertexData()];
+            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
             List<Vector3> surroundingCubes =
             [
                 // Edge-adjacent (diagonal) cubes
@@ -115,7 +115,7 @@ namespace Vox.Genesis
 
         public bool IsRendered()
         {
-            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GetTerrainRenderTask().GetVertexData()];
+            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
             for (int i = 0; i < vertList.Count; i += 24)
             {
                 if (vertList[i].GetVector().Equals(lowerCorner))

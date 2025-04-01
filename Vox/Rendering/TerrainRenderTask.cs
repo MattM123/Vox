@@ -1,4 +1,6 @@
-﻿using MessagePack;
+﻿using System.Buffers;
+using System.Runtime.InteropServices;
+using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Genesis;
 
@@ -23,10 +25,10 @@ namespace Vox.Rendering
     {
 
         [Key(0)]
-        public List<TerrainVertex> vertexData;
+        public TerrainVertex[] vertexData;
 
         [Key(1)]
-        public List<int> elementData;
+        public int[] elementData;
 
         [Key(2)]
         public int vbo;
@@ -40,7 +42,7 @@ namespace Vox.Rendering
         private Matrix4 modelMatrix;
 
         [SerializationConstructor]
-        public TerrainRenderTask(List<TerrainVertex> vertexData, List<int> elementData, int vbo, int ebo, int vao)
+        public TerrainRenderTask(TerrainVertex[] vertexData, int[] elementData, int vbo, int ebo, int vao)
         {
             this.vertexData = vertexData;
             this.elementData = elementData;
@@ -52,11 +54,11 @@ namespace Vox.Rendering
         }
         public TerrainVertex[] GetVertexData()
         {
-            return [.. vertexData];
+            return vertexData;
         }
         public int[] GetElementData()
         {
-            return [.. elementData];
+            return elementData;
         }
         public int GetVbo()
         {
@@ -75,7 +77,7 @@ namespace Vox.Rendering
             return modelMatrix;
         }
 
-        public void SetVertexData(List<TerrainVertex> vertexData)
+        public void SetVertexData(TerrainVertex[] vertexData)
         {
             this.vertexData = vertexData;
         }
@@ -84,8 +86,8 @@ namespace Vox.Rendering
             return $"    VBO: {vbo},\n " +
                    $"   EBO: {ebo},\n " +
                    $"   VAO:{vao},\n " +
-                   $"   Vertex Length: {vertexData.Count},\n" +
-                   $"    Elements: {elementData.Count}\n";
+                   $"   Vertex Length: {vertexData.Length},\n" +
+                   $"    Elements: {elementData.Length}\n";
         }
     }
 

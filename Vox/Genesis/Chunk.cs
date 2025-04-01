@@ -1,4 +1,6 @@
 ﻿
+using System.Collections.Generic;
+using System.Reflection;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -55,7 +57,7 @@ namespace Vox.Genesis
         public bool IsEmpty = true;
  
         [IgnoreMember]
-        private readonly object chunkLock = new();
+        private static readonly object chunkLock = new();
  
         [IgnoreMember]
         private Vector3 location;
@@ -72,7 +74,7 @@ namespace Vox.Genesis
 
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
-      
+
         public Chunk()
         {
 
@@ -134,6 +136,124 @@ namespace Vox.Genesis
             return this;
         }
 
+        public TerrainRenderTask GenerateRenderData()
+        {
+            List<Vector3> nonInterpolated = [];
+            List<TerrainVertex> vertices = [];
+            List<int> elements = [];
+            int elementCounter = 0;
+
+            Array values = Enum.GetValues(typeof(BlockType));
+
+            Random random = new();
+
+            if (didChange || renderTask == null)
+            {
+                for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
+                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns
+                        nonInterpolated.Add(new Vector3(GetLocation().X + x, heightMap[z, x], GetLocation().Z + z));
+
+
+
+                //Add any player placed blocks to the mesh before interpolating
+                for (int i = 0; i < blocksToAdd.Count; i += 3)
+                    nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
+
+                //Interpolate chunk heightmap
+                List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
+
+                //Remove any blocks from the mesh marked for exclusion.
+                //(i.e player broke a block)
+                for (int i = 0; i < blocksToExclude.Count; i += 3)
+                    interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
+
+                int randomIndex = random.Next(values.Length);
+                BlockType? randomBlock;
+                if (randomIndex > 1)
+                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
+                else
+                    randomBlock = (BlockType?)values.GetValue(randomIndex);
+
+                BlockType blockType = (BlockType)randomBlock;
+
+                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
+                {
+                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                    {
+
+                        foreach (Vector3 v in interpolatedChunk)
+                        {
+
+                            //Top face check X and Z
+                            if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
+                            {
+                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
+                                if (!up)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+
+                                //East face check z + 1
+                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
+                                if (!east)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+
+                                //West face check z - 1
+                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
+                                if (!west)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+
+                                //North face check x + 1
+                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
+                                if (!north)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+
+                                //South face check x - 1
+                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+                                //Bottom face
+                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
+                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
+                                {
+                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                    elementCounter += 4;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                //Updates chunk data
+                lock (chunkLock)
+                {
+                    //O(n) because of ToArray
+                    renderTask = new TerrainRenderTask([.. vertices], [.. elements], GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
+                    didChange = false;
+                }
+            }
+            return renderTask;
+        }
+
+
         /**
          * Given a 2D chunk heightmap, interpolates between
          * height-mapped blocks to fill in vertical gaps in terrain generation.
@@ -155,7 +275,7 @@ namespace Vox.Genesis
          *  will be assigned block types and texture infromation in the render task
          *  
          */
-        private List<Vector3> InterpolateChunk(List<Vector3> inVert)
+        public List<Vector3> InterpolateChunk(List<Vector3> inVert)
         {
             //TODO: Determine BlockType based on noise
 
@@ -269,144 +389,7 @@ namespace Vox.Genesis
             return output;
         }
 
-        /**
-         * Generates or regenerates this Chunks RenderTask. The RenderTask is
-         * used to graphically render the Chunk. Calling this method will, if
-         * needed, automatically update this chunks vertex and element data and
-         * return a new RenderTask that can be passed to the GPU when drawing.
-         *
-         * @return A RenderTask whose regularly updated contents can be
-         * used in GL draw calls to render this Chunk graphically
-         */
-
-        public TerrainRenderTask GetTerrainRenderTask()
-        {
-            List<Vector3> nonInterpolated = [];
-            List<TerrainVertex> vertices = [];
-            List<int> elements = [];
-            int elementCounter = 0;
-
-            Array values = Enum.GetValues(typeof(BlockType));
-
-            Random random = new();
-
-            if (didChange || renderTask == null)
-            {
-                for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
-                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns
-                        nonInterpolated.Add(new Vector3(location.X + x, heightMap[z, x], location.Z + z));
-
-
-
-                //Add any player placed blocks to the mesh before interpolating
-                for (int i = 0; i < blocksToAdd.Count; i += 3)
-                    nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
-
-                //Interpolate chunk heightmap
-                List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
-
-                //Remove any blocks from the mesh marked for exclusion.
-                //(i.e player broke a block)
-                for (int i = 0; i < blocksToExclude.Count; i += 3)
-                    interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
-
-
-                int randomIndex = random.Next(values.Length);
-                BlockType? randomBlock;
-                if (randomIndex > 1)
-                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
-                else
-                    randomBlock = (BlockType?)values.GetValue(randomIndex);
-
-                BlockType blockType = (BlockType) randomBlock;
-                //if (randomBlock != null)
-                //    blockType = ModelLoader.GetModel((BlockType)randomBlock);
-                //else
-                //    blockType = ModelLoader.GetModel(BlockType.TEST_BLOCK);
-
-
-                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
-                {
-                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
-                    {
-
-                        foreach (Vector3 v in interpolatedChunk)
-                        {
-
-                            //Top face check X and Z
-                            if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
-                            {
-                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
-                                if (!up)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-
-                                //East face check z + 1
-                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
-                                if (!east)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-
-                                //West face check z - 1
-                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
-                                if (!west)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-
-                                //North face check x + 1
-                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
-                                if (!north)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-
-                                //South face check x - 1
-                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-                                //Bottom face
-                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
-                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, 80000]);
-                                    elementCounter += 4;
-                                }
-                            }
-                        }
-                    }
-                    
-                }
-
-                //Updates chunk data
-                lock (chunkLock)
-                {
-                    renderTask = new TerrainRenderTask(vertices, elements, GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
-                    didChange = false;
-                }
-
-                //Populate sunlight propagation queue
-               // PopulateSunlightBFSQueue();
-
-                //Empty queue and propagate sunlight
-               // PropagateSunlight();
-            }
-            return renderTask;
-        }
+        
 
         public LightingRenderTask GetLightingRenderTask()
         {
@@ -416,26 +399,24 @@ namespace Vox.Genesis
 
             List<LightingVertex> vertices = [];
 
-            PopulateSunlightBFSQueue();
+
             for (int y = 0; y < lightmap.GetLength(0); y++)
             {
                 for (int z = 0; z < lightmap.GetLength(1); z++)
                 {
                     for (int x = 0; x < lightmap.GetLength(2); x++)
                     {
-                        vertices.Add(new(x, y, z, lightmap[y, z, x]));
+                        int clampedY = Utils.ConvertToNewRange(y + (int) location.Y, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
+                        if (clampedY >= heightMap[z, x])
+                        {
+                            vertices.Add(new(x, y, z, lightmap[y, z, x]));
+                        } 
                     }
                 }
             }
-
-            //PropagateSunlight();
-
-            foreach(var v in lightmap)
-            {
-              //  Console.WriteLine(v);
-            }
-
+            
             lightingRenderTask = new LightingRenderTask(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
+
             return lightingRenderTask;
 
         }
@@ -449,19 +430,6 @@ namespace Vox.Genesis
             return location;
         }
 
-        public bool ContainsBlockAt(Vector3 block)
-        {
-            if (GetVertices().Where(v =>
-                v.GetVector().X == block.X
-                && v.GetVector().Y == block.Y
-                && v.GetVector().Z == block.Z).ToList().Count > 0)
-            { 
-                return true;
-            }
-
-            return false;
-        }
-
         //This returns the first occurance of the vertex with the coordinate vector,
         //which means there are 3 other vetrex objects with that vector forming a blocks face.
         
@@ -473,13 +441,13 @@ namespace Vox.Genesis
             foreach (TerrainVertex v in GetVertices())
             {
                 if (v.GetVector().X == x && v.GetVector().Y == y && v.GetVector().Z == z)
-                    return (BlockType) v.blockType;
+                    return (BlockType) v.blocktype;
             }
             return BlockType.TEST_BLOCK;
         }
-        public List<TerrainVertex> GetVertices()
+        public TerrainVertex[] GetVertices()
         {
-            return [.. renderTask.GetVertexData()];
+            return renderTask.GetVertexData();
         }
         public int[] GetElements()
         {
@@ -498,142 +466,6 @@ namespace Vox.Genesis
 
     
         public bool DidChange() { return didChange; }
-        
-        /**
-         * Searches for an index to insert a new Block at in O(log n) time complexity.
-         * Ensures the list is sorted by the Blocks location as new Blocks are inserted into it.
-         *
-         * @param l The farthest left index of the list
-         * @param r The farthest right index of the list
-         * @param v The coordinate to search for.
-         * @return Returns the Block that was just inserted into the list.
-         */
-        /*
-        private Block BinaryInsertBlockWithLocation(int l, int r, Vector3 v)
-        {
-            ChunkComparator comparator = new();
-            Block b = new(v.X, v.Y, v.Z);
-
-            if (chunkBlocks.Count == 0)
-            {
-                chunkBlocks.Add(b);
-            }
-            if (chunkBlocks.Count == 1)
-            {
-                //Inserts element as first in list
-                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) < 0)
-                {
-                    chunkBlocks.Insert(0, b);
-                    return b;
-                }
-                //Appends to end of list
-                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) > 0)
-                {
-                    chunkBlocks.Add(b);
-                    return b;
-                }
-            }
-
-            if (r >= l && chunkBlocks.Count > 1)
-            {
-                int mid = l + (r - l) / 2;
-                //When an index has been found, right and left will be very close to each other
-                //Insertion of the right index will shift the right element
-                //and all subsequent ones to the right.
-                if (Math.Abs(r - l) == 1)
-                {
-                    chunkBlocks.Insert(r, b);
-                    return b;
-                }
-
-                //If element is less than first element insert at front of list
-                if (comparator.Compare(v, chunkBlocks[0].GetLocation()) < 0)
-                {
-                    chunkBlocks.Insert(0, b);
-                    return b;
-                }
-                //If element is more than last element insert at end of list
-                if (comparator.Compare(v, chunkBlocks[chunkBlocks.Count - 1].GetLocation()) > 0)
-                {
-                    chunkBlocks.Add(b);
-                    return b;
-                }
-
-                //If the index is near the middle
-                if (comparator.Compare(v, chunkBlocks[mid - 1].GetLocation()) > 0
-                        && comparator.Compare(b.GetLocation(), chunkBlocks[mid].GetLocation()) < 0)
-                {
-                    chunkBlocks.Insert(mid, b);
-                    return b;
-                }
-                if (comparator.Compare(v, chunkBlocks[mid + 1].GetLocation()) < 0
-                        && comparator.Compare(v, chunkBlocks[mid].GetLocation()) > 0)
-                {
-                    chunkBlocks.Insert(mid + 1, b);
-                    return b;
-                }
-
-                // If element is smaller than mid, then
-                // it can only be present in left subarray
-                if (comparator.Compare(v, chunkBlocks[mid].GetLocation()) < 0)
-                {
-                    return BinaryInsertBlockWithLocation(l, mid - 1, v);
-                }
-
-                // Else the element can only be present
-                // in right subarray
-                return BinaryInsertBlockWithLocation(mid + 1, r, v);
-
-            }
-            else
-            {
-                return null;
-            }
-        }
-        */
-
-        /**
-         * Searches for a Block in O(log n) time complexity and returns it.
-         *
-         * @param l The farthest left index of the list
-         * @param r The farthest right index of the list
-         * @param v The coordinate to search for.
-         * @return Returns the Block if found. Else null.
-         */
-        /*
-        private Block? BinarySearchBlockWithLocation(int l, int r, Block v)
-        {
-            BlockComparator comparator = new();
-
-            if (r >= l)
-            {
-                int mid = l + (r - l) / 2;
-
-                // If the element is present at the middle
-                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) == 0)
-                {
-                    // System.out.println("Found Equal: " + v + "   " + chunkBlocks[mid]);
-                    return (Block?)chunkBlocks[mid];
-                }
-
-                // If element is smaller than mid, then
-                // it can only be present in left subarray
-                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) < 0)
-                {
-                    return BinarySearchBlockWithLocation(l, mid - 1, v);
-                }
-
-                // Else the element can only be present
-                // in right subarray
-                if (comparator.Compare(v, (Block?)chunkBlocks[mid]) > 0)
-                {
-                    return BinarySearchBlockWithLocation(mid + 1, r, v);
-                }
-            }
-            return null;
-
-        }
-        */
 
         public static Matrix4 GetModelMatrix()
         {
@@ -779,7 +611,7 @@ namespace Vox.Genesis
             return lightmap[x,y,z] & 0xF;
         }
 
-        public void PopulateSunlightBFSQueue()
+        public void PopulateSunlightBFSQueue(List<Vector3> nonInterpolatdChunk)
         {
 
             int bounds = RegionManager.CHUNK_BOUNDS;
@@ -829,33 +661,43 @@ namespace Vox.Genesis
                 }
 
                 //If chunk is unloaded and above ground, this chunk will have sunlight
-                for (int y = 0; y < lightmap.GetLength(0); y++)
-                {
-                    for (int z = 0; z < lightmap.GetLength(1); z++)
+                int counter = 0;
+                List<LightingVertex> vertices = new();
+                nonInterpolatdChunk = nonInterpolatdChunk.Distinct().ToList();
+
+                foreach (Vector3 v in nonInterpolatdChunk) {
+                    // for (int y = 0; y < lightmap.GetLength(0); y++)
+                    // {
+                    //     for (int z = 0; z < lightmap.GetLength(1); z++)
+                    //     {
+                    //         for (int x = 0; x < lightmap.GetLength(2); x++)
+                    //         {
+                    //
+                    int clamped = Utils.ConvertToNewRange((int)v.Y, 0, RegionManager.CHUNK_HEIGHT - 1, 0, RegionManager.CHUNK_BOUNDS - 1);
+                   // Console.WriteLine($"{clamped} : {yLoc + RegionManager.CHUNK_BOUNDS}");
+                   
+                    for (int i = clamped; i < clamped + 1; i++)
                     {
-                        for (int x = 0; x < lightmap.GetLength(2); x++)
-                        {
+                        //If a voxel is transparent to light, such as glass or air, then we set the sunlight value to
+                        //the maximum and add a node to sunlightBfsQueue.
 
-                            //If a voxel is transparent to light, such as glass or air, then we set the sunlight value to
-                            //the maximum and add a node to sunlightBfsQueue.
+                        short idx = (short)(i * bounds * bounds + v.Z * bounds + v.X);
+                        counter++;
 
-                            short idx = (short)(y * bounds * bounds + z * bounds + x);
-                            // Console.WriteLine("Q");
-                            if (renderTask != null)
-                            {
-                                 //Y will be between 0 and 31 but the heightmap will be between 0 and CHUNK_HEIGHT
-                                 //Use linear mapping to proportionally clamp a 0-31 number to 0-CHUNK_HEIGHT              
-                                 int clampedY = (int)(1 + (y / (float)bounds) * (RegionManager.CHUNK_HEIGHT - 1));
-                                 if (clampedY >= heightMap[z, x])
-                                 {
-                                    //Set all air blocks in the chunk to 15
-                                    SetSunlight(x, y, z, 15);
-                                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = this });
-                                }
-                            }
-                        }
-                    }   
+                      //  int clampedY = ConvertToNewRange(i, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
+                        // if (clampedHeightMap >= v.Y)
+                        // {
+                      //  Console.WriteLine($"Y: {i} Heightmap: {heightMap[(int)v.Z, (int)v.X]}");
+                        //Set all air blocks in the chunk to 15
+                        SetSunlight((int)v.X, i, (int)v.Z, 15);
+                      //  Console.WriteLine($"{counter}: Setting {v.X}.{i}.{v.Z} to {15}");
+                        BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = this });
+                        vertices.Add(new(v.X, i, v.Z, 15));
+                        
+                    }
                 }
+              //  lightingRenderTask = new(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
+                Console.WriteLine("Vertex Count: " + vertices.AsEnumerable().Count());
             }
         }
         private void PropagateTorchLight(int x, int y, int z, int val)
@@ -914,10 +756,11 @@ namespace Vox.Genesis
 
         public void PropagateSunlight()
         {
+ 
             int bounds = RegionManager.CHUNK_BOUNDS;
             while (BFSSunlightPropagationQueue.Count > 0)
             {
-                Console.WriteLine(BFSSunlightPropagationQueue.Count);
+               // Console.WriteLine(BFSSunlightPropagationQueue.Count);
                 // Get a reference to the front node and pop it off the queue. We no longer need the node reference
                 LightNode front = BFSSunlightPropagationQueue.Dequeue();
 
@@ -953,6 +796,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x - 1, y, z)).IsTransparent()
                     && chunk.GetSunlight(x - 1, y, z) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test1");
                     // Set its light level
                     chunk.SetSunlight(x - 1, y, z, lightLevel - 1);
 
@@ -966,6 +810,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z - 1)).IsTransparent()
                     && chunk.GetSunlight(x, y, z - 1) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test2");
                     // Set its light level
                     chunk.SetSunlight(x, y, z - 1, lightLevel - 1);
 
@@ -979,6 +824,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y - 1, z)).IsTransparent()
                     && chunk.GetSunlight(x, y - 1, z) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test3");
                     // Set its light level
                     chunk.SetSunlight(x, y - 1, z, lightLevel - 1);
 
@@ -992,6 +838,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x + 1, y, z)).IsTransparent()
                     && chunk.GetSunlight(x + 1, y, z) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test4");
                     // Set its light level
                     chunk.SetSunlight(x + 1, y, z, lightLevel - 1);
 
@@ -1005,6 +852,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z + 1)).IsTransparent()
                     && chunk.GetSunlight(x, y, z + 1) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test5");
                     // Set its light level
                     chunk.SetSunlight(x, y, z + 1, lightLevel - 1);
 
@@ -1018,6 +866,7 @@ namespace Vox.Genesis
                 if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y + 1, z)).IsTransparent()
                     && chunk.GetSunlight(x, y + 1, z) + 2 <= lightLevel)
                 {
+                    Console.WriteLine("test6");
                     // Set its light level
                     chunk.SetSunlight(x, y + 1, z, lightLevel - 1);
 
@@ -1041,7 +890,7 @@ namespace Vox.Genesis
 
             blocksToAdd.AddRange([v.X, v.Y, v.Z]);
             DidChange(true);
-            GetTerrainRenderTask();
+           // GetTerrainRenderTask();
         }
  
         public void RemoveBlockFromChunk(Vector3 v)
@@ -1088,7 +937,7 @@ namespace Vox.Genesis
             }
             
             DidChange(true);
-            GetTerrainRenderTask();
+            //GetTerrainRenderTask();
 
         }
         public override string ToString()

@@ -21,8 +21,9 @@ namespace Vox.Rendering
             Directory.CreateDirectory(assets + "BlockTextures");
         }
 
-        public static int LoadTextures()
+        public static int LoadTextures(int slot)
         {
+
             string[] tex = Directory.EnumerateFiles(assets + "BlockTextures").ToArray();
             string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockTextures").ToArray();
 
@@ -51,6 +52,7 @@ namespace Vox.Rendering
             //Create and bind texture array
             int texId = GL.GenTexture();
 
+            GL.ActiveTexture(TextureUnit.Texture0 + slot);
             GL.BindTexture(TextureTarget.Texture2DArray, texId);
             GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, width, height, numLayers);
 
@@ -165,7 +167,13 @@ namespace Vox.Rendering
         public static void Unbind()
         {
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
-            GL.DeleteTexture(texId);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.DeleteTexture(0);
+            GL.DeleteTexture(1);
+            GL.DeleteTexture(2);
+            GL.DeleteTexture(3);
+            GL.DeleteTexture(4);
+            GL.DeleteTexture(5);
         }
     }
 }

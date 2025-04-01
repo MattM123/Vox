@@ -2,7 +2,7 @@
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using Vox.Exceptions;
-
+using TextureTarget = OpenTK.Graphics.OpenGL.TextureTarget;
 namespace Vox.Rendering
 {
     public class ShaderProgram
@@ -41,8 +41,10 @@ namespace Vox.Rendering
          * @param varName Name of texture
          * @param slot Texture unit to use
          */
-        public void UploadTexture(string varName, int slot)
+        public void UploadAndBindTexture(string varName, int slot, int textureID, TextureTarget target)
         {
+            GL.ActiveTexture(TextureUnit.Texture0 + slot);
+            GL.BindTexture(target, textureID);
             int varLocation = GL.GetUniformLocation(GetProgramId(), varName);
             GL.Uniform1(varLocation, slot);
         }
@@ -50,6 +52,7 @@ namespace Vox.Rendering
 
         public void CreateUniform(string uniformName)
         {
+           
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             if (uniformLocation < 0)
                 uniforms.Add(uniformName, uniformLocation);
@@ -189,6 +192,8 @@ namespace Vox.Rendering
         public void Bind()
         {
             GL.UseProgram(programId);
+
+            GL.GetInteger((GetPName)All.CurrentProgram, out int currentProgram);
         }
 
         public void Unbind()

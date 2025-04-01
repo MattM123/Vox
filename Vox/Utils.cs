@@ -1,5 +1,10 @@
 ﻿
 
+using System;
+using System.Diagnostics;
+using System.Numerics;
+using Vox.Genesis;
+
 namespace Vox
 {
     public class Utils()
@@ -60,6 +65,9 @@ namespace Vox
                 }
             }
         }
-
+        public static int ConvertToNewRange(int input, int fromMin, int fromMax, int toMin, int toMax)
+        {
+            return (int)(((float)(input - fromMin) / (fromMax - fromMin)) * (toMax - toMin) + toMin);
+        }
     }
 }

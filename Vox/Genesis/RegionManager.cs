@@ -8,7 +8,7 @@ namespace Vox.Genesis
     {
         public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
-        public static readonly int CHUNK_HEIGHT = 400;
+        public static readonly int CHUNK_HEIGHT = 384;
         private static int RENDER_DISTANCE = 4;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 32;

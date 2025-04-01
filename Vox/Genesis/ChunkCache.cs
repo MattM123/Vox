@@ -1,7 +1,7 @@
-﻿
-using System.Drawing;
-using OpenTK.Graphics.OpenGL4;
+﻿using System.Diagnostics;
 using OpenTK.Mathematics;
+using Vox.Model;
+using Vox.Rendering;
 
 namespace Vox.Genesis
 {
@@ -11,10 +11,18 @@ namespace Vox.Genesis
         private static int bounds = RegionManager.CHUNK_BOUNDS;
         private static Chunk? playerChunk;        
         private static bool reRenderFlag = false;
-        private static Dictionary<string, Chunk> chunks = new();
-        private static Dictionary<string, Region> regions = new();
+        private static Dictionary<string, Chunk> chunks = [];
+        private static Dictionary<string, Region> regions = [];
+        private static TerrainVertex[] cacheVertexRenderData;
+        private static int[] cacheElementRenderData;
+        private static int vertexDataSizeEstimation = 0;
+        private static int elementDataSizeEstimation = 0;
+        private static int vertexCounter = 0;
+        private static int elementCount = 0;
+        private static int elementCounterTotal = 0;
+  
 
-        private static readonly object chunkLock = new();
+        private static readonly object lockObj = new();
 
         /**
          *
@@ -29,6 +37,7 @@ namespace Vox.Genesis
             ChunkCache.bounds = bounds;
             ChunkCache.playerChunk = playerChunk;
             reRenderFlag = true;
+
         }
 
         public static void SetBounds(int bounds)
@@ -42,6 +51,204 @@ namespace Vox.Genesis
         public static void SetPlayerChunk(Chunk c)
         {
             playerChunk = c;
+        }
+
+        /**
+         * Generates or regenerates this Chunks render data. Calling this method will, if
+         * needed, automatically update this chunks vertex and element data updating
+         * the next frames render data.
+         *
+         */
+
+        public static TerrainRenderTask GenerateRenderData(Chunk chunk)
+        {
+
+            List<Vector3> nonInterpolated = [];
+            List<TerrainVertex> vertices = [];
+            List<int> elements = [];
+        
+            Array values = Enum.GetValues(typeof(BlockType));
+        
+            Random random = new();
+        
+            if (chunk.didChange || chunk.renderTask == null)
+            {
+                for (int x = 0; x < chunk.heightMap.GetLength(0); x++) //rows          
+                    for (int z = 0; z < chunk.heightMap.GetLength(1); z++) //columns
+                        nonInterpolated.Add(new Vector3(chunk.GetLocation().X + x, chunk.heightMap[z, x], chunk.GetLocation().Z + z));
+        
+        
+        
+                //Add any player placed blocks to the mesh before interpolating
+                for (int i = 0; i < chunk.blocksToAdd.Count; i += 3)
+                    nonInterpolated.Add(new(chunk.blocksToAdd[i], chunk.blocksToAdd[i + 1], chunk.blocksToAdd[i + 2]));
+        
+                //Interpolate chunk heightmap
+                List<Vector3> interpolatedChunk = chunk.InterpolateChunk(nonInterpolated);
+        
+                //Remove any blocks from the mesh marked for exclusion.
+                //(i.e player broke a block)
+                for (int i = 0; i < chunk.blocksToExclude.Count; i += 3)
+                    interpolatedChunk.Remove(new(chunk.blocksToExclude[i], chunk.blocksToExclude[i + 1], chunk.blocksToExclude[i + 2]));
+                
+
+                int randomIndex = random.Next(values.Length);
+                BlockType? randomBlock;
+                if (randomIndex > 1)
+                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
+                else
+                    randomBlock = (BlockType?)values.GetValue(randomIndex);
+        
+                BlockType blockType = (BlockType)randomBlock;
+
+                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
+                {
+                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                    {
+        
+                        foreach (Vector3 v in interpolatedChunk)
+                        {
+
+                            //Top face check X and Z
+                            if (v.X == (int)chunk.xLoc + x && v.Z == (int)chunk.zLoc + z)
+                            {
+                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
+                                if (!up)
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++) 
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+                                    
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+        
+                                //East face check z + 1
+                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
+                                if (!east)
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++)
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+                                    
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+        
+                                //West face check z - 1
+                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
+                                if (!west)
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++)
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+        
+                                //North face check x + 1
+                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
+                                if (!north)
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++)
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+        
+                                //South face check x - 1
+                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++)
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+                                //Bottom face
+                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
+                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
+                                {
+                                    TerrainVertex[] Vlist = ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + chunk.xLoc, v.Y, z + chunk.zLoc), chunk);
+                                    for (int i = 0; i < Vlist.Length; i++)
+                                        cacheVertexRenderData[vertexCounter + i] = Vlist[i];
+                                    vertexCounter += Vlist.Length;
+        
+                                    int[] eList = [elementCount, elementCount + 1, elementCount + 2, elementCount + 3, Window.primRestart];
+                                    for (int i = 0; i < eList.Length; i++)
+                                        cacheElementRenderData[elementCounterTotal + i] = eList[i];
+
+                                    lock (lockObj)
+                                    {
+                                        elementCount += 4;
+                                        elementCounterTotal += 5;
+                                    }
+                                }
+                            }
+                        }
+                    }
+        
+                }
+
+
+                //Updates chunk data
+                lock (lockObj)
+                {
+                    //O(n) because of ToArray
+                    chunk.renderTask = new TerrainRenderTask(cacheVertexRenderData, cacheElementRenderData, chunk.GetVbo("Terrain"), chunk.GetEbo("Terrain"), chunk.GetVao("Terrain"));
+                    chunk.didChange = false;
+                }
+
+               
+            }
+
+            
+
+            return chunk.renderTask;
         }
 
         /**
@@ -191,17 +398,18 @@ namespace Vox.Genesis
          * and updates chunks that surround a player in a global scope.
          * @return The list of chunks that should be rendered.
          */
-        public static Dictionary<string, Chunk> GetChunksToRender()
+        public static Dictionary<string, Chunk> UpdateChunkCache()
         {
-              chunks.Clear();
-              regions.Clear();
+            chunks.Clear();
+            regions.Clear();
 
-              GetQuadrantChunks();
-              GetCardinalChunks();
-              chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
+            GetQuadrantChunks();
+            GetCardinalChunks();
+            chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
 
             return chunks;
         }
+
         public static void ReRender(bool b)
         {
             reRenderFlag = b;
