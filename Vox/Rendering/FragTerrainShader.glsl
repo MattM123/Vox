@@ -56,11 +56,15 @@ out vec4 color;
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
+
     // Perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
     // Transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
+
+    if (projCoords.z > 1.0)
+        return 0.0; 
 
     // Bias to reduce shadow acne
     float bias = max(0.005 * (1.0 - dot(normalize(fnormal), normalize(light.position - fragPos))), 0.0005);
@@ -92,6 +96,7 @@ void main()
  //
  //
 
+    float shadow = ShadowCalculation(fragPosLightSpace); 
 
     vec3 norm = normalize(fnormal);
     vec3 lightColor = vec3(1.0);
@@ -115,12 +120,14 @@ void main()
     float value = clamp(ambient + (max(0.0, sunDot) * falloff), 0.1, 1.0);
 
     // calculate shadow     
-    float shadow = ShadowCalculation(fragPosLightSpace); 
     vec3 clr = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))).rgb;
-    vec3 lighting = (ambient + (0.5 - shadow) * (diffuse + specular)) * clr; 
- 
+    vec3 lighting = (ambient + (diffuse + specular) * (1.0 - shadow)) * clr;
+    //vec3 lighting = (ambient + (0.5 - shadow) * (diffuse + specular)) * clr; 
+    // vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * clr;
+
+
   // vec3 result =  value + diffuse + specular;
-    vec3 result =  value + diffuse + specular * lighting * 8;
+    vec3 result = value + diffuse + specular * (lighting * ambient);
 
     //Now the result sum has changed a bit, since we now set the objects color in each element, we now dont have to
     //multiply the light with the object here, instead we do it for each element seperatly. This allows much better control
@@ -149,18 +156,15 @@ void main()
         // If inside the bounding box, combine texture with target texture
         vec4 baseTex = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)));
         vec4 targetOverlay = vec4(texture(texture_sampler, vec3(ftexCoords.xy, 4)));
-
-        float shadow = ShadowCalculation(fragPosLightSpace); 
-       // vec4 c = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
-        vec4 c = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0)* vec4(lighting, 1.0);
-        color = pow(c, vec4(gamma));
+        vec4 c = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
+      // color = pow(c, vec4(gamma));
+      color = pow(vec4(lighting, 1.0), vec4(gamma));
     
     }
     
     else {
-        float shadow = ShadowCalculation(fragPosLightSpace); 
-       // vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))) * vec4(result, 1.0) * vec4(lighting, 1.0);
        vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))) * vec4(result, 1.0)* vec4(lighting, 1.0);
-       color = pow(c, vec4(gamma));
+      // color = pow(c, vec4(gamma));
+      color = pow(vec4(lighting, 1.0), vec4(gamma));
     }
  }

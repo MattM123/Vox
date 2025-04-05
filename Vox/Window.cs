@@ -84,7 +84,7 @@ namespace Vox
 
         //used for player and lighting projection matrices
         private static float FAR = 500.0f;
-        private static float NEAR = 0.01f;
+        private static float NEAR = 0.1f;
 
         private static Vector3 lightColor;
         private static Vector3 ambientColor;
@@ -129,6 +129,7 @@ namespace Vox
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
             GL.Enable(EnableCap.LineSmooth);
+            GL.DepthFunc(DepthFunction.Lequal);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.Enable(EnableCap.Blend);
             GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
@@ -178,16 +179,16 @@ namespace Vox
 
             GL.ActiveTexture(TextureUnit.Texture1);
             GL.BindTexture(TextureTarget.Texture2D, sunlightDepthMap);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent,
-                 ClientSize.X, ClientSize.Y, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
-            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent32,
+                 4096, 4096, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            GL.Viewport(0, 0, 4096, 4096);
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Lequal);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Less);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach depth texture to frame buffer         
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
@@ -208,7 +209,7 @@ namespace Vox
             viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -20f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
             sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
 
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-10.0f, 10.0f, -10.0f, 10.0f, NEAR, 800);
+            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-10.0f, 10.0f, -10.0f, 10.0f, 1f, 1000f);
 
             lightingShaders.Bind();
 
@@ -247,11 +248,6 @@ namespace Vox
             terrainShaders.CreateUniform("viewMatrix");
             terrainShaders.CreateUniform("chunkModelMatrix");
             terrainShaders.CreateUniform("isMenuRendered");
-
-            // lightingShaders.CreateUniform("chunkModelMatrix");
-            // lightingShaders.CreateUniform("projectionMatrix");
-            // lightingShaders.CreateUniform("modelMatrix");
-            // lightingShaders.CreateUniform("viewMatrix");
 
             // This is where we change the lights color over time using the sin function
             float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
@@ -409,10 +405,6 @@ namespace Vox
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, sunlightDepthMap, 0);
             GL.DrawBuffer(DrawBufferMode.None);
             GL.ReadBuffer(ReadBufferMode.None);
-            //GL.BindTexture(TextureTarget.Texture2D, 0);
-            // GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-
 
             if (loadedWorld == null)
             {
@@ -538,8 +530,9 @@ namespace Vox
 
 
             if (!IsMenuRendered())
-                _lightPos = new Vector3(GetPlayer().GetPosition().X,
-                    RegionManager.CHUNK_HEIGHT, GetPlayer().GetPosition().Z);
+            {
+                _lightPos = new Vector3((dayCycle * 100), RegionManager.CHUNK_HEIGHT, 0);
+            }
             else
                 _lightPos = new Vector3(0, RegionManager.CHUNK_HEIGHT, 0);
             
@@ -547,13 +540,13 @@ namespace Vox
             SetTerrainShaderUniforms();
 
             lightingShaders?.Bind();
-            sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitZ);
+            sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
             lightingShaders?.SetVector3Uniform("light.position", _lightPos);
 
             if (!IsMenuRendered())
-                sunlightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitZ);
+                sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0,0,0), Vector3.UnitY);
             else
-                sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitZ);
+                sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
 
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
@@ -849,7 +842,7 @@ namespace Vox
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
-
+            GL.Viewport(0, 0, 4096, 4096);
 
             //Bind FBO and clear depth
 
@@ -886,7 +879,7 @@ namespace Vox
             /*==========================================
              * COLOR/TEXTURE RENDERING PASS
              * ========================================*/
-
+            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             //-------------------------Render and Draw Terrain---------------------------------------
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -914,7 +907,7 @@ namespace Vox
 
  
         //TODO: NEED TO COMBINE ALL DEPTH TEXTURES INTO A SINGLE TEXTURE FOR ALL CHUNKS
-        private static void RenderWorld()
+        private void RenderWorld()
         {
            //SetTerrainShaderUniforms();
            // Console.WriteLine(lightSpaceMatrix);
@@ -976,6 +969,7 @@ namespace Vox
                     /*==========================================
                      * DEPTH RENDERING PRE-PASS
                      * ========================================*/
+                    GL.Viewport(0, 0, 4096, 4096);
                     //Bind FBO and clear depth
 
                     GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
@@ -1010,7 +1004,7 @@ namespace Vox
                     /*==========================================
                      * COLOR/TEXTURE RENDERING PASS
                      * ========================================*/
-
+                    GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
                     //-------------------------Render and Draw Terrain---------------------------------------
 
                     terrainShaders?.Bind();
@@ -1019,11 +1013,11 @@ namespace Vox
 
                     // Create VBO upload the vertex buffer
                     GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-                    GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
+                   // GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
 
                     // Create EBO upload the element buffer;
                     GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-                    GL.BufferData(BufferTarget.ElementArrayBuffer, elementBuffer.Length * sizeof(int), elementBuffer, BufferUsageHint.StaticDraw);
+                   // GL.BufferData(BufferTarget.ElementArrayBuffer, elementBuffer.Length * sizeof(int), elementBuffer, BufferUsageHint.StaticDraw);
 
 
                     /*==================================
