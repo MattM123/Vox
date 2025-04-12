@@ -207,9 +207,9 @@ namespace Vox
             pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
 
             viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -20f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
-            sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
 
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-10.0f, 10.0f, -10.0f, 10.0f, 1f, 1000f);
+            float dist = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
+            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist, dist, -dist, dist, 1f, dist * 2);
 
             lightingShaders.Bind();
 
@@ -261,8 +261,6 @@ namespace Vox
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
-
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-10.0f, 10.0f, -10.0f, 10.0f, NEAR, FAR);
 
 
         }
@@ -440,14 +438,6 @@ namespace Vox
 
         private static void SetTerrainShaderUniforms()
         {
-         // lightingShaders?.Bind();
-         // if (!IsMenuRendered())
-         //     sunlightViewMatrix = Matrix4.LookAt(_lightPos, player.GetPosition(), Vector3.UnitY);
-         // else
-         //     sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
-         // 
-         // 
-         // lightSpaceMatrix = sunlightProjectionMatrix * sunlightViewMatrix;
            
 
             terrainShaders?.Bind();
@@ -527,26 +517,24 @@ namespace Vox
             terrainShaders?.SetVector3Uniform("light.diffuse", diffuseColor);
             terrainShaders?.SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
 
-
+            float dist = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
 
             if (!IsMenuRendered())
-            {
-                _lightPos = new Vector3((dayCycle * 100), RegionManager.CHUNK_HEIGHT, 0);
-            }
-            else
-                _lightPos = new Vector3(0, RegionManager.CHUNK_HEIGHT, 0);
+                _lightPos = new Vector3(GetPlayer().GetPosition().X + dist * dayCycle, RegionManager.CHUNK_HEIGHT - 215, GetPlayer().GetPosition().Z + dist * dayCycle);
+            else 
+                _lightPos = new Vector3(dist * dayCycle, RegionManager.CHUNK_HEIGHT - 215, dist * dayCycle);
             
+
 
             SetTerrainShaderUniforms();
 
             lightingShaders?.Bind();
-            sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
             lightingShaders?.SetVector3Uniform("light.position", _lightPos);
 
             if (!IsMenuRendered())
-                sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0,0,0), Vector3.UnitY);
-            else
                 sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
+            else
+                sunlightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
 
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
@@ -567,6 +555,9 @@ namespace Vox
         {
             base.OnKeyDown(e);
             KeyboardState current = KeyboardState.GetSnapshot();
+
+            if (float.IsNaN(GetPlayer().GetBlockedDirection().X))
+                return;
 
             if (!IsMenuRendered()) {
                 if (current[Keys.W])// && Math.Sign(GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z))
@@ -973,7 +964,6 @@ namespace Vox
                     //Bind FBO and clear depth
 
                     GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
-
 
                     //Check FBO
                     FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);

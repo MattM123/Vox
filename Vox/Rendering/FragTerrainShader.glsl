@@ -120,22 +120,9 @@ void main()
     float value = clamp(ambient + (max(0.0, sunDot) * falloff), 0.1, 1.0);
 
     // calculate shadow     
-    vec3 clr = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))).rgb;
-    vec3 lighting = (ambient + (diffuse + specular) * (1.0 - shadow)) * clr;
-    //vec3 lighting = (ambient + (0.5 - shadow) * (diffuse + specular)) * clr; 
-    // vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * clr;
+    vec3 lighting = (ambient + (diffuse + specular) * (1.0 - shadow));
 
-
-  // vec3 result =  value + diffuse + specular;
-    vec3 result = value + diffuse + specular * (lighting * ambient);
-
-    //Now the result sum has changed a bit, since we now set the objects color in each element, we now dont have to
-    //multiply the light with the object here, instead we do it for each element seperatly. This allows much better control
-    //over how each element is applied to different objects.
-
-   // float sunlightIntensity = max(light.position.y * 0.05f, 0.02f);
- //  float lightIntensity = sunlightIntensity + sunDot;
- // vec3 result = value + diffuse + specular;
+    vec3 result = (value + diffuse + specular);
 
 
     //=========================================
@@ -157,14 +144,12 @@ void main()
         vec4 baseTex = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)));
         vec4 targetOverlay = vec4(texture(texture_sampler, vec3(ftexCoords.xy, 4)));
         vec4 c = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
-      // color = pow(c, vec4(gamma));
-      color = pow(vec4(lighting, 1.0), vec4(gamma));
+        color = pow(c, vec4(gamma));
     
     }
     
     else {
-       vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))) * vec4(result, 1.0)* vec4(lighting, 1.0);
-      // color = pow(c, vec4(gamma));
-      color = pow(vec4(lighting, 1.0), vec4(gamma));
+        vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))) * vec4(result, 1.0) * vec4(lighting, 1.0);
+        color = pow(c, vec4(gamma));
     }
  }
