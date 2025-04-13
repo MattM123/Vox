@@ -123,7 +123,6 @@ namespace Vox
 
                 Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
                 Vector3 localHitVector = Vector3.Normalize(blockCenter - currentPosition);
-                Vector3 absoluteLocalHitVector = new(Math.Abs(localHitVector.X), Math.Abs(localHitVector.Y), Math.Abs(localHitVector.Z));
 
 
                 //Create block view matrix to calculate blockface player is looking at
@@ -132,7 +131,6 @@ namespace Vox
                 //TODO: Slightly off
                 Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
                 Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
-                Vector3 centerMinuCurrPos = Vector3.Subtract(blockCenter, Vector3.Normalize(currentPosition));
 
                 Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
 

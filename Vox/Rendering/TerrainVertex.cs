@@ -30,10 +30,12 @@ namespace Vox.Rendering
         [Key(8)]
         public float normalZ;
         [Key(9)]
-        public Face face;
-        [Key(10)]
         public float blocktype;
+        [Key(10)]
+        public Face face;
 
+
+        [SerializationConstructor]
         public TerrainVertex(float x, float y, float z,
             Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, float blocktype, Face face)
         {

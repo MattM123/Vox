@@ -130,10 +130,10 @@ void main()
     //=========================================
 
     //target bounds checking
-    vec4 minBound = fTargetVertex;
-    vec4 maxBound = minBound + vec4(1.01,1.01,1.01,0);
-
-    float gamma = 1.0 / 1.5; 
+    vec3 minBound = fTargetVertex.xyz;
+    vec3 maxBound = minBound + vec3(1.0,1.0,1.0);
+    vec4 textureApplication;
+    float gamma = 1.0 / 2.2; 
 
     // Check if the fragment's position is inside the bounding box
     if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
@@ -141,15 +141,14 @@ void main()
         fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
     {
         // If inside the bounding box, combine texture with target texture
-        vec4 baseTex = vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)));
-        vec4 targetOverlay = vec4(texture(texture_sampler, vec3(ftexCoords.xy, 4)));
-        vec4 c = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
-        color = pow(c, vec4(gamma));
-    
+        vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
+        vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, 4));
+        textureApplication = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
     }
     
     else {
-        vec4 c = (vec4(texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)))) * vec4(result, 1.0) * vec4(lighting, 1.0);
-        color = pow(c, vec4(gamma));
+        textureApplication = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
     }
+
+    color = pow(textureApplication, vec4(gamma));
  }

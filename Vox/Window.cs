@@ -128,11 +128,12 @@ namespace Vox
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
-            GL.Enable(EnableCap.LineSmooth);
             GL.DepthFunc(DepthFunction.Lequal);
+            GL.Enable(EnableCap.LineSmooth);
+            GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.Enable(EnableCap.Blend);
-            GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
+
 
             //Enable primitive restart
             GL.Enable(EnableCap.PrimitiveRestart);
@@ -154,11 +155,11 @@ namespace Vox
 
             //-----------------------Lihgting shaders---------------------------------
             //Load main vertex shader from file
-            string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexLightingShader.glsl");
+            string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexDepthShader.glsl");
             lightingShaders.CreateVertexShader(vertexLightingShaderSource);
 
             // Load main fragment shader from file
-            string fragmentLightingSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragLightingShader.glsl");
+            string fragmentLightingSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragDepthShader.glsl");
             lightingShaders.CreateFragmentShader(fragmentLightingSource);
             //-----------------------Lihgting shaders---------------------------------
 
