@@ -16,7 +16,7 @@ namespace Vox.Model
         private bool transparent = false;
         BlockModel parentModel;
 
-        private BlockModel() { }
+        public BlockModel() { }
 
         public BlockModel(JObject jsonObject)
         {

@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using ImGuiNET;
 using OpenTK.Compute.OpenCL;
 using OpenTK.Graphics.OpenGL4;
@@ -45,7 +46,7 @@ using VertexAttribPointerType = OpenTK.Graphics.OpenGL4.VertexAttribPointerType;
 
 namespace Vox
 {
-    public class Window(GameWindowSettings windowSettings, NativeWindowSettings nativeSettings) : GameWindow(windowSettings, nativeSettings)
+    public partial class Window(GameWindowSettings windowSettings, NativeWindowSettings nativeSettings) : GameWindow(windowSettings, nativeSettings)
     {
         ImGuiController _UIController;
         public static readonly int screenWidth = Monitors.GetPrimaryMonitor().ClientArea.Size.X;
@@ -139,17 +140,17 @@ namespace Vox
             GL.Enable(EnableCap.PrimitiveRestart);
             GL.PrimitiveRestartIndex(primRestart);
 
-            //========================
-            //Shader Compilation
-            //========================
+            //============================
+            //Shader Compilation and Setup
+            //============================
 
             //-----------------------Terrain shaders---------------------------------
             //Load main vertex shader from file
-            string vertexTerrainShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexTerrainShader.glsl");
+            string vertexTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\VertexTerrainShader.glsl");
             terrainShaders.CreateVertexShader(vertexTerrainShaderSource);
 
             // Load main fragment shader from file
-            string fragmentTerrainShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragTerrainShader.glsl");
+            string fragmentTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\FragTerrainShader.glsl");
             terrainShaders.CreateFragmentShader(fragmentTerrainShaderSource);
             //-----------------------Terrain shaders---------------------------------
 
@@ -503,6 +504,7 @@ namespace Vox
             float timeOfDay = (DateTime.Now.Second + DateTime.Now.Millisecond / 1000f) % dayLengthInSeconds;
             float normalizedTime = timeOfDay / dayLengthInSeconds;  // Normalized time between 0 (start of day) and 1 (end of day)
             float dayCycle = MathF.Sin(normalizedTime * MathF.PI * 2);  // Sine wave oscillates between -1 and 1 over one full cycle
+            float angle = normalizedTime * MathF.PI * 2;
             float lightIntensity = (((dayCycle + 1.0f) / 2f) + 0.1f) * 2;  // Convert sine range (-1 to 1) to (0 to 1)
 
             lightColor.X = lightIntensity * 1.0f;//R
@@ -518,13 +520,22 @@ namespace Vox
             terrainShaders?.SetVector3Uniform("light.diffuse", diffuseColor);
             terrainShaders?.SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
 
-            float dist = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
+
+
+            //Move light in a circlular path around the player to simulate sunlight
+            //x = h + r⋅cos(θ)
+            //y = k + r⋅sin(θ)
+            float radius = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
+            Vector3 playerPos = GetPlayer().GetPosition();
+            float x = playerPos.X + radius * MathF.Cos(angle);
+            float z = playerPos.Z + radius * MathF.Sin(angle);
+            float y = RegionManager.CHUNK_HEIGHT / 2 + radius * 0.5f * MathF.Sin(angle); // or simulate arc: playerPos.Y + radius * 0.5f * MathF.Sin(angle)
 
             if (!IsMenuRendered())
-                _lightPos = new Vector3(GetPlayer().GetPosition().X + dist * dayCycle, RegionManager.CHUNK_HEIGHT - 215, GetPlayer().GetPosition().Z + dist * dayCycle);
-            else 
-                _lightPos = new Vector3(dist * dayCycle, RegionManager.CHUNK_HEIGHT - 215, dist * dayCycle);
-            
+                _lightPos = new Vector3(x, y, z);
+            else
+                _lightPos = new Vector3(x, y, z);
+
 
 
             SetTerrainShaderUniforms();
@@ -536,6 +547,9 @@ namespace Vox
                 sunlightViewMatrix = Matrix4.LookAt(_lightPos, new(0, 0, 0), Vector3.UnitY);
             else
                 sunlightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
+
+            float dist1 = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
+            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist1, dist1, -dist1, dist1, 1f, dist1 * 2);
 
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
@@ -1266,15 +1280,56 @@ namespace Vox
         {
             return terrainShaders;
         }
+
+        private static string ProcessShaderIncludes(string filePath, HashSet<string> visited = null)
+        {
+            visited ??= [];
+
+            string fullPath = Path.GetFullPath(filePath);
+            if (visited.Contains(fullPath))
+                return ""; // Prevent circular includes
+
+            visited.Add(fullPath);
+
+            var lines = File.ReadAllLines(fullPath);
+            var sb = new StringBuilder();
+
+            foreach (var line in lines)
+            {
+                if (line.Trim().StartsWith("#include"))
+                {
+                    var match = GLSLIncludeRegex().Match(line);
+                    if (match.Success)
+                    {
+                        string includePath = match.Groups[1].Value;
+                        string resolvedPath = Path.Combine(Path.GetDirectoryName(fullPath), includePath);
+                        sb.AppendLine(ProcessShaderIncludes(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, resolvedPath), visited));
+                    }
+                }
+                else
+                {
+                    sb.AppendLine(line);
+                }
+            }
+
+            return sb.ToString();
+        }
         static void Main()
         {
 
             Window wnd = new(GameWindowSettings.Default, new NativeWindowSettings() {
                 Location = new Vector2i(0, 0),
+                API = ContextAPI.OpenGL,
+                Profile = ContextProfile.Core,
+                Flags = ContextFlags.ForwardCompatible,
                 ClientSize = new Vector2i(screenWidth, screenHeight),
-                APIVersion = new Version(4, 1) });
+                APIVersion = new Version(4, 3) });
+
 
             wnd.Run();
         }
+
+        [GeneratedRegex("#include\\s+\"([^\"]+)\"")]
+        private static partial Regex GLSLIncludeRegex();
     }
 }

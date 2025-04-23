@@ -53,6 +53,9 @@ namespace Vox.Genesis
         [Key(12)]
         public LightingRenderTask lightingRenderTask;
 
+        [Key(13)]
+        public  int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+
         [IgnoreMember]
         public bool IsEmpty = true;
  

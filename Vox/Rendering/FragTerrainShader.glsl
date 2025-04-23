@@ -5,11 +5,10 @@ uniform sampler2DShadow sunlightDepth_sampler;
 
 //The material is a collection of some values that we talked about in the last tutorial,
 //some crucial elements to the phong model.
-struct Material {
+struct Matt {
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
-
     float shininess; //Shininess is the power the specular light is raised to
 };
 
@@ -26,7 +25,7 @@ struct Light {
 
 //We create the light and the material struct as uniforms.
 uniform Light light;
-uniform Material material;
+uniform Matt material;
 
 //We still need the view position.
 uniform vec3 viewPos;
@@ -53,6 +52,24 @@ in vec4 fColor;
 in vec3 fforwardDir;
 out vec4 color;
 
+//Override specular function
+#define SPECULAR_FNC specularBeckmann
+
+
+//2D and 3D Simplex noise
+#line 1 "snoise.glsl"
+#include "lygia\\generative\\snoise.glsl"
+
+
+//Lighting
+#line 1 "diffuse.glsl"
+#include "lygia\\lighting\\Diffuse.glsl"
+
+
+#line 1 "specular.glsl"
+#include #include "lygia\\lighting\\specular.glsl"
+
+
 
 float ShadowCalculation(vec4 fragPosLightSpace)
 {
@@ -63,8 +80,8 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     // Transform to [0,1] range
     projCoords = projCoords * 0.5 + 0.5;
 
-    if (projCoords.z > 1.0)
-        return 0.0; 
+   // if (projCoords.z > 1.0)
+   //     return 0.0; 
 
     // Bias to reduce shadow acne
     float bias = max(0.005 * (1.0 - dot(normalize(fnormal), normalize(light.position - fragPos))), 0.0005);
@@ -77,7 +94,6 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
 void main()
 {          
-
     //=========================================
     // Lighting
     //=========================================
@@ -96,33 +112,73 @@ void main()
  //
  //
 
+ 
+   // float sunDot = dot(-lightDir, norm);
+   // float falloff = dot(vec3(0,1,0), -lightDir);
+   // float ambient = clamp(0.5 * falloff, 0, 1);
+   // float ambientValue = clamp(ambient + (max(0.0, sunDot) * falloff), 0.1, 1.0);
+
+    
+    vec3 frensel = vec3(0.04);                              //~4% reflectivity for everything
+    vec3 norm = normalize(fnormal);                         // Surface normal
+    vec3 viewDir = normalize(viewPos - fragPos);            // View direction
+    vec3 lightDir = normalize(light.position - fragPos);    // Light direction
+    vec3 halfVec = normalize(viewDir + lightDir);           // Halfway vector
+    vec3 reflection =  reflect(-viewDir, norm);             // Reflicttion
+
+    float specColor = pow(max(dot(viewDir, reflection), 0.0), material.shininess);
+    vec3 lightColor = light.diffuse;
+
+    //Light attenuation
+    float dist = length(light.position - fragPos);
+    float attenuation = 3000.0 / (dist * dist); // Inverse square law
+
+    //Blinn-Phong Specular
+    float spec = pow(max(dot(norm, halfVec), 0.0), material.shininess);
+    
+    //Diffuse shader data setup
+    ShadingData shadingData;
+    shadingData.N = norm;
+    shadingData.V = viewDir;
+    shadingData.L = lightDir;
+    shadingData.H = halfVec;
+    shadingData.R = reflection;
+
+    shadingData.NoV = dot(norm, viewDir);
+    shadingData.NoL = dot(norm, lightDir);
+    shadingData.NoH = dot(norm, halfVec);
+
+    shadingData.roughness = 0.5;
+    shadingData.linearRoughness = shadingData.roughness * shadingData.roughness;
+    shadingData.diffuseColor = material.diffuse;
+    shadingData.specularColor = spec * material.specular * lightColor;
+    shadingData.energyCompensation = (1.0 - shadingData.specularColor) * material.diffuse;
+
+    shadingData.directDiffuse = lightColor * material.diffuse * max(dot(norm, lightDir), 0.0);
+    shadingData.directSpecular = lightColor * spec * shadingData.specularColor;
+    shadingData.indirectDiffuse = light.ambient * material.diffuse;
+    shadingData.indirectSpecular =  material.specular;
+
+    vec3 diffuse = diffuse(shadingData) * light.diffuse * material.diffuse;
+    vec3 specular = specular(shadingData) * light.specular * material.specular;
+      
+    // calculate shadow     
     float shadow = ShadowCalculation(fragPosLightSpace); 
 
-    vec3 norm = normalize(fnormal);
-    vec3 lightColor = vec3(1.0);
+
+  //  vec3 lightColor = vec3(1.0);
     //vec3 ambient = 0.15 * lightColor;
    // float ambient = 0.15;
+    float lightIntensity = 0.3;
+    vec3 lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * lightIntensity;// * attenuation;
 
-    //Diffuse
-    vec3 lightDir = normalize(light.position - fragPos);
-    float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = light.diffuse * (diff * material.diffuse); //Remember to use the material here.
+    vec3 result =  diffuse + shadingData.specularColor;
 
     //Specular
-    vec3 viewDir = normalize(viewPos - fragPos);
-    vec3 reflectDir = reflect(-lightDir, norm);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
+   //float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+  //  vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
 
-    float sunDot = dot(-lightDir, norm);
-    float falloff = dot(vec3(0,1,0), -lightDir);
-    float ambient = clamp(0.5 * falloff, 0, 1);
-    float value = clamp(ambient + (max(0.0, sunDot) * falloff), 0.1, 1.0);
 
-    // calculate shadow     
-    vec3 lighting = (ambient + (diffuse + specular) * (1.0 - shadow));
-
-    vec3 result = (value + diffuse + specular);
 
 
     //=========================================
