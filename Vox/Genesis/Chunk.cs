@@ -51,9 +51,6 @@ namespace Vox.Genesis
         public List<float> blocksToExclude = [];
 
         [Key(12)]
-        public LightingRenderTask lightingRenderTask;
-
-        [Key(13)]
         public  int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
         [IgnoreMember]
@@ -393,36 +390,6 @@ namespace Vox.Genesis
         }
 
         
-
-        public LightingRenderTask GetLightingRenderTask()
-        {
-
-            if (lightingRenderTask != null)
-                return lightingRenderTask;
-
-            List<LightingVertex> vertices = [];
-
-
-            for (int y = 0; y < lightmap.GetLength(0); y++)
-            {
-                for (int z = 0; z < lightmap.GetLength(1); z++)
-                {
-                    for (int x = 0; x < lightmap.GetLength(2); x++)
-                    {
-                        int clampedY = Utils.ConvertToNewRange(y + (int) location.Y, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
-                        if (clampedY >= heightMap[z, x])
-                        {
-                            vertices.Add(new(x, y, z, lightmap[y, z, x]));
-                        } 
-                    }
-                }
-            }
-            
-            lightingRenderTask = new LightingRenderTask(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
-
-            return lightingRenderTask;
-
-        }
         /**
          * Since the location of each chunk is unique this is used as a
          * key to retrieve from spatial hashing storage.
@@ -614,95 +581,6 @@ namespace Vox.Genesis
             return lightmap[x,y,z] & 0xF;
         }
 
-        public void PopulateSunlightBFSQueue(List<Vector3> nonInterpolatdChunk)
-        {
-
-            int bounds = RegionManager.CHUNK_BOUNDS;
-            Vector3 chunkAbove = new(xLoc, yLoc + RegionManager.CHUNK_BOUNDS, zLoc);
-
-            //check if the chunk above this is loaded
-            bool isLoaded = Region.IsChunkLoaded(chunkAbove);
-
-            //If the chunk above is loaded, add light nodes to its propagation queue
-            if (isLoaded)
-            {
-                Chunk top = RegionManager.GetAndLoadGlobalChunkFromCoords((int)xLoc, (int)yLoc + bounds, (int)zLoc);
-
-                //If chunk above is empty, there will be no sunlight to propagate on its surface
-                for (int y = 0; y < top.lightmap.GetLength(0); y++)
-                { 
-                    for (int z = 0; z < top.lightmap.GetLength(1); z++)
-                    {
-                        for (int x = 0; x < top.lightmap.GetLength(2); x++)
-                        {
-
-                            //If TOP is loaded, check the sunlightMap for TOP. For all nonzero sunlight values, 
-                            //add a node to the sunlightBfsQueue.
-                            int sunlightLevel = top.GetSunlight(x, y, z);
-                            if (sunlightLevel > 0)
-                                top.BFSSunlightPropagationQueue.Enqueue(
-                                    new LightNode()
-                                    {
-                                        Index = (short)(y * bounds * bounds + z * bounds + x),
-                                        Chunk = top
-                                    }
-                                );
-                        }
-                        
-                    }
-                }
-            }
-            else
-            {
-                //TOP is not loaded
-
-                //Chunk is underground, will have no sunlight propagation
-                if (yLoc > GetGlobalHeightMapValue((int)xLoc, (int)zLoc))
-                {
-                    Console.WriteLine("underground: " + this);
-                    return;
-                }
-
-                //If chunk is unloaded and above ground, this chunk will have sunlight
-                int counter = 0;
-                List<LightingVertex> vertices = new();
-                nonInterpolatdChunk = nonInterpolatdChunk.Distinct().ToList();
-
-                foreach (Vector3 v in nonInterpolatdChunk) {
-                    // for (int y = 0; y < lightmap.GetLength(0); y++)
-                    // {
-                    //     for (int z = 0; z < lightmap.GetLength(1); z++)
-                    //     {
-                    //         for (int x = 0; x < lightmap.GetLength(2); x++)
-                    //         {
-                    //
-                    int clamped = Utils.ConvertToNewRange((int)v.Y, 0, RegionManager.CHUNK_HEIGHT - 1, 0, RegionManager.CHUNK_BOUNDS - 1);
-                   // Console.WriteLine($"{clamped} : {yLoc + RegionManager.CHUNK_BOUNDS}");
-                   
-                    for (int i = clamped; i < clamped + 1; i++)
-                    {
-                        //If a voxel is transparent to light, such as glass or air, then we set the sunlight value to
-                        //the maximum and add a node to sunlightBfsQueue.
-
-                        short idx = (short)(i * bounds * bounds + v.Z * bounds + v.X);
-                        counter++;
-
-                      //  int clampedY = ConvertToNewRange(i, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
-                        // if (clampedHeightMap >= v.Y)
-                        // {
-                      //  Console.WriteLine($"Y: {i} Heightmap: {heightMap[(int)v.Z, (int)v.X]}");
-                        //Set all air blocks in the chunk to 15
-                        SetSunlight((int)v.X, i, (int)v.Z, 15);
-                      //  Console.WriteLine($"{counter}: Setting {v.X}.{i}.{v.Z} to {15}");
-                        BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = this });
-                        vertices.Add(new(v.X, i, v.Z, 15));
-                        
-                    }
-                }
-              //  lightingRenderTask = new(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
-                Console.WriteLine("Vertex Count: " + vertices.AsEnumerable().Count());
-            }
-        }
         private void PropagateTorchLight(int x, int y, int z, int val)
         {
             int bounds = RegionManager.CHUNK_BOUNDS;

@@ -336,36 +336,6 @@ namespace Vox.Model
 
             }
         }
-        public static LightingVertex[] GetLighting(BlockType blockType, int lighting, Vector3 blockLoc, Chunk c)
-        {
-
-            float x = blockLoc.X;
-            float y = blockLoc.Y;
-            float z = blockLoc.Z;
-
-            BlockModel model = ModelLoader.GetModel(blockType);
-
-            BlockModel model90 = model.RotateX(90);
-            BlockModel model180 = model.RotateX(180);
-            BlockModel model270 = model.RotateX(270);
-
-            Element modelEle = model.GetElements().ToList().ElementAt(0);
-            Element modelEle90 = model90.GetElements().ToList().ElementAt(0);
-            Element modelEle180 = model180.GetElements().ToList().ElementAt(0);
-            Element modelEle270 = model270.GetElements().ToList().ElementAt(0);
-
-
-            //Clamps coords into a index usable by the chunks lightmap
-            int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
-            int lightY = (int)Math.Abs(y) % RegionManager.CHUNK_BOUNDS;
-            int lightZ = (int)Math.Abs(z) % RegionManager.CHUNK_BOUNDS;
-
-            return [
-                   //Position (X, Y, Z)       Lighting
-                new LightingVertex(x, y, z,    c.lightmap[lightX, lightY, lightZ])
-            ];           
-        }
-
 
         // Method to calculate normal for a face
         public static Vector3 CalculateNormal(Vector3 v0, Vector3 v1, Vector3 v2)
