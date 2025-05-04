@@ -192,7 +192,7 @@ namespace Vox
         public static List<Vector3> GetPlayerCollisionMesh()
         {
             Vector3 playerPos = new((float)Math.Floor(position.X),
-                Chunk.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
+                RegionManager.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
                 (float)Math.Floor(position.Z));
 
             List<Vector3> collisionMesh = [];

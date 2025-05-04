@@ -1,6 +1,7 @@
 ﻿
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -51,7 +52,10 @@ namespace Vox.Genesis
         public List<float> blocksToExclude = [];
 
         [Key(12)]
-        public  int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+        public int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+
+        [IgnoreMember]
+        public BlockFaceInstance[] SSBOdata;
 
         [IgnoreMember]
         public bool IsEmpty = true;
@@ -106,7 +110,6 @@ namespace Vox.Genesis
 
             if (!IsInitialized)
             {
-                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
                 //===================================
                 //Generate surface chunk height map
@@ -119,19 +122,40 @@ namespace Vox.Genesis
                 {
                     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
                     {
+                        int elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
 
-                        int elevation = GetGlobalHeightMapValue(x1, z1);
+
                         heightMap[zCount, xCount] = elevation;
 
                         zCount++;
                         if (zCount > RegionManager.CHUNK_BOUNDS - 1)
                             zCount = 0;
+
                     }
                     xCount++;
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
                 }
+
+                for (int x1 = 0; x1 < RegionManager.CHUNK_BOUNDS; x1++)
+                {
+                    for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
+                    {
+                        for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
+                        {
+                            int elevation = heightMap[z1, x1];
+
+                            //Set block data to AIR
+                            
+                           // if (y1 > elevation && elevation < y1 + RegionManager.CHUNK_BOUNDS)
+                                blockData[(int)(x1), (int)(y1), (int)(z1)] = (int)RegionManager.GetGlobalBlockType((int) x, (int) y, (int) z);
+                           // else
+                           //     blockData[(int)(x1 - x), (int)(y1 - y), (int)(z1 - z)] = 0;
+                        }
+                    }
+                }
                 IsInitialized = true;
+            
             }
             return this;
         }
@@ -143,110 +167,153 @@ namespace Vox.Genesis
             List<int> elements = [];
             int elementCounter = 0;
 
-            Array values = Enum.GetValues(typeof(BlockType));
-
-            Random random = new();
-
-            if (didChange || renderTask == null)
+            if (didChange || Window.GetNextFaceIndex() == 0)
             {
-                for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
-                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns
-                        nonInterpolated.Add(new Vector3(GetLocation().X + x, heightMap[z, x], GetLocation().Z + z));
 
+
+                //???????
+                //  for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
+                //      for (int z = 0; z < heightMap.GetLength(1); z++) //columns
+                //          nonInterpolated.Add(new Vector3(GetLocation().X + x, heightMap[z, x], GetLocation().Z + z));
+                //
+
+
+                //Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT - 1, 0, RegionManager.CHUNK_BOUNDS - 1);
 
 
                 //Add any player placed blocks to the mesh before interpolating
-                for (int i = 0; i < blocksToAdd.Count; i += 3)
-                    nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
-
-                //Interpolate chunk heightmap
-                List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
-
-                //Remove any blocks from the mesh marked for exclusion.
-                //(i.e player broke a block)
-                for (int i = 0; i < blocksToExclude.Count; i += 3)
-                    interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
-
-                int randomIndex = random.Next(values.Length);
-                BlockType? randomBlock;
-                if (randomIndex > 1)
-                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
-                else
-                    randomBlock = (BlockType?)values.GetValue(randomIndex);
-
-                BlockType blockType = (BlockType)randomBlock;
+                //  for (int i = 0; i < blocksToAdd.Count; i += 3)
+                //      nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
+                //
+                //  //Interpolate chunk heightmap
+                //  List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
+                //
+                //  //Remove any blocks from the mesh marked for exclusion.
+                //  //(i.e player broke a block)
+                //  for (int i = 0; i < blocksToExclude.Count; i += 3)
+                //      interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
 
                 for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
                 {
                     for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
                     {
-
-                        foreach (Vector3 v in interpolatedChunk)
+                        for (int y = 0; y < RegionManager.CHUNK_BOUNDS; y++)
                         {
-
-                            //Top face check X and Z
-                            if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
+                            if (blockData[x, y, z] != 0)
                             {
-                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
-                                if (!up)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                //Top face check X and Z
+                                // if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
+                                // {
+                                //BlockType blockType = (BlockType)blockData[x - (int)xLoc, Utils.ConvertToNewRange(y, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1) - (int)yLoc, (int)z - (int)zLoc];
+                                //BlockModel model = ModelLoader.GetModel(blockType);
+                                //
+                                //BlockModel model90 = model.RotateX(90);
+                                //BlockModel model180 = model.RotateX(180);
+                                //BlockModel model270 = model.RotateX(270);
+                                //
+                                //Element modelEle = model.GetElements().ToList().ElementAt(0);
+                                //Element modelEle90 = model90.GetElements().ToList().ElementAt(0);
+                                //Element modelEle180 = model180.GetElements().ToList().ElementAt(0);
+                                //Element modelEle270 = model270.GetElements().ToList().ElementAt(0);
+
+
+                                BlockType type = (BlockType)blockData[x, y, z];
+
+
+                                //Write 6 faces per block
+                                for (int i = 0; i < 5; i++)
+                                { 
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), (Face) i,
+                                        (int)ModelLoader.GetModel(type).GetTexture((Face) i));
+
+                                    //Write face directly to SSBO
+                                    unsafe
+                                    {
+                                        int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                        byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                        BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                        *instancePtr = face;
+                                        Window.GetAndIncrementNextFaceIndex();
+                                    }
                                 }
 
-                                //East face check z + 1
-                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
-                                if (!east)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
+                                //   if (!up)
+                                //   {
 
-                                //West face check z - 1
-                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
-                                if (!west)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
 
-                                //North face check x + 1
-                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
-                                if (!north)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
-
-                                //South face check x - 1
-                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
-                                //Bottom face
-                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
-                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
+                                //    SSBOdata[ssboIndex] = new(new(x, y + 1, z), Face.UP, ) 
+                                //      //vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, y, z + zLoc), this));
+                                //      //elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //      //elementCounter += 4;
+                                //   }
+                                //
+                                //   //East face check z + 1
+                                //   bool east = nonInterpolated.Contains(new(v.X, v.Y, v.Z + 1));
+                                //   if (!east)
+                                //   {
+                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //       elementCounter += 4;
+                                //   }
+                                //
+                                //   //West face check z - 1
+                                //   bool west = nonInterpolated.Contains(new(v.X, v.Y, v.Z - 1));
+                                //   if (!west)
+                                //   {
+                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //       elementCounter += 4;
+                                //   }
+                                //
+                                //   //North face check x + 1
+                                //   bool north = nonInterpolated.Contains(new(v.X + 1, v.Y, v.Z));
+                                //   if (!north)
+                                //   {
+                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //       elementCounter += 4;
+                                //   }
+                                //
+                                //   //South face check x - 1
+                                //   bool south = nonInterpolated.Contains(new(v.X - 1, v.Y, v.Z));
+                                //   {
+                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //       elementCounter += 4;
+                                //   }
+                                //   //Bottom face
+                                //   bool bottom = nonInterpolated.Contains(new(v.X, v.Y - 1, v.Z));
+                                //   if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
+                                //   {
+                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
+                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
+                                //       elementCounter += 4;
+                                //   }
+                                // }
                             }
                         }
                     }
                 }
 
-                //Updates chunk data
-                lock (chunkLock)
+                            //for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
+                            //{
+                            //    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                            //    {
+                            //
+                            //        foreach (Vector3 v in interpolatedChunk)
+                            //        {
+                            //   
+                            //            
+                            //        }
+                            //    }
+                            //}
+
+                            //Updates chunk data
+                            lock (chunkLock)
                 {
                     //O(n) because of ToArray
-                    renderTask = new TerrainRenderTask([.. vertices], [.. elements], GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
+                 //   renderTask = new TerrainRenderTask([.. vertices], [.. elements], GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
                     didChange = false;
                 }
             }
@@ -299,25 +366,25 @@ namespace Vox.Genesis
                     if (col > 0)
                         comparison1 = heightMap[row, col - 1];
                     else
-                        comparison1 = GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
+                        comparison1 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
 
                     //+1 horizontal comparison
                     if (col < RegionManager.CHUNK_BOUNDS - 1)
                         comparison2 = heightMap[row, col + 1];
                     else
-                        comparison2 = GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
+                        comparison2 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
 
                     //-1 2d vertical comparison
                     if (row > 0)
                         comparison3 = heightMap[row - 1, col];
                     else
-                        comparison3 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
+                        comparison3 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
 
                     //+1 2d vertical comparison
                     if (row < RegionManager.CHUNK_BOUNDS - 1)
                         comparison4 = heightMap[row + 1, col];
                     else
-                        comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
+                        comparison4 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
 
                     //Adds base by default since that will always be visible and rendered
                     if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
@@ -442,36 +509,6 @@ namespace Vox.Genesis
             return modelMatrix;
         }
 
-        /**
-       * Retrieves the Y value for any given x,z column in any chunk
-       * @param x coordinate of column
-       * @param z coordinate of column
-       * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
-       */
-        public static int GetGlobalHeightMapValue(int x, int z)
-        {
-            long seed;
-            if (Window.IsMenuRendered())
-                seed = Window.GetMenuSeed();
-            else
-                seed = RegionManager.WORLD_SEED;
-            
-            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
-            // a rougher, raised terrain
-            float var1 = 12;
-
-            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
-            //more smooth, spread out hills.
-            double var2 = 0.01;
-
-            float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
-
-            int min = 0;
-            return (int)Math.Floor((f + 1) / 2 * RegionManager.CHUNK_HEIGHT - 1);
-
-        }
 
         /**
          * Element Buffer Object specific to this chunk used in the
@@ -804,10 +841,10 @@ namespace Vox.Genesis
                         containsRange = true;
                 }
 
-                if ((adjBlock.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
-                    || adjBlock.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
-                    || v.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z)
-                    || v.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
+                if ((adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
+                    || adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
+                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z)
+                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
                     && !containsRange)
 
                 {

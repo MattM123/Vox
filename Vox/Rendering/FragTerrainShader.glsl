@@ -16,7 +16,6 @@ struct Matt {
 //This is technically what we were using in the last episode as we were only applying the phong model directly to the light.
 struct Light {
     vec3 position;
-
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
@@ -37,17 +36,12 @@ uniform vec3 playerMax;
 uniform vec3 targetVertex;
 uniform vec3 forwardDir;
 
-in vec4 fblockCenter;
-in vec4 fcurPos;
-in vec4 flocalHit;
-
 in vec4 fragPosLightSpace;
 flat in float fTexLayer;
 in vec4 fTargetVertex;
 in vec2 ftexCoords;
 in vec3 fragPos;
 in vec3 fnormal;
-in vec3 vertexPos;
 in vec4 fColor;
 in vec3 fforwardDir;
 out vec4 color;
@@ -67,7 +61,7 @@ out vec4 color;
 
 
 #line 1 "specular.glsl"
-#include #include "lygia\\lighting\\specular.glsl"
+#include "lygia\\lighting\\specular.glsl"
 
 
 

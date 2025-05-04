@@ -1,6 +1,7 @@
 ﻿
 using System.Security.Cryptography;
 using MessagePack;
+using Vox.Model;
 namespace Vox.Genesis
 {
 
@@ -37,6 +38,80 @@ namespace Vox.Genesis
             ChunkCache.SetRenderDistance(RENDER_DISTANCE);
         }
 
+        /**
+        * Retrieves the Y value for any given x,z column in any chunk
+        * @param x coordinate of column
+        * @param z coordinate of column
+        * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
+        */
+        public static int GetGlobalHeightMapValue(int x, int z)
+        {
+            long seed;
+            if (Window.IsMenuRendered())
+                seed = Window.GetMenuSeed();
+            else
+                seed = WORLD_SEED;
+
+            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
+            // a rougher, raised terrain
+            float var1 = 12;
+
+            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
+            //more smooth, spread out hills.
+            double var2 = 0.01;
+
+            float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
+                    + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
+                    + (float)(0.25 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
+
+            //Normalized teh noise value
+            float noise = (f * 0.5f) + 0.5f;
+
+            return  (int)(noise * CHUNK_HEIGHT);
+
+        }
+
+        /**
+        * Given an x, y, and z value for a blocks location, generates the blocks type using
+        * Simplex noise.
+        * @param x coordinate of block
+        * @param y coordinate of block
+        * @param z coordinate of block
+        * @return Returns the noise value which is an enum BlockType scaled between 0 and the number of block types.
+        */
+        public static BlockType GetGlobalBlockType(int x, int y, int z)
+        {
+            long seed;
+            if (Window.IsMenuRendered())
+                seed = Window.GetMenuSeed();
+            else
+                seed = WORLD_SEED;
+
+            //Generate noise and normalize to 0-1 from -1-1
+            float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
+
+            //how many different types of blocks are there?
+            int blocktypes = Enum.GetValues(typeof(BlockType)).Length;
+
+            // Multiply normalized noise to get an index
+            int index = (int)(noise * blocktypes);
+
+            // Clamp it if needed (edge cases)
+            index = Math.Clamp(index, 0, blocktypes - 1);
+
+            //Manually define ranges for certain block types like this:
+            //if (noise < 0.3f)
+            //    return BlockType.GRASS_BLOCK;
+            //else if (noise < 0.6f)
+            //    return BlockType.DIRT_BLOCK;
+            //else
+            //    return BlockType.STONE_BLOCK;
+
+            // Convert index to BlockType
+
+            return (BlockType)index;
+
+        }
         public static int PollChunkMemory()
         {
             int count = 0;

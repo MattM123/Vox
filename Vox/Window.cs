@@ -41,7 +41,6 @@ using TextureParameterName = OpenTK.Graphics.OpenGL4.TextureParameterName;
 using TextureTarget = OpenTK.Graphics.OpenGL4.TextureTarget;
 using TextureWrapMode = OpenTK.Graphics.OpenGL4.TextureWrapMode;
 using Vector3 = OpenTK.Mathematics.Vector3;
-using VertexAttribPointerType = OpenTK.Graphics.OpenGL4.VertexAttribPointerType;
 
 
 namespace Vox
@@ -82,6 +81,9 @@ namespace Vox
         private Matrix4 sunlightViewMatrix;
         private static Matrix4 lightSpaceMatrix;
         public static int primRestart = 500000;
+        private static int SSBOhandle;
+        private static IntPtr SSBOPtr;
+        private static int _nextFaceIndex;
 
         //used for player and lighting projection matrices
         private static float FAR = 500.0f;
@@ -120,8 +122,6 @@ namespace Vox
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
 
             ModelLoader.LoadModels();
-            menuChunk = new Chunk().Initialize(0, 0, 0);
-            menuChunk.GenerateRenderData();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
@@ -137,8 +137,8 @@ namespace Vox
 
 
             //Enable primitive restart
-            GL.Enable(EnableCap.PrimitiveRestart);
-            GL.PrimitiveRestartIndex(primRestart);
+         //   GL.Enable(EnableCap.PrimitiveRestart);
+           // GL.PrimitiveRestartIndex(primRestart);
 
             //============================
             //Shader Compilation and Setup
@@ -256,14 +256,45 @@ namespace Vox
             lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
             lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
             lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
-            //lightColor.X = (MathF.Sin(time * 2.0f) + 1) / 2f;
-            //lightColor.Y = (MathF.Sin(time * 0.7f) + 1) / 2f;
-            //lightColor.Z = (MathF.Sin(time * 1.3f) + 1) / 2f;
+
 
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
 
+
+            /*======================================
+            Block face SSBO instancing setup
+            =======================================*/
+
+            //BlockFace SSBO upload
+            SSBOhandle = GL.GenBuffer();
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, SSBOhandle);
+
+            // SSBO Size based on nrender distance
+            int blockFacesPerBlock = 6;
+            int maxBlocksPerChunk = (int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3);
+            int maxChunksInCache = (int)Math.Pow(RegionManager.GetRenderDistance(), 3);
+            int size = Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock);
+
+            //Creates ssbo buffer
+            GL.BufferStorage(BufferTarget.ShaderStorageBuffer, size, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
+
+            //Map binding for shader to use
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, SSBOhandle);
+
+            //Creates pointer to SSBO buffer
+            SSBOPtr = GL.MapBufferRange(
+                BufferTarget.ShaderStorageBuffer,
+                IntPtr.Zero,
+                size,
+                BufferAccessMask.MapWriteBit |
+                BufferAccessMask.MapPersistentBit |
+                BufferAccessMask.MapCoherentBit
+            );
+
+            menuChunk = new Chunk().Initialize(0, 0, 0);
+            menuChunk.GenerateRenderData();
 
         }
 
@@ -271,77 +302,7 @@ namespace Vox
         {
             base.OnRenderFrame(e);
 
-            // GL.ActiveTexture(TextureUnit.Texture1);
-            //
-            // //Attach depth texture to frame buffer         
-            // GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
-            // GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, sunlightDepthMap, 0);
-            // GL.DrawBuffer(DrawBufferMode.None);
-            // GL.ReadBuffer(ReadBufferMode.None);
-            // GL.BindTexture(TextureTarget.Texture2D, 0);
-            // GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            //
-            //
-            //
-            //  //Bind FBO and clear depth
-            //  GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
-            //  GL.ClearDepth(1.0f);
-            //  GL.Clear(ClearBufferMask.DepthBufferBit);
-            //
-            //
-            //  //Check FBO
-            //  FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            //  if (status != FramebufferErrorCode.FramebufferComplete)
-            //  {
-            //      Console.WriteLine($"Framebuffer error: {status}");
-            //  }
-            //
-            //  lightingShaders?.Bind();
-            //  GL.BindVertexArray(lightVao);
-            //
-            //  // Create VBO upload the vertex buffer
-            //  List<Vector3> buff = [];
-            //  foreach (TerrainVertex v in menuChunk.GetVertices())
-            //      buff.Add(v.GetVector());
-            //
-            //
-            //  GL.BindBuffer(BufferTarget.ArrayBuffer, lightVbo);
-            //  GL.BufferData(BufferTarget.ArrayBuffer, buff.Count * Unsafe.SizeOf<Vector3>(), buff.ToArray(), BufferUsageHint.StaticDraw);
-            //
-            //  int shadowPos = 3;
-            //
-            //  // Position
-            //  GL.VertexAttribPointer(0, shadowPos, VertexAttribPointerType.Float, false, Unsafe.SizeOf<Vector3>(), 0);
-            //  GL.EnableVertexAttribArray(0);
-
-
-            // GL.DrawArrays(PrimitiveType.Points, 0, buff.Count);
-
-            /*======================================
-            World and Menu rendering - DEPTH PRE-PASS
-            =======================================*/
-
-            //  if (loadedWorld == null)
-            //  {
-            //      if (angle > 360)
-            //          angle = 0.0f;
-            //
-            //      angle += 0.0002f;
-            //      renderMenu = true;
-            //      terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
-            //      RenderMenu();
-            //  }
-            //  else
-            //  {
-            //      renderMenu = false;
-            //      terrainShaders?.SetIntFloatUniform("isMenuRendered", 0);
-            //      RenderWorld();
-            //  }
-
-            //Unbind sunlight depth map at the end of frame render
-            //  GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-            //     terrainShaders.Bind();
+        
 
             /*=====================================
             Vertex attribute definitions for shaders
@@ -354,33 +315,33 @@ namespace Vox
             int faceSize = 1;
             int typeSize = 1;
 
-            // Position
-            GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), 0);
-            GL.EnableVertexAttribArray(0);
-
-            // Texture Layer
-            GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize) * sizeof(float));
-            GL.EnableVertexAttribArray(1);
-
-            // Texture Coordinates
-            GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize) * sizeof(float));
-            GL.EnableVertexAttribArray(2);
-
-            // Light
-            GL.VertexAttribPointer(3, lightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize) * sizeof(float));
-            GL.EnableVertexAttribArray(3);
-
-            // Normals
-            GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize) * sizeof(float));
-            GL.EnableVertexAttribArray(4);
-
-            // Block type
-            GL.VertexAttribPointer(5, typeSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize) * sizeof(float));
-            GL.EnableVertexAttribArray(5);
-
-            // Block face
-            GL.VertexAttribPointer(6, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize + typeSize) * sizeof(float));
-            GL.EnableVertexAttribArray(6);
+         //  // Position
+         //  GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), 0);
+         //  GL.EnableVertexAttribArray(0);
+         //
+         //  // Texture Layer
+         //  GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(1);
+         //
+         //  // Texture Coordinates
+         //  GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(2);
+         //
+         //  // Light
+         //  GL.VertexAttribPointer(3, lightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(3);
+         //
+         //  // Normals
+         //  GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(4);
+         //
+         //  // Block type
+         //  GL.VertexAttribPointer(5, typeSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(5);
+         //
+         //  // Block face
+         //  GL.VertexAttribPointer(6, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize + typeSize) * sizeof(float));
+         //  GL.EnableVertexAttribArray(6);
 
 
             /*==============================
@@ -465,8 +426,8 @@ namespace Vox
 
             terrainShaders?.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
 
-            if (loadedWorld != null)
-                terrainShaders?.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
+
+            terrainShaders?.SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance());
 
             terrainShaders?.SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix());
 
@@ -838,12 +799,7 @@ namespace Vox
 
         private void RenderMenu()
         {
-
-            //Vertices
-            TerrainVertex[] vertexBuffer = menuChunk.GetVertices();
-
-            //Elements
-            int[] elementBuffer = menuChunk.GetElements();
+            int vaoo = GL.GenVertexArray();
 
             /*==========================================
              * DEPTH RENDERING PRE-PASS
@@ -863,20 +819,14 @@ namespace Vox
                 Console.WriteLine($"Framebuffer error: {status}");
             }
             lightingShaders?.Bind();
-            GL.BindVertexArray(vao);
+            GL.BindVertexArray(vaoo);
 
-
-            // Create VBO upload the vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
-
-            // Create EBO upload the element buffer;
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, elementBuffer.Length * sizeof(int), elementBuffer, BufferUsageHint.StaticDraw);
-
-            
-            GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
-
+            GL.DrawArraysInstanced(
+                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
+                0,                            // Start from the first vertex in the base geometry
+                4,                            // 4 vertices per face (for triangle strip)
+                _nextFaceIndex                // Instance count (number of faces to draw)
+            );
 
 
             //Unbind sunlight depth map at the end of frame render
@@ -891,24 +841,21 @@ namespace Vox
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             terrainShaders?.Bind();
-            GL.BindVertexArray(vao);
 
-
-            // Create VBO upload the vertex buffer
-            GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-            GL.BufferData(BufferTarget.ArrayBuffer, vertexBuffer.Length * Unsafe.SizeOf<TerrainVertex>(), vertexBuffer, BufferUsageHint.StaticDraw);
-
-            // Create EBO upload the element buffer;
-            GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-            GL.BufferData(BufferTarget.ElementArrayBuffer, elementBuffer.Length * sizeof(int), elementBuffer, BufferUsageHint.StaticDraw);
 
 
             /*==================================
             Drawing
             ====================================*/
-            GL.DrawElements(PrimitiveType.TriangleStrip, elementBuffer.Length, DrawElementsType.UnsignedInt, 0);
+            GL.DrawArraysInstanced(
+                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
+                0,                            // Start from the first vertex in the base geometry
+                4,                            // 4 vertices per face (for triangle strip)
+                _nextFaceIndex                // Instance count (number of faces to draw)
+            );
 
             //-------------------------Render and Draw Terrain---------------------------------------
+            GL.BindVertexArray(0);
         }
 
  
@@ -1313,6 +1260,19 @@ namespace Vox
             }
 
             return sb.ToString();
+        }
+
+        public static IntPtr GetSSBOPtr()
+        {
+            return SSBOPtr;
+        }
+        public static int GetNextFaceIndex()
+        {
+            return _nextFaceIndex;
+        }
+        public static int GetAndIncrementNextFaceIndex()
+        {
+            return Interlocked.Increment(ref _nextFaceIndex) - 1;
         }
         static void Main()
         {

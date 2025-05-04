@@ -375,14 +375,14 @@ namespace Vox.Genesis
                     CacheHelper(x, y, z);
                 }
 
-                //Positive Y
+                //Positive Z
                 for (int i = 1; i <= renderDistance; i++)
                 {
                     int x = (int)playerChunk.GetLocation().X;
                     int z = (int)playerChunk.GetLocation().Z + (i * bounds);
                     CacheHelper(x, y, z);
                 }
-                //Negative Y
+                //Negative Z
                 for (int i = 1; i <= renderDistance; i++)
                 {
 

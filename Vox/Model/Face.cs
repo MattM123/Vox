@@ -3,23 +3,19 @@
     public enum Face
     {
         NORTH,
-        BACK,
-
         SOUTH,
-        FRONT,
-
         EAST,
-        RIGHT,
-
         WEST,
-        LEFT,
-
-        BOTTOM,
+        UP,
         DOWN,
 
-        TOP,
-        UP,
 
+        BACK,
+        FRONT,
+        RIGHT,
+        LEFT,
+        BOTTOM,
+        TOP,
         SIDE,
         ALL,
 

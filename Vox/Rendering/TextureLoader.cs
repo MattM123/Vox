@@ -13,6 +13,9 @@ namespace Vox.Rendering
         private static int channels;
         private static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static int numLayers = 3;
+        private static Dictionary<int, string> TextureLayerToFileName = [];
+        private static Dictionary<string, Texture> FileNameToTexture = [];
+
 
         static TextureLoader()
         {
@@ -21,6 +24,14 @@ namespace Vox.Rendering
             Directory.CreateDirectory(assets + "BlockTextures");
         }
 
+        public static Dictionary<int, string> GetTextureLayerToFileName()
+        {
+            return TextureLayerToFileName;
+        }
+        public static Dictionary<string, Texture> GetFileNameToTexture()
+        {
+            return FileNameToTexture;
+        }
         public static int LoadTextures(int slot)
         {
 
@@ -66,6 +77,9 @@ namespace Vox.Rendering
 
             for (int i = 0; i < numLayers; i++)
             {
+                TextureLayerToFileName.Add(i, tex[i]);
+                FileNameToTexture.Add(tex[i], (Texture)Enum.ToObject(typeof(Texture), i));
+
                 using var memoryStream = new MemoryStream();
                 FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
@@ -168,12 +182,8 @@ namespace Vox.Rendering
         {
             GL.BindTexture(TextureTarget.Texture2DArray, 0);
             GL.BindTexture(TextureTarget.Texture2D, 0);
-            GL.DeleteTexture(0);
-            GL.DeleteTexture(1);
-            GL.DeleteTexture(2);
-            GL.DeleteTexture(3);
-            GL.DeleteTexture(4);
-            GL.DeleteTexture(5);
+            GL.DeleteTexture(texId);
+
         }
     }
 }
