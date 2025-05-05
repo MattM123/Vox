@@ -102,8 +102,8 @@ namespace Vox
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
-            menuSeed = BitConverter.ToInt64(buffer, 0);
-
+                                                // menuSeed = BitConverter.ToInt64(buffer, 0);
+            menuSeed = 99999999999;
 
             //Mene render buffers
             vbo = GL.GenBuffer();
