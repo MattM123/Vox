@@ -2,10 +2,11 @@
 
 struct BlockFaceInstance
 {
-    vec3 facePosition;      
+    vec3 facePosition;  
+    float padding;       
     int faceDirection;   
     int textureLayer;       
-    vec2 padding;           
+    
 };
 
 layout(std430, binding = 0) buffer BlockFaceData

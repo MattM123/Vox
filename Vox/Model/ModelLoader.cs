@@ -25,7 +25,6 @@ namespace Vox.Model
             }
 
             //Populate models to store in memory
-            models.Add(BlockType.AIR, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\air.json"))));
             models.Add(BlockType.GRASS_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\grass.json"))));
             models.Add(BlockType.DIRT_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\dirt.json"))));
             models.Add(BlockType.STONE_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json"))));

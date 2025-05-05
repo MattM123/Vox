@@ -146,11 +146,12 @@ namespace Vox.Genesis
                             int elevation = heightMap[z1, x1];
 
                             //Set block data to AIR
-                            
-                           // if (y1 > elevation && elevation < y1 + RegionManager.CHUNK_BOUNDS)
-                                blockData[(int)(x1), (int)(y1), (int)(z1)] = (int)RegionManager.GetGlobalBlockType((int) x, (int) y, (int) z);
-                           // else
-                           //     blockData[(int)(x1 - x), (int)(y1 - y), (int)(z1 - z)] = 0;
+
+                            if (y + y1 <= elevation)
+                                blockData[x1, y1, z1] = (int)RegionManager.GetGlobalBlockType((int)(x + xLoc), (int)(y + yLoc), (int)(z + zLoc));
+
+                            else
+                                blockData[x1, y1, z1] = 0;
                         }
                     }
                 }
@@ -170,29 +171,6 @@ namespace Vox.Genesis
             if (didChange || Window.GetNextFaceIndex() == 0)
             {
 
-
-                //???????
-                //  for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
-                //      for (int z = 0; z < heightMap.GetLength(1); z++) //columns
-                //          nonInterpolated.Add(new Vector3(GetLocation().X + x, heightMap[z, x], GetLocation().Z + z));
-                //
-
-
-                //Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT - 1, 0, RegionManager.CHUNK_BOUNDS - 1);
-
-
-                //Add any player placed blocks to the mesh before interpolating
-                //  for (int i = 0; i < blocksToAdd.Count; i += 3)
-                //      nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
-                //
-                //  //Interpolate chunk heightmap
-                //  List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
-                //
-                //  //Remove any blocks from the mesh marked for exclusion.
-                //  //(i.e player broke a block)
-                //  for (int i = 0; i < blocksToExclude.Count; i += 3)
-                //      interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
-
                 for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
                 {
                     for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
@@ -201,96 +179,138 @@ namespace Vox.Genesis
                         {
                             if (blockData[x, y, z] != 0)
                             {
-                                //Top face check X and Z
-                                // if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
-                                // {
-                                //BlockType blockType = (BlockType)blockData[x - (int)xLoc, Utils.ConvertToNewRange(y, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1) - (int)yLoc, (int)z - (int)zLoc];
-                                //BlockModel model = ModelLoader.GetModel(blockType);
-                                //
-                                //BlockModel model90 = model.RotateX(90);
-                                //BlockModel model180 = model.RotateX(180);
-                                //BlockModel model270 = model.RotateX(270);
-                                //
-                                //Element modelEle = model.GetElements().ToList().ElementAt(0);
-                                //Element modelEle90 = model90.GetElements().ToList().ElementAt(0);
-                                //Element modelEle180 = model180.GetElements().ToList().ElementAt(0);
-                                //Element modelEle270 = model270.GetElements().ToList().ElementAt(0);
-
 
                                 BlockType type = (BlockType)blockData[x, y, z];
 
-
-                                //Write 6 faces per block
-                                for (int i = 0; i < 5; i++)
-                                { 
-                                    //Texture enum value corresponds to texture array layer 
-                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), (Face) i,
-                                        (int)ModelLoader.GetModel(type).GetTexture((Face) i));
-
-                                    //Write face directly to SSBO
-                                    unsafe
+                                //Positive X (EAST)
+                                if (x + 1 < RegionManager.CHUNK_BOUNDS)
+                                {
+                                    if (blockData[x + 1, y, z] == 0)
                                     {
-                                        int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                        byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                        BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                        *instancePtr = face;
-                                        Window.GetAndIncrementNextFaceIndex();
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.EAST,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
+
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
                                     }
                                 }
 
-                                //   if (!up)
-                                //   {
+                                //Negative X (WEST)
+                                if (x - 1 >= 0)
+                                {
+                                    if (blockData[x - 1, y, z] == 0)
+                                    {
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.WEST,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
+                                
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
+                                    }
+                                }
+
+                                //Positive Y (UP)
+                                if (y + 1 < RegionManager.CHUNK_BOUNDS)
+                                {
+                                    if (blockData[x, y + 1, z] == 0)
+                                    {
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
+
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
+                                    }
+                                }
+
+                                //Negative Y (DOWN)
+                                if (y - 1 >= 0)
+                                {
+                                    if (blockData[x, y - 1, z] == 0)
+                                    {
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.DOWN,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
+                            
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
+                                    }
+                                }
 
 
-                                //    SSBOdata[ssboIndex] = new(new(x, y + 1, z), Face.UP, ) 
-                                //      //vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, y, z + zLoc), this));
-                                //      //elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //      //elementCounter += 4;
-                                //   }
-                                //
-                                //   //East face check z + 1
-                                //   bool east = nonInterpolated.Contains(new(v.X, v.Y, v.Z + 1));
-                                //   if (!east)
-                                //   {
-                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //       elementCounter += 4;
-                                //   }
-                                //
-                                //   //West face check z - 1
-                                //   bool west = nonInterpolated.Contains(new(v.X, v.Y, v.Z - 1));
-                                //   if (!west)
-                                //   {
-                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //       elementCounter += 4;
-                                //   }
-                                //
-                                //   //North face check x + 1
-                                //   bool north = nonInterpolated.Contains(new(v.X + 1, v.Y, v.Z));
-                                //   if (!north)
-                                //   {
-                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //       elementCounter += 4;
-                                //   }
-                                //
-                                //   //South face check x - 1
-                                //   bool south = nonInterpolated.Contains(new(v.X - 1, v.Y, v.Z));
-                                //   {
-                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //       elementCounter += 4;
-                                //   }
-                                //   //Bottom face
-                                //   bool bottom = nonInterpolated.Contains(new(v.X, v.Y - 1, v.Z));
-                                //   if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
-                                //   {
-                                //       vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                //       elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                //       elementCounter += 4;
-                                //   }
-                                // }
+
+                                //Positive Z (NORTH)
+                                if (z + 1 < RegionManager.CHUNK_BOUNDS)
+                                {
+                                    if (blockData[x, y, z + 1] == 0)
+                                    {
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.NORTH,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
+                            
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
+                                    }
+                                }
+
+                                //Negative Z (SOUTH)
+                                if (z - 1 >= 0)
+                                {
+                                    if (blockData[x, y, z - 1] == 0)
+                                    {
+                                        //Texture enum value corresponds to texture array layer 
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.SOUTH,
+                                            (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
+                            
+                                        //Write face directly to SSBO
+                                        unsafe
+                                        {
+                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                                            *instancePtr = face;
+                                            Window.GetAndIncrementNextFaceIndex();
+                                        }
+                                    }
+                                }
+
+
                             }
                         }
                     }

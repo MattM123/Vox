@@ -4,12 +4,12 @@ using Vox.Model;
 
 namespace Vox.Rendering
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 16)]
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
     public struct BlockFaceInstance(Vector3 facePosition, Face faceDirection, int textureLayer)
     {
-        Vector3 facePosition = facePosition;
-        Face faceDirection = faceDirection;
-        int textureLayer = textureLayer;
-        Vector2 _padding = new(1,1);      // pad to multiple of 16 (can be used for another face property later on)
+        [FieldOffset(0)] public Vector3 facePosition = facePosition;        // vec3 padded to 16 bytes
+        [FieldOffset(12)] private float _padding = 1f;                      // force C# to match GLSL 16-byte alignment
+        [FieldOffset(16)] public int faceDirection = (int) faceDirection;   // 4 bytes
+        [FieldOffset(20)] public int textureLayer = textureLayer;           // 4 bytes
     }
 }

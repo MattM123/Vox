@@ -67,7 +67,7 @@ namespace Vox
         private static float fps = 0.0f;
         public static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static BlockModel menuModel;
-        private static Chunk menuChunk;
+        private static List<Chunk> menuChunks = [];
         private static long menuSeed;
         private float mouseSensitivity = 0.1f;
         private static int vbo, ebo, vao = 0;
@@ -105,8 +105,8 @@ namespace Vox
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
-            menuSeed = BitConverter.ToInt64(buffer, 0);
-
+           // menuSeed = BitConverter.ToInt64(buffer, 0);
+           menuSeed = 99999999999;
 
             //Mene render buffers
             vbo = GL.GenBuffer();
@@ -293,56 +293,30 @@ namespace Vox
                 BufferAccessMask.MapCoherentBit
             );
 
-            menuChunk = new Chunk().Initialize(0, 0, 0);
-            menuChunk.GenerateRenderData();
+            menuChunks.Add(new Chunk().Initialize(0, 0, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 16, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 32, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 48, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 64, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 80, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 96, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 112, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 128, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 160, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 176, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 192, 0));
+            menuChunks.Add(new Chunk().Initialize(0, 208, 0));
+
+            foreach (Chunk c in menuChunks)
+            {
+                c.GenerateRenderData();
+            }
 
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
-
-        
-
-            /*=====================================
-            Vertex attribute definitions for shaders
-            ======================================*/
-            int posSize = 3;
-            int layerSize = 1;
-            int coordSize = 1;
-            int lightSize = 1;
-            int normalSize = 3;
-            int faceSize = 1;
-            int typeSize = 1;
-
-         //  // Position
-         //  GL.VertexAttribPointer(0, posSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), 0);
-         //  GL.EnableVertexAttribArray(0);
-         //
-         //  // Texture Layer
-         //  GL.VertexAttribPointer(1, layerSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(1);
-         //
-         //  // Texture Coordinates
-         //  GL.VertexAttribPointer(2, coordSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(2);
-         //
-         //  // Light
-         //  GL.VertexAttribPointer(3, lightSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(3);
-         //
-         //  // Normals
-         //  GL.VertexAttribPointer(4, normalSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(4);
-         //
-         //  // Block type
-         //  GL.VertexAttribPointer(5, typeSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(5);
-         //
-         //  // Block face
-         //  GL.VertexAttribPointer(6, faceSize, VertexAttribPointerType.Float, false, Unsafe.SizeOf<TerrainVertex>(), (posSize + layerSize + coordSize + lightSize + faceSize + normalSize + typeSize) * sizeof(float));
-         //  GL.EnableVertexAttribArray(6);
-
 
             /*==============================
             Update UI input and config

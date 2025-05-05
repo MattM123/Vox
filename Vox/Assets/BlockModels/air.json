@@ -1,7 +1,0 @@
-﻿{
-  "parent": "cube_all",
-  "transparent": true,
-  "textures": {
-    "all": "air"
-  }
-}
