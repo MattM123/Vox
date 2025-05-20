@@ -34,24 +34,21 @@ namespace Vox.Genesis
         public bool didChange = false;
  
         [Key(6)]
-        public TerrainRenderTask renderTask;
- 
-        [Key(7)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
  
-        [Key(8)]
+        [Key(7)]
         public Queue<LightNode> BFSEmissivePropagationQueue = new((int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
  
-        [Key(9)]
+        [Key(8)]
         public Queue<LightNode> BFSSunlightPropagationQueue = new((int) Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
  
-        [Key(10)]
+        [Key(9)]
         public List<float> blocksToAdd = [];
  
-        [Key(11)]
+        [Key(10)]
         public List<float> blocksToExclude = [];
 
-        [Key(12)]
+        [Key(11)]
         public int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
         [IgnoreMember]
@@ -75,21 +72,12 @@ namespace Vox.Genesis
         [IgnoreMember]
         private readonly Dictionary<string, int> VAOs = [];
 
-
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
 
-        public Chunk()
-        {
+        [IgnoreMember] bool isGenerated = false;
 
-            SetEbo(GL.GenBuffer(),      "Lighting");
-            SetVbo(GL.GenBuffer(),      "Lighting");
-            SetVao(GL.GenVertexArray(), "Lighting");
-
-            SetEbo(GL.GenBuffer(),      "Terrain");
-            SetVbo(GL.GenBuffer(),      "Terrain");
-            SetVao(GL.GenVertexArray(), "Terrain");
-        }
+        public Chunk() { }
 
         /**
          * Initializes a chunk at a given point and populates it's heightmap using Simplex noise
@@ -147,9 +135,9 @@ namespace Vox.Genesis
 
                             //Set block data to AIR
 
-                            if (y + y1 <= elevation)
-                                blockData[x1, y1, z1] = (int)RegionManager.GetGlobalBlockType((int)(x + xLoc), (int)(y + yLoc), (int)(z + zLoc));
 
+                            if (y + y1 <= elevation)
+                                blockData[x1, y1, z1] = (int)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
                             else
                                 blockData[x1, y1, z1] = 0;
                         }
@@ -158,189 +146,134 @@ namespace Vox.Genesis
                 IsInitialized = true;
             
             }
+
+
             return this;
         }
 
-        public TerrainRenderTask GenerateRenderData()
+        public void GenerateRenderData()
         {
-            List<Vector3> nonInterpolated = [];
-            List<TerrainVertex> vertices = [];
-            List<int> elements = [];
-            int elementCounter = 0;
+            int bounds = RegionManager.CHUNK_BOUNDS;
 
-            if (didChange || Window.GetNextFaceIndex() == 0)
+            if (!IsInitialized)
+                Initialize(xLoc, yLoc, zLoc);
+
+
+            if (!isGenerated)
             {
-
-                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
+                for (int x = 0; x < bounds; x++)
                 {
-                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                    for (int z = 0; z < bounds; z++)
                     {
-                        for (int y = 0; y < RegionManager.CHUNK_BOUNDS; y++)
+                        for (int y = 0; y < bounds; y++)
                         {
                             if (blockData[x, y, z] != 0)
                             {
-
                                 BlockType type = (BlockType)blockData[x, y, z];
 
                                 //Positive X (EAST)
-                                if (x + 1 < RegionManager.CHUNK_BOUNDS)
+                                if (x + 1 < bounds)
                                 {
-                                    if (blockData[x + 1, y, z] == 0)
+                                    if (blockData[x + 1, y, z] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.EAST,
+                                        BlockFaceInstance face = new(new(x + xLoc + 1, y + yLoc, z + zLoc), Face.EAST,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
 
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+                                        UploadFace(face);
                                     }
                                 }
 
                                 //Negative X (WEST)
                                 if (x - 1 >= 0)
                                 {
-                                    if (blockData[x - 1, y, z] == 0)
+                                    if (blockData[x - 1, y, z] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.WEST,
+                                        BlockFaceInstance face = new(new(x + xLoc - 1, y + yLoc, z + zLoc), Face.WEST,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
-                                
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+
+                                        UploadFace(face);
                                     }
                                 }
 
                                 //Positive Y (UP)
-                                if (y + 1 < RegionManager.CHUNK_BOUNDS)
+                                int pos_Y = Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT, 0, bounds);
+                                if (pos_Y + 1 < bounds)
                                 {
-                                    if (blockData[x, y + 1, z] == 0)
+                                    if (blockData[x, pos_Y + 1, z] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
                                         BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
 
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+                                        UploadFace(face);
                                     }
                                 }
 
                                 //Negative Y (DOWN)
                                 if (y - 1 >= 0)
                                 {
-                                    if (blockData[x, y - 1, z] == 0)
+                                    if (blockData[x, y - 1, z] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.DOWN,
+                                        BlockFaceInstance face = new(new(x + xLoc, y - 1 + yLoc, z + zLoc), Face.DOWN,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
-                            
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+
+                                        UploadFace(face);
                                     }
                                 }
 
-
-
                                 //Positive Z (NORTH)
-                                if (z + 1 < RegionManager.CHUNK_BOUNDS)
+                                if (z + 1 < bounds)
                                 {
-                                    if (blockData[x, y, z + 1] == 0)
+                                    if (blockData[x, y, z + 1] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.NORTH,
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc + 1), Face.NORTH,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
-                            
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+
+                                        UploadFace(face);
                                     }
                                 }
 
                                 //Negative Z (SOUTH)
                                 if (z - 1 >= 0)
                                 {
-                                    if (blockData[x, y, z - 1] == 0)
+                                    if (blockData[x, y, z - 1] != 0)
                                     {
                                         //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.SOUTH,
+                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc - 1), Face.SOUTH,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
-                            
-                                        //Write face directly to SSBO
-                                        unsafe
-                                        {
-                                            int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                                            byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
-                                            BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
-                                            *instancePtr = face;
-                                            Window.GetAndIncrementNextFaceIndex();
-                                        }
+
+                                        UploadFace(face);
                                     }
                                 }
-
-
                             }
                         }
                     }
                 }
-
-                            //for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
-                            //{
-                            //    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
-                            //    {
-                            //
-                            //        foreach (Vector3 v in interpolatedChunk)
-                            //        {
-                            //   
-                            //            
-                            //        }
-                            //    }
-                            //}
-
-                            //Updates chunk data
-                            lock (chunkLock)
-                {
-                    //O(n) because of ToArray
-                 //   renderTask = new TerrainRenderTask([.. vertices], [.. elements], GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
-                    didChange = false;
-                }
+                isGenerated = true;
             }
-            return renderTask;
         }
 
+        private void UploadFace(BlockFaceInstance face)
+        {
+            //Write face directly to SSBO
+            unsafe
+            {
+                int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                byte* basePtr = (byte*)Window.GetStagingPointer().ToPointer();
+                BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                *instancePtr = face;
+                Window.GetAndIncrementNextFaceIndex();
+            }
+        }
 
+        public int[,,] GetBlockData()
+        {
+            return blockData;
+        }
         /**
          * Given a 2D chunk heightmap, interpolates between
          * height-mapped blocks to fill in vertical gaps in terrain generation.
@@ -487,30 +420,6 @@ namespace Vox.Genesis
             return location;
         }
 
-        //This returns the first occurance of the vertex with the coordinate vector,
-        //which means there are 3 other vetrex objects with that vector forming a blocks face.
-        
-        //The other 3 faces will naturally share the same blocktype with this face but have
-        //other values like light and textures that differ from face to face.
-        public BlockType GetBlockTypeAt(int x, int y, int z)
-        {
-
-            foreach (TerrainVertex v in GetVertices())
-            {
-                if (v.GetVector().X == x && v.GetVector().Y == y && v.GetVector().Z == z)
-                    return (BlockType) v.blocktype;
-            }
-            return BlockType.TEST_BLOCK;
-        }
-        public TerrainVertex[] GetVertices()
-        {
-            return renderTask.GetVertexData();
-        }
-        public int[] GetElements()
-        {
-            return renderTask.GetElementData();
-        }
-
         /**
          * This flag should only be updated to true when the chunk needs to re-render.
          * Ex. If a block was destroyer or placed or otherwise modified
@@ -519,8 +428,6 @@ namespace Vox.Genesis
         {
             didChange = f;
         }
-
-
     
         public bool DidChange() { return didChange; }
 
@@ -530,40 +437,6 @@ namespace Vox.Genesis
         }
 
 
-        /**
-         * Element Buffer Object specific to this chunk used in the
-         * Chunks RenderTask and for drawing the chunks data
-         * @param i EBO ID. Ideally using glGenBuffers() as the parameter
-         */
-        public void SetEbo(int i, string key)
-        {
-            EBOs[key] = i;
-        }
-        public int GetEbo(string key)
-        {
-            return EBOs[key];
-        }
-        public int GetVao(string key)
-        {
-            return VAOs[key];
-        }
-        /**
-         * Vertex Buffer Object specific to this chunk used in the
-         * Chunks RenderTask and for drawing the chunks data
-         * @param i VBO ID. Ideally using glGenBuffers() as the parameter
-         */
-        public void SetVbo(int i, string key)
-        {
-            VBOs[key] = i;
-        }
-        public void SetVao(int i, string Key)
-        {
-            VAOs[Key] = i;
-        }
-        public int GetVbo(string key)
-        {
-            return VBOs[key];
-        }
         public int[,] GetHeightmap()
         {
             return heightMap;
@@ -692,131 +565,6 @@ namespace Vox.Genesis
             }
         }
 
-        public void PropagateSunlight()
-        {
- 
-            int bounds = RegionManager.CHUNK_BOUNDS;
-            while (BFSSunlightPropagationQueue.Count > 0)
-            {
-               // Console.WriteLine(BFSSunlightPropagationQueue.Count);
-                // Get a reference to the front node and pop it off the queue. We no longer need the node reference
-                LightNode front = BFSSunlightPropagationQueue.Dequeue();
-
-                int index = front.Index;
-                Chunk chunk = front.Chunk;
-
-                // Extract x, y, and z from our chunk.
-                int x = index % bounds;
-
-                int y = index / (bounds * bounds);
-
-                int z = (index % (bounds * bounds)) / bounds;
-
-                // Grab the light level of the current node       
-                int lightLevel = chunk.GetSunlight(x, y, z);
-
-
-                //Look at all neighbouring voxels to that node.
-                //if their light level is 2 or more levels less than
-                //the current node, then set their light level to
-                //the current nodes light level - 1, and then add
-                //them to the queue.
-
-                // NOTE: You will need to do bounds checking!
-                // If you are on the edge of a chunk, then x - 1 will be -1. Instead
-                // you need to look at your left neighboring chunk and check the
-                // adjacent block there. When you do that, be sure to use the
-                // neighbor chunk when emplacing the new node to lightBfsQueue;
-
-                // Check negative X neighbor
-                // Make sure you don't propagate light into opaque blocks like stone!
-
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x - 1, y, z)).IsTransparent()
-                    && chunk.GetSunlight(x - 1, y, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test1");
-                    // Set its light level
-                    chunk.SetSunlight(x - 1, y, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short) (y * bounds * bounds + z * bounds + (x - 1));
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z - 1)).IsTransparent()
-                    && chunk.GetSunlight(x, y, z - 1) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test2");
-                    // Set its light level
-                    chunk.SetSunlight(x, y, z - 1, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + (z - 1) * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y - 1, z)).IsTransparent()
-                    && chunk.GetSunlight(x, y - 1, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test3");
-                    // Set its light level
-                    chunk.SetSunlight(x, y - 1, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)((y - 1) * bounds * bounds + z * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x + 1, y, z)).IsTransparent()
-                    && chunk.GetSunlight(x + 1, y, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test4");
-                    // Set its light level
-                    chunk.SetSunlight(x + 1, y, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + z * bounds + (x + 1));
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z + 1)).IsTransparent()
-                    && chunk.GetSunlight(x, y, z + 1) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test5");
-                    // Set its light level
-                    chunk.SetSunlight(x, y, z + 1, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + (z + 1) * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y + 1, z)).IsTransparent()
-                    && chunk.GetSunlight(x, y + 1, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test6");
-                    // Set its light level
-                    chunk.SetSunlight(x, y + 1, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)((y + 1) * bounds * bounds + z * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-            }  //End while loop
-        }
         public void AddBlockToChunk(Vector3 v)
         {
             for (int i = 0; i < blocksToExclude.Count; i += 3)
@@ -877,6 +625,11 @@ namespace Vox.Genesis
             DidChange(true);
             //GetTerrainRenderTask();
 
+        }
+
+        public bool IsGenerated()
+        {
+            return isGenerated;
         }
         public override string ToString()
         {

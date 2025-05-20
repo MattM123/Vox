@@ -96,8 +96,8 @@ namespace Vox.Genesis
             // Multiply normalized noise to get an index
             int index = (int)(noise * blocktypes);
 
-            // Clamp it if needed (edge cases)
-            index = Math.Clamp(index, 0, blocktypes - 1);
+            // Clamp to exlude "non-blocks"
+            index = Math.Clamp(index, 1, blocktypes - 3);
 
             //Manually define ranges for certain block types like this:
             //if (noise < 0.3f)
@@ -108,7 +108,6 @@ namespace Vox.Genesis
             //    return BlockType.STONE_BLOCK;
 
             // Convert index to BlockType
-
             return (BlockType)index;
 
         }
@@ -191,11 +190,11 @@ namespace Vox.Genesis
             //Updates regions within render distance
             Dictionary<string, Region> updatedRegions = ChunkCache.GetRegions();
 
-            if (VisibleRegions.Count() > 0)
+            if (VisibleRegions.Count > 0)
             {
 
                 //Retrieves from file or generates any region that is visible
-                for (int i = 0; i < updatedRegions.Count(); i++)
+                for (int i = 0; i < updatedRegions.Count; i++)
                 {
                     //Enter region if not found in visible regions
                    if (!VisibleRegions.ContainsKey(updatedRegions.Keys.ElementAt(i)))
@@ -203,7 +202,7 @@ namespace Vox.Genesis
                 }
 
                 //Write to file and de-render any regions that are no longer visible
-                for (int i = 0; i < VisibleRegions.Count(); i++)
+                for (int i = 0; i < VisibleRegions.Count; i++)
                 {
                     if (!updatedRegions.ContainsKey(VisibleRegions.Keys.ElementAt(i)))
                     {

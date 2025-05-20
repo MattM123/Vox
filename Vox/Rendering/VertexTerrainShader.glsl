@@ -3,9 +3,9 @@
 struct BlockFaceInstance
 {
     vec3 facePosition;  
-    float padding;       
     int faceDirection;   
     int textureLayer;       
+    int _pad0, _pad1, _pad2;
     
 };
 
@@ -61,23 +61,23 @@ const int texCoordMap[6][4] = int[6][4](
 );
 
 vec3 GetCornerOffset(int vertexID, int direction) {
-    // Define offsets for the 4 corners of the face
     vec2 offsets[4] = vec2[](
-       vec2(0.0, 0.0), // bottom-left
-       vec2(1.0, 0.0), // bottom-right
-       vec2(0.0, 1.0), // top-left
-       vec2(1.0, 1.0)  // top-right
-   );
-        
-    vec2 offset2D = offsets[vertexID];
+        vec2(0.0, 0.0), // bottom-left
+        vec2(1.0, 0.0), // bottom-right
+        vec2(0.0, 1.0), // top-left
+        vec2(1.0, 1.0)  // top-right
+    );
 
-    // Convert 2D offsets to 3D face orientation
-    if (direction == 0)       return vec3(offset2D.x, offset2D.y, 0); // +Z 
-    else if (direction == 1)  return vec3(-offset2D.x, offset2D.y, 0); // -Z 
-    else if (direction == 2)  return vec3(0, offset2D.x, offset2D.y); // +X 
-    else if (direction == 3)  return vec3(0, offset2D.x, -offset2D.y); // -X 
-    else if (direction == 4)  return vec3(offset2D.x, 0, offset2D.y); // +Y
-    else                      return vec3(offset2D.x, 0, -offset2D.y); // -Y              
+    vec2 offset = offsets[vertexID];
+
+    // Directions:
+    // 0: +Z (South), 1: -Z (North), 2: +X (East), 3: -X (West), 4: +Y (Top), 5: -Y (Bottom)
+    if (direction == 0)       return vec3(offset.x, offset.y, 1.0);             // +Z
+    else if (direction == 1)  return vec3(1.0 - offset.x, offset.y, 0.0);       // -Z
+    else if (direction == 2)  return vec3(1.0, offset.x, offset.y);             // +X
+    else if (direction == 3)  return vec3(0.0, offset.x, 1.0 - offset.y);       // -X
+    else if (direction == 4)  return vec3(offset.x, 1.0, 1.0 - offset.y);       // +Y (top)
+    else                      return vec3(offset.x, 0.0, offset.y);             // -Y (bottom)
 }
 
 vec3 GetNormal(int faceDirection)
