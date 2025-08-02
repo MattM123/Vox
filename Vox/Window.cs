@@ -20,7 +20,6 @@ using BlendingFactor = OpenTK.Graphics.OpenGL4.BlendingFactor;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
-using CullFaceMode = OpenTK.Graphics.OpenGL4.CullFaceMode;
 using DebugProc = OpenTK.Graphics.OpenGL4.DebugProc;
 using DebugSeverity = OpenTK.Graphics.OpenGL4.DebugSeverity;
 using DebugSource = OpenTK.Graphics.OpenGL4.DebugSource;
@@ -86,7 +85,7 @@ namespace Vox
         private static IntPtr SSBOPtr;
         private static IntPtr stagingBufferPtr;
         private static int _nextFaceIndex;
-        private static int SSBOSize;
+        public static int SSBOSize;
 
         //used for player and lighting projection matrices
         private static float FAR = 1000.0f;
@@ -261,9 +260,9 @@ namespace Vox
             diffuseColor = lightColor * new Vector3(0.5f);
 
 
-            /*======================================
-            Block face SSBO instancing setup
-            =======================================*/
+        /*======================================
+         Block face SSBO instancing setup
+         =======================================*/
 
             //BlockFace SSBO upload
             SSBOhandle = GL.GenBuffer();
@@ -273,7 +272,7 @@ namespace Vox
             int blockFacesPerBlock = 6;
             int maxBlocksPerChunk = (int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3);
             int maxChunksInCache = (int)Math.Pow(RegionManager.GetRenderDistance(), 3);
-            SSBOSize = Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock);
+            SSBOSize =((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
 
             //Creates ssbo buffer
             GL.BufferStorage(BufferTarget.ShaderStorageBuffer, SSBOSize, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
@@ -281,25 +280,9 @@ namespace Vox
             //Map binding for shader to use
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, SSBOhandle);
 
-
-            /*======================================
-            Staging buffer for SSBO
-            =======================================*/
-            GL.CreateBuffers(1, out int stagingBufferHandle);
-            GL.NamedBufferStorage(
-                stagingBufferHandle,                    // Buffer object handle
-                SSBOSize,                               // Size in bytes
-                IntPtr.Zero,                            // Data pointer (nullable)
-                BufferStorageFlags.DynamicStorageBit |  // Flags: allow updates with NamedBufferSubData
-                BufferStorageFlags.MapWriteBit | 
-                BufferStorageFlags.MapPersistentBit | 
-                BufferStorageFlags.MapCoherentBit    
-            );
-            GL.BindBuffer(BufferTarget.CopyReadBuffer, stagingBufferHandle);
-
-            //Creates pointer to SSBO staging buffer
-            stagingBufferPtr = GL.MapBufferRange(
-                BufferTarget.CopyReadBuffer,
+            //Creates pointer to SSBO buffer
+            SSBOPtr = GL.MapBufferRange(
+                BufferTarget.ShaderStorageBuffer,
                 IntPtr.Zero,
                 SSBOSize,
                 BufferAccessMask.MapWriteBit |
@@ -307,35 +290,24 @@ namespace Vox
                 BufferAccessMask.MapCoherentBit
             );
 
-            menuChunks.Add(new Chunk().Initialize(0, 0, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 16, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 32, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 48, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 64, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 80, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 96, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 112, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 128, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 160, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 176, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 192, 0));
-            menuChunks.Add(new Chunk().Initialize(0, 208, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 16, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 32, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 48, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 64, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 80, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 96, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 112, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 128, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 160, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 176, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 192, 0));
+            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 208, 0));
 
             foreach (Chunk c in menuChunks)
             {
                 c.GenerateRenderData();
             }
-
-            //Copy to SSBO
-            GL.CopyBufferSubData(
-                BufferTarget.CopyReadBuffer,        // Source buffer (buffer to read from)
-                BufferTarget.ShaderStorageBuffer,   // Destination buffer (your SSBO)
-                IntPtr.Zero,                        // Read offset (start at 0)
-                IntPtr.Zero,                        // Write offset (start at 0)
-                SSBOSize                            // Size in bytes to copy
-            );
-
-
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -660,7 +632,7 @@ namespace Vox
                             if (ImGui.IsItemClicked())
                             {
 
-                                //Clear face data and reset index to 0
+                                // Clear face data and reset index to 0
                                 GL.ClearNamedBufferSubData(
                                     SSBOhandle,
                                     PixelInternalFormat.R32ui,    // Treat as 32-bit unsigned integers
@@ -866,6 +838,36 @@ namespace Vox
         private void RenderWorld()
         {
 
+            //Recalculate SSBO size
+            int blockFacesPerBlock = 6;
+            int maxBlocksPerChunk = (int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3);
+            int maxChunksInCache = (int)Math.Pow(RegionManager.GetRenderDistance(), 3);
+
+            //If SSBO size changed (i.e render distance was increased or decreased) 
+            if (Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) != SSBOSize)
+            {
+                Console.WriteLine("Size Change");
+                SSBOSize = Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock);
+            
+                //Creates ssbo buffer
+                GL.BufferStorage(BufferTarget.ShaderStorageBuffer, SSBOSize, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
+            
+                //Map binding for shader to use
+                GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, SSBOhandle);
+            
+                //Creates pointer to SSBO buffer
+                SSBOPtr = GL.MapBufferRange(
+                    BufferTarget.ShaderStorageBuffer,
+                    IntPtr.Zero,
+                    SSBOSize,
+                    BufferAccessMask.MapWriteBit |
+                    BufferAccessMask.MapPersistentBit |
+                    BufferAccessMask.MapCoherentBit
+                );
+            
+            }
+
+
             /*====================================
                 Chunk and Region check
             =====================================*/
@@ -873,13 +875,14 @@ namespace Vox
             //playerChunk will be null when world first loads
             if (globalPlayerChunk == null)
             {
-                globalPlayerChunk = new Chunk().Initialize(player.GetChunkWithPlayer().GetLocation().X,//+ RegionManager.CHUNK_BOUNDS,
-                     player.GetChunkWithPlayer().GetLocation().Y, player.GetChunkWithPlayer().GetLocation().Z);
+                globalPlayerChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int) player.GetChunkWithPlayer().GetLocation().X,//+ RegionManager.CHUNK_BOUNDS,
+                     (int) player.GetChunkWithPlayer().GetLocation().Y, (int) player.GetChunkWithPlayer().GetLocation().Z);
                 player.SetPosition(new(player.GetPosition().X, player.GetPosition().Y + 10, player.GetPosition().Z));
             }
 
             //Updates the chunks to render when the player has moved into a new chunk
             Dictionary<string, Chunk> chunksToRender = ChunkCache.UpdateChunkCache();
+
             if (!player.GetChunkWithPlayer().Equals(globalPlayerChunk))
             {
                 RegionManager.UpdateVisibleRegions();
@@ -902,34 +905,31 @@ namespace Vox
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
                     if (!c.Value.IsGenerated())
+                    {
                         c.Value.GenerateRenderData();
-                    
+                    }
+
                     countdown.Signal();
                 }));
             }
             countdown.Wait();
-
-            //Copy to SSBO after generating render data
-            GL.CopyBufferSubData(
-                BufferTarget.CopyReadBuffer,        // Source buffer (buffer to read from)
-                BufferTarget.ShaderStorageBuffer,   // Destination buffer (your SSBO)
-                IntPtr.Zero,                        // Read offset (start at 0)
-                IntPtr.Zero,                        // Write offset (start at 0)
-                SSBOSize                            // Size in bytes to copy
-            );
 
 
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
             int vaoo = GL.GenVertexArray();
-            GL.BindVertexArray(vaoo);
 
-
+            /*==========================================
+             * DEPTH RENDERING PRE-PASS
+             * ========================================*/
             GL.Viewport(0, 0, 4096, 4096);
+
             //Bind FBO and clear depth
 
+            GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
+
 
             //Check FBO
             FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -938,7 +938,7 @@ namespace Vox
                 Console.WriteLine($"Framebuffer error: {status}");
             }
             lightingShaders?.Bind();
-
+            GL.BindVertexArray(vaoo);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,  // Drawing a triangle strip
@@ -957,7 +957,11 @@ namespace Vox
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
             //-------------------------Render and Draw Terrain---------------------------------------
 
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
             terrainShaders?.Bind();
+
+
 
             /*==================================
             Drawing
@@ -970,11 +974,7 @@ namespace Vox
             );
 
             //-------------------------Render and Draw Terrain---------------------------------------
-        
-            
-       
-        
-           //  RenderBlockTarget();
+            GL.BindVertexArray(0);
         }
 
         public static void RenderBlockTarget()
@@ -1043,7 +1043,7 @@ namespace Vox
         public static Chunk GetGlobalChunk()
         {
             if (globalPlayerChunk == null)
-                return new Chunk().Initialize(0, 0, 0);
+                return RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
             return globalPlayerChunk;
         }
         private static float[] GetCrosshair()
@@ -1132,9 +1132,9 @@ namespace Vox
             return sb.ToString();
         }
 
-        public static IntPtr GetStagingPointer()
+        public static IntPtr GetSSBOPtr()
         {
-            return stagingBufferPtr;
+            return SSBOPtr;
         }
         public static int GetNextFaceIndex()
         {
@@ -1175,7 +1175,7 @@ namespace Vox
             string message = Marshal.PtrToStringAnsi(pMessage, length);
 
             Console.WriteLine($"[{type}] :: Severity[{severity}] :: Source[{source}] ID[{id}] Detail: {message}");
-
+            
             if (type == DebugType.DebugTypeError)
             {
                 throw new Exception(message);

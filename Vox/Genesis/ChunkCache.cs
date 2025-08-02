@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using OpenTK.Mathematics;
 using Vox.Model;
 using Vox.Rendering;
@@ -15,14 +16,6 @@ namespace Vox.Genesis
         private static Dictionary<string, Region> regions = [];
         private static TerrainVertex[] cacheVertexRenderData;
         private static int[] cacheElementRenderData;
-        private static int vertexDataSizeEstimation = 0;
-        private static int elementDataSizeEstimation = 0;
-        private static int vertexCounter = 0;
-        private static int elementCount = 0;
-        private static int elementCounterTotal = 0;
-  
-
-        private static readonly object lockObj = new();
 
         /**
          *
@@ -53,7 +46,40 @@ namespace Vox.Genesis
             playerChunk = c;
         }
 
-     
+
+        public static void GetRadialChunks()
+        {
+            int bounds = RegionManager.CHUNK_BOUNDS;
+
+            //Check each radius layer
+            for (int radius = 1; radius <= renderDistance; radius++)
+            {
+                Vector3 negativeCorner = new(playerChunk.xLoc + (bounds * radius) * -1, playerChunk.yLoc + (bounds * radius) - ((renderDistance - 2) * bounds), -playerChunk.zLoc + (bounds * radius) * -1);
+                Vector3 positiveCorner = new(playerChunk.xLoc + (bounds * radius), playerChunk.yLoc + (bounds * radius), playerChunk.zLoc + (bounds * radius));
+
+
+                //Iterates from the farthest -X point to the farthest +X
+                for (int x = (int)negativeCorner.X; x <= positiveCorner.X; x += bounds)
+                {
+                    //Iterates from the farthest -Y point to the farthest +Y
+                    for (int y = (int)negativeCorner.Y; y <= positiveCorner.Y ; y += bounds)
+                    {
+                        //Iterates from the farthest -Z point to the farthest +Z
+                        for (int z = (int)negativeCorner.Z; z <= positiveCorner.Z; z += bounds)
+                        {
+                            // If chunk is within radius layer, add to cache
+                            if ((x == -radius * bounds || x == radius * bounds) 
+                                || (y == -radius * bounds || y == radius * bounds) 
+                                || (z == -radius * bounds || z == radius * bounds))
+                            {
+                                CacheHelper(x, y, z);
+                            }
+                       
+                        }
+                    }
+                }
+            }
+        }
         /**
          * Gets the chunks diagonally oriented from the chunk the player is in.
          * This includes each 4 quadrants surrounding the player. This does not include the chunks
@@ -64,53 +90,43 @@ namespace Vox.Genesis
          */
         private static void GetQuadrantChunks()
         {
-            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
+          //  renderDistance = renderDistance + renderDistance + 1;
+            int playerElevation = (int) (playerChunk.yLoc / RegionManager.CHUNK_BOUNDS); 
+            for (int y = playerElevation - (renderDistance); y <= (renderDistance); y++)
             {
                 //Top left quadrant
                 Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
                 for (int x = (int)TLstart.X; x > TLstart.X - (renderDistance * bounds); x -= bounds)
-                {
                     for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
-                    {
-                        CacheHelper(x, y, z);
-                    }
-                }
+                        CacheHelper(x, y * bounds, z);
 
                 //Top right quadrant
                 Vector3 TRStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
                 for (int x = (int)TRStart.X; x < TRStart.X + (renderDistance * bounds); x += bounds)
-                {
                     for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
-                    {
-                        CacheHelper(x, y, z);
-                    }
-                }
+                        CacheHelper(x, y * bounds, z);
+                
 
                 //Bottom right quadrant
                 Vector3 BRStart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
                 for (int x = (int)BRStart.X; x > BRStart.X - (renderDistance * bounds); x -= bounds)
-                {
                     for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
-                    {
-                        CacheHelper(x, y, z);
-                    }
-                }
+                        CacheHelper(x, y * bounds, z);
+                
 
                 //Bottom left quadrant
                 Vector3 BLStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
                 for (int x = (int)BLStart.X; x < BLStart.X + (renderDistance * bounds); x += bounds)
-                {
                     for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
-                    {
-                        CacheHelper(x, y, z);
-                    }
-                }
+                        CacheHelper(x, y * bounds, z);
+                
             }
         }
 
 
         private static void CacheHelper(int x, int y, int z)
         {
+
             string regionIdx = Region.GetRegionIndex(x, z);
 
             //Look for region in loaded regions
@@ -137,7 +153,7 @@ namespace Vox.Genesis
             }
             else
             {
-                Chunk c = new Chunk().Initialize(x, y, z);
+                Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
 
                 if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
                     chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
@@ -159,14 +175,15 @@ namespace Vox.Genesis
          */
         private static void GetCardinalChunks()
         {
-            for (int y = 0 - (renderDistance / 2); y <= 0 - (renderDistance / 2); y++)
+            int playerElevation = (int)(playerChunk.yLoc / RegionManager.CHUNK_BOUNDS);
+            for (int y = playerElevation - renderDistance; y <= renderDistance; y++)
             {
                 //Positive X
                 for (int i = 1; i <= renderDistance; i++)
                 {
                     int x = (int)playerChunk.GetLocation().X + (i * bounds);
                     int z = (int)playerChunk.GetLocation().Z;
-                    CacheHelper(x, y, z);
+                    CacheHelper(x, y * bounds, z);
                 }
 
                 //Negative X
@@ -174,7 +191,7 @@ namespace Vox.Genesis
                 {
                     int x = (int)playerChunk.GetLocation().X - (i * bounds);
                     int z = (int)playerChunk.GetLocation().Z;
-                    CacheHelper(x, y, z);
+                    CacheHelper(x, y * bounds, z);
                 }
 
                 //Positive Z
@@ -182,7 +199,7 @@ namespace Vox.Genesis
                 {
                     int x = (int)playerChunk.GetLocation().X;
                     int z = (int)playerChunk.GetLocation().Z + (i * bounds);
-                    CacheHelper(x, y, z);
+                    CacheHelper(x, y * bounds, z);
                 }
                 //Negative Z
                 for (int i = 1; i <= renderDistance; i++)
@@ -190,7 +207,7 @@ namespace Vox.Genesis
 
                     int x = (int)playerChunk.GetLocation().X;
                     int z = (int)playerChunk.GetLocation().Z - (i * bounds);
-                    CacheHelper(x, y, z);
+                    CacheHelper(x, y * bounds, z);
                 }
             }
         }
@@ -205,9 +222,7 @@ namespace Vox.Genesis
             chunks.Clear();
             regions.Clear();
 
-            GetQuadrantChunks();
-            GetCardinalChunks();
-            chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
+            GetRadialChunks();
 
             return chunks;
         }

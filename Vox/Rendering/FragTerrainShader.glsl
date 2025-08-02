@@ -159,21 +159,10 @@ void main()
     // calculate shadow     
     float shadow = ShadowCalculation(fragPosLightSpace); 
 
-
-  //  vec3 lightColor = vec3(1.0);
-    //vec3 ambient = 0.15 * lightColor;
-   // float ambient = 0.15;
     float lightIntensity = 0.3;
     vec3 lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * lightIntensity;// * attenuation;
 
     vec3 result =  diffuse + shadingData.specularColor;
-
-    //Specular
-   //float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-  //  vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
-
-
-
 
     //=========================================
     // Render block target
@@ -182,23 +171,23 @@ void main()
     //target bounds checking
     vec3 minBound = fTargetVertex.xyz;
     vec3 maxBound = minBound + vec3(1.0,1.0,1.0);
-    vec4 textureApplication;
+    vec4 applyTex;
     float gamma = 1.0 / 2.2; 
 
     // Check if the fragment's position is inside the bounding box
-    if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
-        fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
-        fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
-    {
-        // If inside the bounding box, combine texture with target texture
-        vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
-        vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, 4));
-        textureApplication = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
-    }
-    
-    else {
-        textureApplication = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
-    }
+     if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
+         fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
+         fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
+     {
+         // If inside the bounding box, combine texture with target texture
+         vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
+         vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, 4));
+         applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
+     }
+     
+     else {
+       applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
+     }
 
-    color = pow(textureApplication, vec4(gamma));
+    color = pow(applyTex, vec4(gamma));
  }

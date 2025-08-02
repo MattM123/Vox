@@ -223,7 +223,7 @@ namespace Vox.Genesis
 
 
             if (!VisibleRegions.TryGetValue(rIndex, out Region? value) && !File.Exists(path)) {
-                Logger.Info($"Generating new region {rIndex}");
+               // Logger.Info($"Generating new region {rIndex}");
                 return new Region(index[0], index[1]);
 
             } else if (VisibleRegions.TryGetValue(rIndex, out Region? val) && !File.Exists(path))

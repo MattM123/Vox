@@ -202,7 +202,7 @@ namespace Vox.Model
                         Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16),
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -224,7 +224,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -245,7 +245,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -266,7 +266,7 @@ namespace Vox.Model
                             new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -288,7 +288,7 @@ namespace Vox.Model
                             new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16),
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -309,7 +309,7 @@ namespace Vox.Model
                             new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;

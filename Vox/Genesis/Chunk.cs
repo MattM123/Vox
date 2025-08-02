@@ -75,7 +75,11 @@ namespace Vox.Genesis
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
 
-        [IgnoreMember] bool isGenerated = false;
+        [IgnoreMember] 
+        bool isGenerated = false;
+
+        [IgnoreMember]
+       public int blockFacesInChunk = 0;
 
         public Chunk() { }
 
@@ -124,19 +128,17 @@ namespace Vox.Genesis
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
                 }
-
                 for (int x1 = 0; x1 < RegionManager.CHUNK_BOUNDS; x1++)
                 {
-                    for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
+                    for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
                     {
-                        for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
+                        for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
                         {
                             int elevation = heightMap[z1, x1];
 
-                            //Set block data to AIR
-
-
-                            if (y + y1 <= elevation)
+                            //Me thinks the problem is here
+                            //Set block data to AIR if its not visible
+                            if (y + y1 <= elevation && elevation >= GetLocation().Y)
                                 blockData[x1, y1, z1] = (int)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
                             else
                                 blockData[x1, y1, z1] = 0;
@@ -153,13 +155,10 @@ namespace Vox.Genesis
 
         public void GenerateRenderData()
         {
+
             int bounds = RegionManager.CHUNK_BOUNDS;
 
-            if (!IsInitialized)
-                Initialize(xLoc, yLoc, zLoc);
-
-
-            if (!isGenerated)
+            if (!isGenerated || blockFacesInChunk == 0)
             {
                 for (int x = 0; x < bounds; x++)
                 {
@@ -167,6 +166,23 @@ namespace Vox.Genesis
                     {
                         for (int y = 0; y < bounds; y++)
                         {
+                            //Positive Y (UP)
+                            int pos_Y = Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT - 1, 0, bounds - 1);
+                            if (pos_Y + 1 < bounds)
+                            {
+                                if (blockData[x, pos_Y + 1, z] != 0)
+                                {
+                                    BlockType type = (BlockType)blockData[x, pos_Y, z];
+
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, heightMap[z, x], z + zLoc), Face.UP,
+                                        (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
+
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
+                                }
+                            }
+
                             if (blockData[x, y, z] != 0)
                             {
                                 BlockType type = (BlockType)blockData[x, y, z];
@@ -179,8 +195,8 @@ namespace Vox.Genesis
                                         //Texture enum value corresponds to texture array layer 
                                         BlockFaceInstance face = new(new(x + xLoc + 1, y + yLoc, z + zLoc), Face.EAST,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
-
                                         UploadFace(face);
+                                        blockFacesInChunk++;
                                     }
                                 }
 
@@ -191,23 +207,10 @@ namespace Vox.Genesis
                                     {
                                         //Texture enum value corresponds to texture array layer 
                                         BlockFaceInstance face = new(new(x + xLoc - 1, y + yLoc, z + zLoc), Face.WEST,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
+                                          (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
 
                                         UploadFace(face);
-                                    }
-                                }
-
-                                //Positive Y (UP)
-                                int pos_Y = Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT, 0, bounds);
-                                if (pos_Y + 1 < bounds)
-                                {
-                                    if (blockData[x, pos_Y + 1, z] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
-
-                                        UploadFace(face);
+                                        blockFacesInChunk++;
                                     }
                                 }
 
@@ -219,8 +222,10 @@ namespace Vox.Genesis
                                         //Texture enum value corresponds to texture array layer 
                                         BlockFaceInstance face = new(new(x + xLoc, y - 1 + yLoc, z + zLoc), Face.DOWN,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
+                                        //(int)ModelLoader.GetModel(BlockType.TEST_BLOCK).GetTexture(Face.SOUTH));
 
                                         UploadFace(face);
+                                        blockFacesInChunk++;
                                     }
                                 }
 
@@ -232,8 +237,10 @@ namespace Vox.Genesis
                                         //Texture enum value corresponds to texture array layer 
                                         BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc + 1), Face.NORTH,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
+                                       
 
                                         UploadFace(face);
+                                        blockFacesInChunk++;
                                     }
                                 }
 
@@ -246,7 +253,9 @@ namespace Vox.Genesis
                                         BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc - 1), Face.SOUTH,
                                             (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
 
+
                                         UploadFace(face);
+                                        blockFacesInChunk++;
                                     }
                                 }
                             }
@@ -254,6 +263,7 @@ namespace Vox.Genesis
                     }
                 }
                 isGenerated = true;
+                Console.WriteLine("Generated: " + ToString() + "Block Count: " + blockFacesInChunk);
             }
         }
 
@@ -263,8 +273,14 @@ namespace Vox.Genesis
             unsafe
             {
                 int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)Window.GetStagingPointer().ToPointer();
+                byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+
+                int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
+                if (offset + instanceSize > Window.SSBOSize)
+                   //return;
+                    throw new InvalidOperationException("SSBO overflow");
+
                 *instancePtr = face;
                 Window.GetAndIncrementNextFaceIndex();
             }
