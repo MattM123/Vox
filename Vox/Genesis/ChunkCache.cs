@@ -11,11 +11,8 @@ namespace Vox.Genesis
         private static int renderDistance = RegionManager.GetRenderDistance();
         private static int bounds = RegionManager.CHUNK_BOUNDS;
         private static Chunk? playerChunk;        
-        private static bool reRenderFlag = false;
         private static Dictionary<string, Chunk> chunks = [];
         private static Dictionary<string, Region> regions = [];
-        private static TerrainVertex[] cacheVertexRenderData;
-        private static int[] cacheElementRenderData;
 
         /**
          *
@@ -29,7 +26,6 @@ namespace Vox.Genesis
         {
             ChunkCache.bounds = bounds;
             ChunkCache.playerChunk = playerChunk;
-            reRenderFlag = true;
 
         }
 
@@ -46,19 +42,21 @@ namespace Vox.Genesis
             playerChunk = c;
         }
 
-
         public static void GetRadialChunks()
         {
             int bounds = RegionManager.CHUNK_BOUNDS;
 
             //Check each radius layer
+            if (!chunks.ContainsKey($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}"))
+                chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
+
             for (int radius = 1; radius <= renderDistance; radius++)
             {
-                Vector3 negativeCorner = new(playerChunk.xLoc + (bounds * radius) * -1, playerChunk.yLoc + (bounds * radius) - ((renderDistance - 2) * bounds), -playerChunk.zLoc + (bounds * radius) * -1);
+                Vector3 negativeCorner = new(playerChunk.xLoc - (bounds * radius), playerChunk.yLoc - (bounds * radius), playerChunk.zLoc - (bounds * radius));
                 Vector3 positiveCorner = new(playerChunk.xLoc + (bounds * radius), playerChunk.yLoc + (bounds * radius), playerChunk.zLoc + (bounds * radius));
 
-
                 //Iterates from the farthest -X point to the farthest +X
+
                 for (int x = (int)negativeCorner.X; x <= positiveCorner.X; x += bounds)
                 {
                     //Iterates from the farthest -Y point to the farthest +Y
@@ -67,14 +65,17 @@ namespace Vox.Genesis
                         //Iterates from the farthest -Z point to the farthest +Z
                         for (int z = (int)negativeCorner.Z; z <= positiveCorner.Z; z += bounds)
                         {
-                            // If chunk is within radius layer, add to cache
-                            if ((x == -radius * bounds || x == radius * bounds) 
-                                || (y == -radius * bounds || y == radius * bounds) 
-                                || (z == -radius * bounds || z == radius * bounds))
-                            {
+                            //If the chunk is surrounded by surrounded by ungenerated chunks, dont cache it
+                            //if (!RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x + bounds}|{y}|{z}") ||
+                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y + bounds}|{z}") ||
+                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y}|{z + bounds}") ||
+                            //    
+                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x - bounds}|{y}|{z}") ||
+                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y - bounds}|{z}") ||
+                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y}|{z - bounds}"))
+                            //{
                                 CacheHelper(x, y, z);
-                            }
-                       
+                           // }
                         }
                     }
                 }
@@ -123,7 +124,12 @@ namespace Vox.Genesis
             }
         }
 
-
+        //Clears and resets cahce without repopulating it
+        public static void ClearChunkCache()
+        {
+            chunks.Clear();
+            regions.Clear();
+        }
         private static void CacheHelper(int x, int y, int z)
         {
 
@@ -219,18 +225,12 @@ namespace Vox.Genesis
          */
         public static Dictionary<string, Chunk> UpdateChunkCache()
         {
-            chunks.Clear();
-            regions.Clear();
 
             GetRadialChunks();
 
             return chunks;
-        }
+   }
 
-        public static void ReRender(bool b)
-        {
-            reRenderFlag = b;
-        }
         public static Dictionary<string, Region> GetRegions()
         {
             return regions;

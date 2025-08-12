@@ -84,7 +84,6 @@ namespace Vox
             Vector3 currentPosition = Vector3.Zero;
             BlockDetail block = new();
             Vector3 rayDirection = GetForwardDirection();
-
             for (float distance = 0; distance < maxDistance; distance += stepSize)
             {
    
@@ -171,7 +170,7 @@ namespace Vox
             Matrix4 viewMatrix = GetViewMatrix();
 
             //Gets Z Axis from player matrix
-            return Vector3.Normalize(new(-viewMatrix.Column2.Xyz));
+            return -viewMatrix.Column2.Xyz;
 
         }
 

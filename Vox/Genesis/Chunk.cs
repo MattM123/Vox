@@ -155,120 +155,105 @@ namespace Vox.Genesis
 
         public void GenerateRenderData()
         {
-
             int bounds = RegionManager.CHUNK_BOUNDS;
-
-            if (!isGenerated || blockFacesInChunk == 0)
+                                                            //If the chunk above this is generated, we don't need to generate this chunk   
+            if ((!isGenerated) && !RegionManager.GetAndLoadGlobalChunkFromCoords((int)xLoc, (int)(yLoc + bounds), (int)zLoc).isGenerated)
             {
                 for (int x = 0; x < bounds; x++)
                 {
-                    for (int z = 0; z < bounds; z++)
+                    for (int y = 0; y < bounds; y++)
                     {
-                        for (int y = 0; y < bounds; y++)
+                        for (int z = 0; z < bounds; z++)
                         {
-                            //Positive Y (UP)
-                            int pos_Y = Utils.ConvertToNewRange(heightMap[z, x], 0, RegionManager.CHUNK_HEIGHT - 1, 0, bounds - 1);
-                            if (pos_Y + 1 < bounds)
+                            if (blockData[x, y, z] != 0)
                             {
-                                if (blockData[x, pos_Y + 1, z] != 0)
+                                BlockType type = (BlockType)blockData[x, y, z];
+                               
+                                
+                                //Positive Y (UP)
+                                if ((y + 1 >= bounds || blockData[x, y + 1, z] == 0))// &&
+                                //yLoc + y >= CalculateMeshDepth(
+                                 //    RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    BlockType type = (BlockType)blockData[x, pos_Y, z];
-
-                                    //Texture enum value corresponds to texture array layer 
-                                    BlockFaceInstance face = new(new(x + xLoc, heightMap[z, x], z + zLoc), Face.UP,
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
                                         (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
+                                }
+                                // Positive X (EAST)
+                                if ((x + 1 >= bounds || blockData[x + 1, y, z] == 0))// &&
+                                //         yLoc + y >= CalculateMeshDepth(
+                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                {
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.EAST,
+                                             (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
+                                }
+
+                                
+                                //Negative X (WEST)
+                                if ((x - 1 < 0 || blockData[x - 1, y, z] == 0))// &&
+                                //        yLoc + y >= CalculateMeshDepth(
+                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                {
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc , y + yLoc, z + zLoc), Face.WEST,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
 
                                     UploadFace(face);
                                     blockFacesInChunk++;
                                 }
-                            }
-
-                            if (blockData[x, y, z] != 0)
-                            {
-                                BlockType type = (BlockType)blockData[x, y, z];
-
-                                //Positive X (EAST)
-                                if (x + 1 < bounds)
-                                {
-                                    if (blockData[x + 1, y, z] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc + 1, y + yLoc, z + zLoc), Face.EAST,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
-                                        UploadFace(face);
-                                        blockFacesInChunk++;
-                                    }
-                                }
-
-                                //Negative X (WEST)
-                                if (x - 1 >= 0)
-                                {
-                                    if (blockData[x - 1, y, z] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc - 1, y + yLoc, z + zLoc), Face.WEST,
-                                          (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
-
-                                        UploadFace(face);
-                                        blockFacesInChunk++;
-                                    }
-                                }
 
                                 //Negative Y (DOWN)
-                                if (y - 1 >= 0)
+                                if ((y - 1 < 0 || blockData[x, y - 1, z] == 0)
+                                    //If player is below the blocks Y level, render the bottom face
+                                     && Window.GetPlayer().GetPosition().Y < y)
                                 {
-                                    if (blockData[x, y - 1, z] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y - 1 + yLoc, z + zLoc), Face.DOWN,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
-                                        //(int)ModelLoader.GetModel(BlockType.TEST_BLOCK).GetTexture(Face.SOUTH));
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.DOWN,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
 
-                                        UploadFace(face);
-                                        blockFacesInChunk++;
-                                    }
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
                                 //Positive Z (NORTH)
-                                if (z + 1 < bounds)
+                                if ((z + 1 >= bounds || blockData[x, y, z + 1] == 0))// &&
+                                 //    yLoc + y >= CalculateMeshDepth(
+                                 //        RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    if (blockData[x, y, z + 1] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc + 1), Face.NORTH,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
-                                       
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.NORTH,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
 
-                                        UploadFace(face);
-                                        blockFacesInChunk++;
-                                    }
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
                                 //Negative Z (SOUTH)
-                                if (z - 1 >= 0)
+                                if ((z - 1 < 0 || blockData[x, y, z - 1] == 0))// &&
+                                //    yLoc + y >= CalculateMeshDepth(
+                                //         RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    if (blockData[x, y, z - 1] != 0)
-                                    {
-                                        //Texture enum value corresponds to texture array layer 
-                                        BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc - 1), Face.SOUTH,
-                                            (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.SOUTH,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
 
-
-                                        UploadFace(face);
-                                        blockFacesInChunk++;
-                                    }
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
                             }
                         }
                     }
                 }
                 isGenerated = true;
-                Console.WriteLine("Generated: " + ToString() + "Block Count: " + blockFacesInChunk);
             }
         }
 
         private void UploadFace(BlockFaceInstance face)
         {
+
             //Write face directly to SSBO
             unsafe
             {
@@ -278,7 +263,6 @@ namespace Vox.Genesis
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
                 if (offset + instanceSize > Window.SSBOSize)
-                   //return;
                     throw new InvalidOperationException("SSBO overflow");
 
                 *instancePtr = face;
@@ -290,141 +274,6 @@ namespace Vox.Genesis
         {
             return blockData;
         }
-        /**
-         * Given a 2D chunk heightmap, interpolates between
-         * height-mapped blocks to fill in vertical gaps in terrain generation.
-         * Populates this chunk with blocks by making comparisons between the
-         * 4 cardinal blocks of each block.
-
-         * All blocks added to the chunk are pre-transformed using the chunks
-         * model matrix
-
-         *       |-----|              |-----|
-         *       |  d  |              |  a  |
-         * |-----|-----|-----|        |-----|
-         * |  c  |base |  a  |        |  ?  | <- unknown
-         * |-----|-----|-----|  |-----|-----|
-         *       |  b  |        | base|
-         *       |-----|        |-----|
-         *       
-         *  Returns a Vector3f list containg all points. These vertices
-         *  will be assigned block types and texture infromation in the render task
-         *  
-         */
-        public List<Vector3> InterpolateChunk(List<Vector3> inVert)
-        {
-            //TODO: Determine BlockType based on noise
-
-            List<Vector3> output = [];
-
-            for (int row = 0; row < heightMap.GetLength(0); row++)
-            {
-                for (int col = 0; col < heightMap.GetLength(1); col++)
-                {
-                    int base1 = heightMap[row, col];
-
-                    //horizontal comparisons
-                    int comparison1; //-1
-                    int comparison2; //+1
-
-                    //vertical comparisons
-                    int comparison3; //-1
-                    int comparison4; //+1
-
-                    //-1 horizontal comparison
-                    if (col > 0)
-                        comparison1 = heightMap[row, col - 1];
-                    else
-                        comparison1 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
-
-                    //+1 horizontal comparison
-                    if (col < RegionManager.CHUNK_BOUNDS - 1)
-                        comparison2 = heightMap[row, col + 1];
-                    else
-                        comparison2 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
-
-                    //-1 2d vertical comparison
-                    if (row > 0)
-                        comparison3 = heightMap[row - 1, col];
-                    else
-                        comparison3 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
-
-                    //+1 2d vertical comparison
-                    if (row < RegionManager.CHUNK_BOUNDS - 1)
-                        comparison4 = heightMap[row + 1, col];
-                    else
-                        comparison4 = RegionManager.GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
-
-                    //Adds base by default since that will always be visible and rendered
-                    if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
-                    {
-                        output.Add(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z));
-                    }
-
-
-                    //Populates chunk vertex list. Base needs to be larger than at least one
-                    //comparison for any vertical blocks to be added
-                    if (base1 > comparison1)
-                    {
-                        if (base1 - comparison1 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison1;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison2)
-                    {
-                        if (base1 - comparison2 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison2;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison3)
-                    {
-                        if (base1 - comparison3 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison3;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison4)
-                    {
-                        if (base1 - comparison4 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison4;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z))) 
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-                }
-            }
-            output.AddRange(inVert);
-            return output;
-        }
-
         
         /**
          * Since the location of each chunk is unique this is used as a
@@ -655,6 +504,12 @@ namespace Vox.Genesis
         public override int GetHashCode()
         {
             return base.GetHashCode();
+        }
+
+        //Resets this chunk. It will be regenerated next time it is cached.
+        public void Reset()
+        {
+            isGenerated = false;
         }
     }
 }

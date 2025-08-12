@@ -127,8 +127,8 @@ namespace Vox
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.Enable(EnableCap.Blend);
 
-            GL.Enable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
+         //   GL.Enable(EnableCap.CullFace);
+          // GL.CullFace(CullFaceMode.Back);
 
             GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
             GL.Enable(EnableCap.DebugOutput);
@@ -289,17 +289,6 @@ namespace Vox
                 BufferAccessMask.MapPersistentBit |
                 BufferAccessMask.MapCoherentBit
             );
-
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 16, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 32, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 48, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 64, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 80, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 96, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 112, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 128, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 160, 0));
             menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 176, 0));
             menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 192, 0));
             menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 208, 0));
@@ -330,6 +319,10 @@ namespace Vox
             GL.DrawBuffer(DrawBufferMode.None);
             GL.ReadBuffer(ReadBufferMode.None);
 
+
+            //Remeber to clear cache each frame 
+            ChunkCache.ClearChunkCache();
+
             if (loadedWorld == null)
             {
                 if (angle > 360)
@@ -339,10 +332,12 @@ namespace Vox
                 renderMenu = true;
                 terrainShaders?.Bind();
                 terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
+
                 RenderMenu();
             }
             else
             {
+                
                 renderMenu = false;
                 terrainShaders?.Bind();
                 terrainShaders?.SetIntFloatUniform("isMenuRendered", 0);
@@ -383,11 +378,10 @@ namespace Vox
             {
                 terrainShaders?.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
                 terrainShaders?.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
-                terrainShaders?.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
                 terrainShaders?.SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
 
             }
-
+            terrainShaders?.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
             terrainShaders?.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
 
 
@@ -631,6 +625,9 @@ namespace Vox
                             ImGui.Button("Load World");
                             if (ImGui.IsItemClicked())
                             {
+                                //Reset the menu chunk coordinates so the render in the world.  
+                                foreach (Chunk c in menuChunks)
+                                    c.Reset();
 
                                 // Clear face data and reset index to 0
                                 GL.ClearNamedBufferSubData(
@@ -883,6 +880,7 @@ namespace Vox
             //Updates the chunks to render when the player has moved into a new chunk
             Dictionary<string, Chunk> chunksToRender = ChunkCache.UpdateChunkCache();
 
+
             if (!player.GetChunkWithPlayer().Equals(globalPlayerChunk))
             {
                 RegionManager.UpdateVisibleRegions();
@@ -902,17 +900,17 @@ namespace Vox
             CountdownEvent countdown = new(chunksToRender.Count);
             foreach (KeyValuePair<string, Chunk> c in chunksToRender)
             {
-                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-                {
+               // ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                //{
                     if (!c.Value.IsGenerated())
                     {
                         c.Value.GenerateRenderData();
                     }
 
-                    countdown.Signal();
-                }));
+                ///    countdown.Signal();
+              // }));
             }
-            countdown.Wait();
+          //  countdown.Wait();
 
 
             /*==========================================

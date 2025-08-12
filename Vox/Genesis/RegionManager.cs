@@ -14,7 +14,6 @@ namespace Vox.Genesis
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
-        private static object lockObj = new();
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -188,6 +187,7 @@ namespace Vox.Genesis
         public static void UpdateVisibleRegions()
         {
             //Updates regions within render distance
+            ChunkCache.UpdateChunkCache();
             Dictionary<string, Region> updatedRegions = ChunkCache.GetRegions();
 
             if (VisibleRegions.Count > 0)
@@ -206,6 +206,7 @@ namespace Vox.Genesis
                 {
                     if (!updatedRegions.ContainsKey(VisibleRegions.Keys.ElementAt(i)))
                     {
+                        Console.WriteLine($"Unloaded Region: {VisibleRegions.Keys.ElementAt(i)}");
                         LeaveRegion(VisibleRegions.Keys.ElementAt(i));
                     }
                 }
