@@ -30,6 +30,7 @@ namespace Vox.Model
             models.Add(BlockType.STONE_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json"))));
             models.Add(BlockType.TEST_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json"))));
             models.Add(BlockType.TARGET_BLOCK, new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\target.json"))));
+
         }
         public static Dictionary<BlockType, BlockModel> GetModels()
         {

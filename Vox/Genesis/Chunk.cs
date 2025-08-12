@@ -1,6 +1,7 @@
 ﻿
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -33,25 +34,25 @@ namespace Vox.Genesis
         public bool didChange = false;
  
         [Key(6)]
-        public TerrainRenderTask renderTask;
- 
-        [Key(7)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
  
-        [Key(8)]
+        [Key(7)]
         public Queue<LightNode> BFSEmissivePropagationQueue = new((int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
  
-        [Key(9)]
+        [Key(8)]
         public Queue<LightNode> BFSSunlightPropagationQueue = new((int) Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
  
-        [Key(10)]
+        [Key(9)]
         public List<float> blocksToAdd = [];
  
-        [Key(11)]
+        [Key(10)]
         public List<float> blocksToExclude = [];
 
-        [Key(12)]
-        public LightingRenderTask lightingRenderTask;
+        [Key(11)]
+        public int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+
+        [IgnoreMember]
+        public BlockFaceInstance[] SSBOdata;
 
         [IgnoreMember]
         public bool IsEmpty = true;
@@ -71,21 +72,16 @@ namespace Vox.Genesis
         [IgnoreMember]
         private readonly Dictionary<string, int> VAOs = [];
 
-
         [IgnoreMember]
         private static Matrix4 modelMatrix = new();
 
-        public Chunk()
-        {
+        [IgnoreMember] 
+        bool isGenerated = false;
 
-            SetEbo(GL.GenBuffer(),      "Lighting");
-            SetVbo(GL.GenBuffer(),      "Lighting");
-            SetVao(GL.GenVertexArray(), "Lighting");
+        [IgnoreMember]
+       public int blockFacesInChunk = 0;
 
-            SetEbo(GL.GenBuffer(),      "Terrain");
-            SetVbo(GL.GenBuffer(),      "Terrain");
-            SetVao(GL.GenVertexArray(), "Terrain");
-        }
+        public Chunk() { }
 
         /**
          * Initializes a chunk at a given point and populates it's heightmap using Simplex noise
@@ -106,7 +102,6 @@ namespace Vox.Genesis
 
             if (!IsInitialized)
             {
-                lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
                 //===================================
                 //Generate surface chunk height map
@@ -119,307 +114,167 @@ namespace Vox.Genesis
                 {
                     for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
                     {
+                        int elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
 
-                        int elevation = GetGlobalHeightMapValue(x1, z1);
+
                         heightMap[zCount, xCount] = elevation;
 
                         zCount++;
                         if (zCount > RegionManager.CHUNK_BOUNDS - 1)
                             zCount = 0;
+
                     }
                     xCount++;
                     if (xCount > RegionManager.CHUNK_BOUNDS - 1)
                         xCount = 0;
                 }
+                for (int x1 = 0; x1 < RegionManager.CHUNK_BOUNDS; x1++)
+                {
+                    for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
+                    {
+                        for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
+                        {
+                            int elevation = heightMap[z1, x1];
+
+                            //Me thinks the problem is here
+                            //Set block data to AIR if its not visible
+                            if (y + y1 <= elevation && elevation >= GetLocation().Y)
+                                blockData[x1, y1, z1] = (int)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
+                            else
+                                blockData[x1, y1, z1] = 0;
+                        }
+                    }
+                }
                 IsInitialized = true;
+            
             }
+
+
             return this;
         }
 
-        public TerrainRenderTask GenerateRenderData()
+        public void GenerateRenderData()
         {
-            List<Vector3> nonInterpolated = [];
-            List<TerrainVertex> vertices = [];
-            List<int> elements = [];
-            int elementCounter = 0;
-
-            Array values = Enum.GetValues(typeof(BlockType));
-
-            Random random = new();
-
-            if (didChange || renderTask == null)
+            int bounds = RegionManager.CHUNK_BOUNDS;
+                                                            //If the chunk above this is generated, we don't need to generate this chunk   
+            if ((!isGenerated) && !RegionManager.GetAndLoadGlobalChunkFromCoords((int)xLoc, (int)(yLoc + bounds), (int)zLoc).isGenerated)
             {
-                for (int x = 0; x < heightMap.GetLength(0); x++) //rows          
-                    for (int z = 0; z < heightMap.GetLength(1); z++) //columns
-                        nonInterpolated.Add(new Vector3(GetLocation().X + x, heightMap[z, x], GetLocation().Z + z));
-
-
-
-                //Add any player placed blocks to the mesh before interpolating
-                for (int i = 0; i < blocksToAdd.Count; i += 3)
-                    nonInterpolated.Add(new(blocksToAdd[i], blocksToAdd[i + 1], blocksToAdd[i + 2]));
-
-                //Interpolate chunk heightmap
-                List<Vector3> interpolatedChunk = InterpolateChunk(nonInterpolated);
-
-                //Remove any blocks from the mesh marked for exclusion.
-                //(i.e player broke a block)
-                for (int i = 0; i < blocksToExclude.Count; i += 3)
-                    interpolatedChunk.Remove(new(blocksToExclude[i], blocksToExclude[i + 1], blocksToExclude[i + 2]));
-
-                int randomIndex = random.Next(values.Length);
-                BlockType? randomBlock;
-                if (randomIndex > 1)
-                    randomBlock = (BlockType?)values.GetValue(randomIndex - 2);
-                else
-                    randomBlock = (BlockType?)values.GetValue(randomIndex);
-
-                BlockType blockType = (BlockType)randomBlock;
-
-                for (int x = 0; x < RegionManager.CHUNK_BOUNDS; x++)
+                for (int x = 0; x < bounds; x++)
                 {
-                    for (int z = 0; z < RegionManager.CHUNK_BOUNDS; z++)
+                    for (int y = 0; y < bounds; y++)
                     {
-
-                        foreach (Vector3 v in interpolatedChunk)
+                        for (int z = 0; z < bounds; z++)
                         {
-
-                            //Top face check X and Z
-                            if (v.X == (int)xLoc + x && v.Z == (int)zLoc + z)
+                            if (blockData[x, y, z] != 0)
                             {
-                                bool up = interpolatedChunk.Contains(new(v.X, v.Y + 1, v.Z));
-                                if (!up)
+                                BlockType type = (BlockType)blockData[x, y, z];
+                               
+                                
+                                //Positive Y (UP)
+                                if ((y + 1 >= bounds || blockData[x, y + 1, z] == 0))// &&
+                                //yLoc + y >= CalculateMeshDepth(
+                                 //    RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.UP, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
+                                        (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
+                                }
+                                // Positive X (EAST)
+                                if ((x + 1 >= bounds || blockData[x + 1, y, z] == 0))// &&
+                                //         yLoc + y >= CalculateMeshDepth(
+                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                {
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.EAST,
+                                             (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
-                                //East face check z + 1
-                                bool east = interpolatedChunk.Contains(new(v.X, v.Y, v.Z + 1));
-                                if (!east)
+                                
+                                //Negative X (WEST)
+                                if ((x - 1 < 0 || blockData[x - 1, y, z] == 0))// &&
+                                //        yLoc + y >= CalculateMeshDepth(
+                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.EAST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc , y + yLoc, z + zLoc), Face.WEST,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.WEST));
+
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
-                                //West face check z - 1
-                                bool west = interpolatedChunk.Contains(new(v.X, v.Y, v.Z - 1));
-                                if (!west)
+                                //Negative Y (DOWN)
+                                if ((y - 1 < 0 || blockData[x, y - 1, z] == 0)
+                                    //If player is below the blocks Y level, render the bottom face
+                                     && Window.GetPlayer().GetPosition().Y < y)
                                 {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.WEST, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.DOWN,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN));
+
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
-                                //North face check x + 1
-                                bool north = interpolatedChunk.Contains(new(v.X + 1, v.Y, v.Z));
-                                if (!north)
+                                //Positive Z (NORTH)
+                                if ((z + 1 >= bounds || blockData[x, y, z + 1] == 0))// &&
+                                 //    yLoc + y >= CalculateMeshDepth(
+                                 //        RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.NORTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.NORTH,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH));
+
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
 
-                                //South face check x - 1
-                                bool south = interpolatedChunk.Contains(new(v.X - 1, v.Y, v.Z));
+                                //Negative Z (SOUTH)
+                                if ((z - 1 < 0 || blockData[x, y, z - 1] == 0))// &&
+                                //    yLoc + y >= CalculateMeshDepth(
+                                //         RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
                                 {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.SOUTH, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
-                                }
-                                //Bottom face
-                                bool bottom = interpolatedChunk.Contains(new(v.X, v.Y - 1, v.Z));
-                                if (Window.GetPlayer().GetPosition().Y < v.Y && !bottom)
-                                {
-                                    vertices.AddRange(ModelUtils.GetCuboidFace(blockType, Face.DOWN, new Vector3(x + xLoc, v.Y, z + zLoc), this));
-                                    elements.AddRange([elementCounter, elementCounter + 1, elementCounter + 2, elementCounter + 3, Window.primRestart]);
-                                    elementCounter += 4;
+                                    //Texture enum value corresponds to texture array layer 
+                                    BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.SOUTH,
+                                      (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH));
+
+                                    UploadFace(face);
+                                    blockFacesInChunk++;
                                 }
                             }
                         }
                     }
                 }
-
-                //Updates chunk data
-                lock (chunkLock)
-                {
-                    //O(n) because of ToArray
-                    renderTask = new TerrainRenderTask([.. vertices], [.. elements], GetVbo("Terrain"), GetEbo("Terrain"), GetVao("Terrain"));
-                    didChange = false;
-                }
+                isGenerated = true;
             }
-            return renderTask;
         }
 
-
-        /**
-         * Given a 2D chunk heightmap, interpolates between
-         * height-mapped blocks to fill in vertical gaps in terrain generation.
-         * Populates this chunk with blocks by making comparisons between the
-         * 4 cardinal blocks of each block.
-
-         * All blocks added to the chunk are pre-transformed using the chunks
-         * model matrix
-
-         *       |-----|              |-----|
-         *       |  d  |              |  a  |
-         * |-----|-----|-----|        |-----|
-         * |  c  |base |  a  |        |  ?  | <- unknown
-         * |-----|-----|-----|  |-----|-----|
-         *       |  b  |        | base|
-         *       |-----|        |-----|
-         *       
-         *  Returns a Vector3f list containg all points. These vertices
-         *  will be assigned block types and texture infromation in the render task
-         *  
-         */
-        public List<Vector3> InterpolateChunk(List<Vector3> inVert)
+        private void UploadFace(BlockFaceInstance face)
         {
-            //TODO: Determine BlockType based on noise
 
-            List<Vector3> output = [];
-
-            for (int row = 0; row < heightMap.GetLength(0); row++)
+            //Write face directly to SSBO
+            unsafe
             {
-                for (int col = 0; col < heightMap.GetLength(1); col++)
-                {
-                    int base1 = heightMap[row, col];
+                int offset = Window.GetNextFaceIndex() * Marshal.SizeOf<BlockFaceInstance>();
+                byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
-                    //horizontal comparisons
-                    int comparison1; //-1
-                    int comparison2; //+1
+                int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
+                if (offset + instanceSize > Window.SSBOSize)
+                    throw new InvalidOperationException("SSBO overflow");
 
-                    //vertical comparisons
-                    int comparison3; //-1
-                    int comparison4; //+1
-
-                    //-1 horizontal comparison
-                    if (col > 0)
-                        comparison1 = heightMap[row, col - 1];
-                    else
-                        comparison1 = GetGlobalHeightMapValue((int)(col + GetLocation().X - 1), (int)(row + GetLocation().Z));
-
-                    //+1 horizontal comparison
-                    if (col < RegionManager.CHUNK_BOUNDS - 1)
-                        comparison2 = heightMap[row, col + 1];
-                    else
-                        comparison2 = GetGlobalHeightMapValue((int)(col + GetLocation().X + 1), (int)(row + GetLocation().Z));
-
-                    //-1 2d vertical comparison
-                    if (row > 0)
-                        comparison3 = heightMap[row - 1, col];
-                    else
-                        comparison3 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z - 1));
-
-                    //+1 2d vertical comparison
-                    if (row < RegionManager.CHUNK_BOUNDS - 1)
-                        comparison4 = heightMap[row + 1, col];
-                    else
-                        comparison4 = GetGlobalHeightMapValue((int)(col + GetLocation().X), (int)(row + GetLocation().Z + 1));
-
-                    //Adds base by default since that will always be visible and rendered
-                    if (!inVert.Contains(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z)))
-                    {
-                        output.Add(new Vector3(col + GetLocation().X, base1, row + GetLocation().Z));
-                    }
-
-
-                    //Populates chunk vertex list. Base needs to be larger than at least one
-                    //comparison for any vertical blocks to be added
-                    if (base1 > comparison1)
-                    {
-                        if (base1 - comparison1 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison1;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison2)
-                    {
-                        if (base1 - comparison2 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison2;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison3)
-                    {
-                        if (base1 - comparison3 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison3;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z)))
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-
-                    if (base1 > comparison4)
-                    {
-                        if (base1 - comparison4 > 1)
-                        {
-                            int numOfBlocks = base1 - comparison4;
-
-                            for (int i = 0; i < numOfBlocks; i++)
-                            {
-                                if (!inVert.Contains(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z))) 
-                                    output.Add(new Vector3(col + GetLocation().X, base1 - i, row + GetLocation().Z));
-                            }
-                        }
-                    }
-                }
+                *instancePtr = face;
+                Window.GetAndIncrementNextFaceIndex();
             }
-            output.AddRange(inVert);
-            return output;
         }
 
+        public int[,,] GetBlockData()
+        {
+            return blockData;
+        }
         
-
-        public LightingRenderTask GetLightingRenderTask()
-        {
-
-            if (lightingRenderTask != null)
-                return lightingRenderTask;
-
-            List<LightingVertex> vertices = [];
-
-
-            for (int y = 0; y < lightmap.GetLength(0); y++)
-            {
-                for (int z = 0; z < lightmap.GetLength(1); z++)
-                {
-                    for (int x = 0; x < lightmap.GetLength(2); x++)
-                    {
-                        int clampedY = Utils.ConvertToNewRange(y + (int) location.Y, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
-                        if (clampedY >= heightMap[z, x])
-                        {
-                            vertices.Add(new(x, y, z, lightmap[y, z, x]));
-                        } 
-                    }
-                }
-            }
-            
-            lightingRenderTask = new LightingRenderTask(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
-
-            return lightingRenderTask;
-
-        }
         /**
          * Since the location of each chunk is unique this is used as a
          * key to retrieve from spatial hashing storage.
@@ -430,30 +285,6 @@ namespace Vox.Genesis
             return location;
         }
 
-        //This returns the first occurance of the vertex with the coordinate vector,
-        //which means there are 3 other vetrex objects with that vector forming a blocks face.
-        
-        //The other 3 faces will naturally share the same blocktype with this face but have
-        //other values like light and textures that differ from face to face.
-        public BlockType GetBlockTypeAt(int x, int y, int z)
-        {
-
-            foreach (TerrainVertex v in GetVertices())
-            {
-                if (v.GetVector().X == x && v.GetVector().Y == y && v.GetVector().Z == z)
-                    return (BlockType) v.blocktype;
-            }
-            return BlockType.TEST_BLOCK;
-        }
-        public TerrainVertex[] GetVertices()
-        {
-            return renderTask.GetVertexData();
-        }
-        public int[] GetElements()
-        {
-            return renderTask.GetElementData();
-        }
-
         /**
          * This flag should only be updated to true when the chunk needs to re-render.
          * Ex. If a block was destroyer or placed or otherwise modified
@@ -462,8 +293,6 @@ namespace Vox.Genesis
         {
             didChange = f;
         }
-
-
     
         public bool DidChange() { return didChange; }
 
@@ -472,71 +301,7 @@ namespace Vox.Genesis
             return modelMatrix;
         }
 
-        /**
-       * Retrieves the Y value for any given x,z column in any chunk
-       * @param x coordinate of column
-       * @param z coordinate of column
-       * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
-       */
-        public static int GetGlobalHeightMapValue(int x, int z)
-        {
-            long seed;
-            if (Window.IsMenuRendered())
-                seed = Window.GetMenuSeed();
-            else
-                seed = RegionManager.WORLD_SEED;
-            
-            //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
-            // a rougher, raised terrain
-            float var1 = 12;
 
-            //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
-            //more smooth, spread out hills.
-            double var2 = 0.01;
-
-            float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
-
-            int min = 0;
-            return (int)Math.Floor((f + 1) / 2 * RegionManager.CHUNK_HEIGHT - 1);
-
-        }
-
-        /**
-         * Element Buffer Object specific to this chunk used in the
-         * Chunks RenderTask and for drawing the chunks data
-         * @param i EBO ID. Ideally using glGenBuffers() as the parameter
-         */
-        public void SetEbo(int i, string key)
-        {
-            EBOs[key] = i;
-        }
-        public int GetEbo(string key)
-        {
-            return EBOs[key];
-        }
-        public int GetVao(string key)
-        {
-            return VAOs[key];
-        }
-        /**
-         * Vertex Buffer Object specific to this chunk used in the
-         * Chunks RenderTask and for drawing the chunks data
-         * @param i VBO ID. Ideally using glGenBuffers() as the parameter
-         */
-        public void SetVbo(int i, string key)
-        {
-            VBOs[key] = i;
-        }
-        public void SetVao(int i, string Key)
-        {
-            VAOs[Key] = i;
-        }
-        public int GetVbo(string key)
-        {
-            return VBOs[key];
-        }
         public int[,] GetHeightmap()
         {
             return heightMap;
@@ -611,95 +376,6 @@ namespace Vox.Genesis
             return lightmap[x,y,z] & 0xF;
         }
 
-        public void PopulateSunlightBFSQueue(List<Vector3> nonInterpolatdChunk)
-        {
-
-            int bounds = RegionManager.CHUNK_BOUNDS;
-            Vector3 chunkAbove = new(xLoc, yLoc + RegionManager.CHUNK_BOUNDS, zLoc);
-
-            //check if the chunk above this is loaded
-            bool isLoaded = Region.IsChunkLoaded(chunkAbove);
-
-            //If the chunk above is loaded, add light nodes to its propagation queue
-            if (isLoaded)
-            {
-                Chunk top = RegionManager.GetAndLoadGlobalChunkFromCoords((int)xLoc, (int)yLoc + bounds, (int)zLoc);
-
-                //If chunk above is empty, there will be no sunlight to propagate on its surface
-                for (int y = 0; y < top.lightmap.GetLength(0); y++)
-                { 
-                    for (int z = 0; z < top.lightmap.GetLength(1); z++)
-                    {
-                        for (int x = 0; x < top.lightmap.GetLength(2); x++)
-                        {
-
-                            //If TOP is loaded, check the sunlightMap for TOP. For all nonzero sunlight values, 
-                            //add a node to the sunlightBfsQueue.
-                            int sunlightLevel = top.GetSunlight(x, y, z);
-                            if (sunlightLevel > 0)
-                                top.BFSSunlightPropagationQueue.Enqueue(
-                                    new LightNode()
-                                    {
-                                        Index = (short)(y * bounds * bounds + z * bounds + x),
-                                        Chunk = top
-                                    }
-                                );
-                        }
-                        
-                    }
-                }
-            }
-            else
-            {
-                //TOP is not loaded
-
-                //Chunk is underground, will have no sunlight propagation
-                if (yLoc > GetGlobalHeightMapValue((int)xLoc, (int)zLoc))
-                {
-                    Console.WriteLine("underground: " + this);
-                    return;
-                }
-
-                //If chunk is unloaded and above ground, this chunk will have sunlight
-                int counter = 0;
-                List<LightingVertex> vertices = new();
-                nonInterpolatdChunk = nonInterpolatdChunk.Distinct().ToList();
-
-                foreach (Vector3 v in nonInterpolatdChunk) {
-                    // for (int y = 0; y < lightmap.GetLength(0); y++)
-                    // {
-                    //     for (int z = 0; z < lightmap.GetLength(1); z++)
-                    //     {
-                    //         for (int x = 0; x < lightmap.GetLength(2); x++)
-                    //         {
-                    //
-                    int clamped = Utils.ConvertToNewRange((int)v.Y, 0, RegionManager.CHUNK_HEIGHT - 1, 0, RegionManager.CHUNK_BOUNDS - 1);
-                   // Console.WriteLine($"{clamped} : {yLoc + RegionManager.CHUNK_BOUNDS}");
-                   
-                    for (int i = clamped; i < clamped + 1; i++)
-                    {
-                        //If a voxel is transparent to light, such as glass or air, then we set the sunlight value to
-                        //the maximum and add a node to sunlightBfsQueue.
-
-                        short idx = (short)(i * bounds * bounds + v.Z * bounds + v.X);
-                        counter++;
-
-                      //  int clampedY = ConvertToNewRange(i, 0, RegionManager.CHUNK_BOUNDS - 1, 0, RegionManager.CHUNK_HEIGHT - 1);
-                        // if (clampedHeightMap >= v.Y)
-                        // {
-                      //  Console.WriteLine($"Y: {i} Heightmap: {heightMap[(int)v.Z, (int)v.X]}");
-                        //Set all air blocks in the chunk to 15
-                        SetSunlight((int)v.X, i, (int)v.Z, 15);
-                      //  Console.WriteLine($"{counter}: Setting {v.X}.{i}.{v.Z} to {15}");
-                        BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = this });
-                        vertices.Add(new(v.X, i, v.Z, 15));
-                        
-                    }
-                }
-              //  lightingRenderTask = new(vertices, GetVbo("Lighting"), GetEbo("Lighting"), GetVao("Lighting"));
-                Console.WriteLine("Vertex Count: " + vertices.AsEnumerable().Count());
-            }
-        }
         private void PropagateTorchLight(int x, int y, int z, int val)
         {
             int bounds = RegionManager.CHUNK_BOUNDS;
@@ -754,131 +430,6 @@ namespace Vox.Genesis
             }
         }
 
-        public void PropagateSunlight()
-        {
- 
-            int bounds = RegionManager.CHUNK_BOUNDS;
-            while (BFSSunlightPropagationQueue.Count > 0)
-            {
-               // Console.WriteLine(BFSSunlightPropagationQueue.Count);
-                // Get a reference to the front node and pop it off the queue. We no longer need the node reference
-                LightNode front = BFSSunlightPropagationQueue.Dequeue();
-
-                int index = front.Index;
-                Chunk chunk = front.Chunk;
-
-                // Extract x, y, and z from our chunk.
-                int x = index % bounds;
-
-                int y = index / (bounds * bounds);
-
-                int z = (index % (bounds * bounds)) / bounds;
-
-                // Grab the light level of the current node       
-                int lightLevel = chunk.GetSunlight(x, y, z);
-
-
-                //Look at all neighbouring voxels to that node.
-                //if their light level is 2 or more levels less than
-                //the current node, then set their light level to
-                //the current nodes light level - 1, and then add
-                //them to the queue.
-
-                // NOTE: You will need to do bounds checking!
-                // If you are on the edge of a chunk, then x - 1 will be -1. Instead
-                // you need to look at your left neighboring chunk and check the
-                // adjacent block there. When you do that, be sure to use the
-                // neighbor chunk when emplacing the new node to lightBfsQueue;
-
-                // Check negative X neighbor
-                // Make sure you don't propagate light into opaque blocks like stone!
-
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x - 1, y, z)).IsTransparent()
-                    && chunk.GetSunlight(x - 1, y, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test1");
-                    // Set its light level
-                    chunk.SetSunlight(x - 1, y, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short) (y * bounds * bounds + z * bounds + (x - 1));
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z - 1)).IsTransparent()
-                    && chunk.GetSunlight(x, y, z - 1) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test2");
-                    // Set its light level
-                    chunk.SetSunlight(x, y, z - 1, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + (z - 1) * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y - 1, z)).IsTransparent()
-                    && chunk.GetSunlight(x, y - 1, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test3");
-                    // Set its light level
-                    chunk.SetSunlight(x, y - 1, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)((y - 1) * bounds * bounds + z * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x + 1, y, z)).IsTransparent()
-                    && chunk.GetSunlight(x + 1, y, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test4");
-                    // Set its light level
-                    chunk.SetSunlight(x + 1, y, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + z * bounds + (x + 1));
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y, z + 1)).IsTransparent()
-                    && chunk.GetSunlight(x, y, z + 1) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test5");
-                    // Set its light level
-                    chunk.SetSunlight(x, y, z + 1, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)(y * bounds * bounds + (z + 1) * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-                if (ModelLoader.GetModel(chunk.GetBlockTypeAt(x, y + 1, z)).IsTransparent()
-                    && chunk.GetSunlight(x, y + 1, z) + 2 <= lightLevel)
-                {
-                    Console.WriteLine("test6");
-                    // Set its light level
-                    chunk.SetSunlight(x, y + 1, z, lightLevel - 1);
-
-                    // Construct index
-                    short idx = (short)((y + 1) * bounds * bounds + z * bounds + x);
-
-                    // Emplace new node to queue. (could use push as well)
-                    BFSSunlightPropagationQueue.Enqueue(new LightNode { Index = idx, Chunk = chunk });
-
-                }
-            }  //End while loop
-        }
         public void AddBlockToChunk(Vector3 v)
         {
             for (int i = 0; i < blocksToExclude.Count; i += 3)
@@ -923,10 +474,10 @@ namespace Vox.Genesis
                         containsRange = true;
                 }
 
-                if ((adjBlock.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
-                    || adjBlock.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
-                    || v.Y < GetGlobalHeightMapValue((int)v.X, (int)v.Z)
-                    || v.Y < GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
+                if ((adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
+                    || adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
+                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z)
+                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
                     && !containsRange)
 
                 {
@@ -940,6 +491,11 @@ namespace Vox.Genesis
             //GetTerrainRenderTask();
 
         }
+
+        public bool IsGenerated()
+        {
+            return isGenerated;
+        }
         public override string ToString()
         {
             return $"Chunk[{xLoc},{yLoc},{zLoc}]";
@@ -948,6 +504,12 @@ namespace Vox.Genesis
         public override int GetHashCode()
         {
             return base.GetHashCode();
+        }
+
+        //Resets this chunk. It will be regenerated next time it is cached.
+        public void Reset()
+        {
+            isGenerated = false;
         }
     }
 }

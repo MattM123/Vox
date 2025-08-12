@@ -2,10 +2,11 @@
 {
     public enum BlockType
     {
-        GRASS_BLOCK,
+        GRASS_BLOCK = 1, //Starts at 1
         DIRT_BLOCK,
         STONE_BLOCK,
         TARGET_BLOCK,
-        TEST_BLOCK
+        TEST_BLOCK,
+        AIR = 0, // 0 reserved for air
     }
 }

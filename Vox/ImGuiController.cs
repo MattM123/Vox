@@ -556,7 +556,7 @@ namespace Vox.GUI
             int i = 1;
             while ((error = GL.GetError()) != ErrorCode.NoError)
             {
-               // Logger.Error(new GLException($"ImGuiController :: {title} ({i++}): {error}"), "ImGuiController.CheckGLError");
+                Logger.Error(new GLException($"ImGuiController :: {title} ({i++}): {error}"), "ImGuiController.CheckGLError");
             }
         }
 

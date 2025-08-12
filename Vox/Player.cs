@@ -84,7 +84,6 @@ namespace Vox
             Vector3 currentPosition = Vector3.Zero;
             BlockDetail block = new();
             Vector3 rayDirection = GetForwardDirection();
-
             for (float distance = 0; distance < maxDistance; distance += stepSize)
             {
    
@@ -171,7 +170,7 @@ namespace Vox
             Matrix4 viewMatrix = GetViewMatrix();
 
             //Gets Z Axis from player matrix
-            return Vector3.Normalize(new(-viewMatrix.Column2.Xyz));
+            return -viewMatrix.Column2.Xyz;
 
         }
 
@@ -192,7 +191,7 @@ namespace Vox
         public static List<Vector3> GetPlayerCollisionMesh()
         {
             Vector3 playerPos = new((float)Math.Floor(position.X),
-                Chunk.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
+                RegionManager.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
                 (float)Math.Floor(position.Z));
 
             List<Vector3> collisionMesh = [];
@@ -370,7 +369,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-            CheckChunkCollision(deltaTime);
+        //    CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change

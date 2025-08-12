@@ -91,37 +91,37 @@ namespace Vox.Genesis
          */
         public bool IsSurrounded()
         {
-            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
-            List<Vector3> surroundingCubes =
-            [
-                // Edge-adjacent (diagonal) cubes
-                lowerCorner + new Vector3(1, 1, 0), upperCorner + new Vector3(1, 1, 0),             // +X +Y
-            lowerCorner + new Vector3(-1, 1, 0), upperCorner + new Vector3(-1, 1, 0),           // -X +Y
-            lowerCorner + new Vector3(1, -1, 0), upperCorner + new Vector3(1, -1, 0),           // +X -Y
-            lowerCorner + new Vector3(-1, -1, 0), upperCorner + new Vector3(-1, -1, 0)          // -X -Y
-            ];
-
-            //Face adjacent cubes
-            surroundingCubes.AddRange(faceAdjacentBlocks);
-
-            for (int i = 0; i < vertList.Count; i += 24)
-            {
-                for (int j = 0; j < surroundingCubes.Count; j++)
-                    if (vertList[i].GetVector().Equals(surroundingCubes[j]))
-                        return true;
-            }
+           //List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
+           //List<Vector3> surroundingCubes =
+           //[
+           //    // Edge-adjacent (diagonal) cubes
+           //    lowerCorner + new Vector3(1, 1, 0), upperCorner + new Vector3(1, 1, 0),             // +X +Y
+           //lowerCorner + new Vector3(-1, 1, 0), upperCorner + new Vector3(-1, 1, 0),           // -X +Y
+           //lowerCorner + new Vector3(1, -1, 0), upperCorner + new Vector3(1, -1, 0),           // +X -Y
+           //lowerCorner + new Vector3(-1, -1, 0), upperCorner + new Vector3(-1, -1, 0)          // -X -Y
+           //];
+           //
+           ////Face adjacent cubes
+           //surroundingCubes.AddRange(faceAdjacentBlocks);
+           //
+           //for (int i = 0; i < vertList.Count; i += 24)
+           //{
+           //    for (int j = 0; j < surroundingCubes.Count; j++)
+           //        if (vertList[i].GetVector().Equals(surroundingCubes[j]))
+           //            return true;
+           //}
             return false;
         }
 
         public bool IsRendered()
         {
-            List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
-            for (int i = 0; i < vertList.Count; i += 24)
-            {
-                if (vertList[i].GetVector().Equals(lowerCorner))
-                    return true;
-            }
-            return false;
+          //List<TerrainVertex> vertList = [.. RegionManager.GetAndLoadGlobalChunkFromCoords((int)lowerCorner.X, (int)lowerCorner.Y, (int)lowerCorner.Z).GenerateRenderData().GetVertexData()];
+          //for (int i = 0; i < vertList.Count; i += 24)
+          //{
+          //    if (vertList[i].GetVector().Equals(lowerCorner))
+          //        return true;
+          //}
+          return false;
         }
 
         public List<Vector3> GetFaceAdjacentBlocks()

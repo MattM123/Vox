@@ -202,7 +202,7 @@ namespace Vox.Model
                         Vector3 normal = CalculateNormal(new(x + modelEle90.x1 / 16, y + modelEle90.y1 / 16, z + modelEle90.z1 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16),
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -224,7 +224,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -245,7 +245,7 @@ namespace Vox.Model
                             new(x + modelEle.x2 / 16, y + modelEle.y2 / 16, z + modelEle.z2 / 16),
                             new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -266,7 +266,7 @@ namespace Vox.Model
                             new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
                             new(x + modelEle.x1 / 16, y + modelEle.y1 / 16, z + modelEle.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -288,7 +288,7 @@ namespace Vox.Model
                             new(x + modelEle270.x1 / 16, y + modelEle270.y1 / 16, z + modelEle270.z1 / 16),
                             new(x + modelEle180.x2 / 16, y + modelEle180.y2 / 16, z + modelEle180.z2 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -309,7 +309,7 @@ namespace Vox.Model
                             new(x + modelEle270.x2 / 16, y + modelEle270.y2 / 16, z + modelEle270.z2 / 16),
                             new(x + modelEle180.x1 / 16, y + modelEle180.y1 / 16, z + modelEle180.z1 / 16));
 
-                        c ??= new Chunk().Initialize(0, 0, 0);
+                        c ??= RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
 
                         //Clamps coords into a index usable by the chunks lightmap
                         int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
@@ -336,36 +336,6 @@ namespace Vox.Model
 
             }
         }
-        public static LightingVertex[] GetLighting(BlockType blockType, int lighting, Vector3 blockLoc, Chunk c)
-        {
-
-            float x = blockLoc.X;
-            float y = blockLoc.Y;
-            float z = blockLoc.Z;
-
-            BlockModel model = ModelLoader.GetModel(blockType);
-
-            BlockModel model90 = model.RotateX(90);
-            BlockModel model180 = model.RotateX(180);
-            BlockModel model270 = model.RotateX(270);
-
-            Element modelEle = model.GetElements().ToList().ElementAt(0);
-            Element modelEle90 = model90.GetElements().ToList().ElementAt(0);
-            Element modelEle180 = model180.GetElements().ToList().ElementAt(0);
-            Element modelEle270 = model270.GetElements().ToList().ElementAt(0);
-
-
-            //Clamps coords into a index usable by the chunks lightmap
-            int lightX = (int)Math.Abs(x) % RegionManager.CHUNK_BOUNDS;
-            int lightY = (int)Math.Abs(y) % RegionManager.CHUNK_BOUNDS;
-            int lightZ = (int)Math.Abs(z) % RegionManager.CHUNK_BOUNDS;
-
-            return [
-                   //Position (X, Y, Z)       Lighting
-                new LightingVertex(x, y, z,    c.lightmap[lightX, lightY, lightZ])
-            ];           
-        }
-
 
         // Method to calculate normal for a face
         public static Vector3 CalculateNormal(Vector3 v0, Vector3 v1, Vector3 v2)
