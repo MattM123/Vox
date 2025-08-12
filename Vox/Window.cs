@@ -109,6 +109,7 @@ namespace Vox
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
             menuSeed = BitConverter.ToInt64(buffer, 0);
 
+
             //Load textures and models
 
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
