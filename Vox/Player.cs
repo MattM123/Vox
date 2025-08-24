@@ -30,11 +30,9 @@ namespace Vox
         private bool IsGrounded = false;
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
-        private List<Vector3> viewBlock = [];
-        public readonly float reachDistance = 5f;
+        public readonly float reachDistance = 100f;
         public TerrainVertex[] viewTarget = [];
-        private BlockType playerSelectedBlock = BlockType.TEST_BLOCK;
-        private Vector3 targetVertex = Vector3.Zero;
+        private readonly BlockType playerSelectedBlock = BlockType.DIRT_BLOCK;
 
         private static readonly float gravity = 0f;// 9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
@@ -65,104 +63,103 @@ namespace Vox
          * out bool: True if their is already a bloc kat the view target,
          * false otherwise
          * 
-         * out Vertex: The vertex struct that is in view target.
+         * out playerFaceing: The direction the player is facing
+         * out blockface: the blockface the player is looking at
+         * out blockSpace: the empty block space immediately preceding the ray terrain intersection,
+         * used to get where a block will appear if a player places a block
          * 
          */
-        public BlockDetail UpdateViewTarget(out Face playerFacing, out Vector3 blockFace)
+        public Vector3 UpdateViewTarget(out Face playerFacing, out Vector3 blockFace, out Vector3 blockSpace)
         {
             playerFacing = Face.ALL;
             blockFace = Vector3.Zero;
+            blockSpace = Vector3.Zero;
 
-            //Update the player picked block based on view target
-            BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
-           
-
-            float stepSize = 0.5f;  // Distance to step along the ray each iteration
+            float stepSize = 0.2f;  // Distance to step along the ray each iteration
             float maxDistance = reachDistance;  // Maximum reach distance for the ray
             Vector3 rayOrigin = position;
             Vector3 target = Vector3.Zero;
             Vector3 currentPosition = Vector3.Zero;
             BlockDetail block = new();
+            Vector3 previousBlock = Vector3.Zero;
             Vector3 rayDirection = GetForwardDirection();
             for (float distance = 0; distance < maxDistance; distance += stepSize)
             {
-   
 
                 // Calculate the current position along the ray, round to make divisible by stepSize
                 currentPosition = rayOrigin + rayDirection * distance;
 
                 target = new(
-                    (float)Math.Round(currentPosition.X),
-                    (float)Math.Round(currentPosition.Y),
-                    (float)Math.Round(currentPosition.Z)
+                    (float)Math.Floor(currentPosition.X),
+                    (float)Math.Floor(currentPosition.Y),
+                    (float)Math.Floor(currentPosition.Z)
                 );
 
-                block = new(
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.NORTH, target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.SOUTH, target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.UP,    target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.DOWN,  target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.EAST,  target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z)),
-                    ModelUtils.GetCuboidFace(BlockType.TARGET_BLOCK , Face.WEST,  target, RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z))
-                );
-
-
-                //calculate direction player is facing from their view matrix
-                Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
-                if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)    
-                    playerFacing = (rayDirection.X > 0 ? Face.EAST : Face.WEST);
-                
-                else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
-                    playerFacing = (rayDirection.Y > 0 ? Face.UP : Face.DOWN);   
-                
+                //If the ray steps into an air block, continue to the next step iteration
+                Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
+                Vector3 blockDataIndex = RegionManager.GetChunkRelativeCoordinates(target);
+                if (actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] == (int)BlockType.AIR) {
+                    previousBlock = target;
+                    continue;
+                }   
+                //else, render block selection target and break the loop
                 else
-                    playerFacing = (rayDirection.Z > 0 ? Face.NORTH : Face.SOUTH);
-
-
-
-                Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
-                Vector3 localHitVector = Vector3.Normalize(blockCenter - currentPosition);
-
-
-                //Create block view matrix to calculate blockface player is looking at
-                Matrix4 blockViewMat = Matrix4.LookAt(blockCenter, currentPosition, new Vector3(0.0f, 1f, 0.0f));
-
-                //TODO: Slightly off
-                Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
-                Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
-
-                Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
-
-                if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
-                    //blockFace = (blockForwardDir.X > 0 ? Face.EAST : Face.WEST);
-                    blockFace = new(blockFaceToAdd.X, 0, 0);
-
-
-                else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
-                    //blockFace = (blockForwardDir.Y > 0 ? Face.DOWN : Face.UP);
-                    blockFace = new(0, blockFaceToAdd.Y, 0);
-
-                else
-                    blockFace = new(0, 0, blockFaceToAdd.Z);
-                    //blockFace = (blockForwardDir.Z > 0 ? Face.NORTH : Face.SOUTH);
-
-                // if (Vector3.Distance(currentPosition, target) < reachDistance)
-                if (block.IsIntersectingBlock(currentPosition))
                 {
+                    blockSpace = previousBlock;
 
-                    //Returns the last block the player was looking at
-                    Window.GetShaders().SetVector3Uniform("targetVertex", target);
+                    block = new(
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.NORTH, target, actionChunk),
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.SOUTH, target, actionChunk),
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.UP, target, actionChunk),
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.DOWN, target, actionChunk),
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.EAST, target, actionChunk),
+                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.WEST, target, actionChunk)
+                    );
 
-                    viewTarget = block.GetVertexData();
-       
-                    return block;
-                } 
+                    //calculate direction player is facing from their view matrix
+                    Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
+                    if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)
+                        playerFacing = (rayDirection.X > 0 ? Face.EAST : Face.WEST);
+
+                    else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
+                        playerFacing = (rayDirection.Y > 0 ? Face.UP : Face.DOWN);
+
+                    else
+                        playerFacing = (rayDirection.Z > 0 ? Face.NORTH : Face.SOUTH);
+
+
+
+                    Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
+                    Vector3 localHitVector = Vector3.Normalize(blockCenter - currentPosition);
+
+
+                    //Create block view matrix to calculate blockface player is looking at
+                    Matrix4 blockViewMat = Matrix4.LookAt(blockCenter, currentPosition, new Vector3(0.0f, 1f, 0.0f));
+
+                    //TODO: Slightly off
+                    Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
+                    Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
+
+                    Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
+
+                    if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
+                        blockFace = new(blockFaceToAdd.X, 0, 0);
+
+
+                    else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
+                        blockFace = new(0, blockFaceToAdd.Y, 0);
+
+                    else
+                        blockFace = new(0, 0, blockFaceToAdd.Z);
+
+                    break;
+                }
             }
             //Returns the last block the player was looking at
             Window.GetShaders().SetVector3Uniform("targetVertex", target);
 
             viewTarget = block.GetVertexData();
-            return block;
+            return target;
         }
 
         public Vector3 GetForwardDirection()
@@ -174,7 +171,7 @@ namespace Vox
 
         }
 
-        public BlockType GetPlayerSelectedBlock()
+        public BlockType GetPlayerBlockType()
         {
             return playerSelectedBlock;
         }

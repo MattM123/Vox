@@ -35,6 +35,7 @@ uniform vec3 playerMin;
 uniform vec3 playerMax;
 uniform vec3 targetVertex;
 uniform vec3 forwardDir;
+uniform int targetTexLayer;
 
 in vec4 fragPosLightSpace;
 flat in float fTexLayer;
@@ -125,7 +126,7 @@ void main()
 
     //Light attenuation
     float dist = length(light.position - fragPos);
-    float attenuation = 3000.0 / (dist * dist); // Inverse square law
+   // float attenuation = 3000.0 / (dist * dist); // Inverse square law
 
     //Blinn-Phong Specular
     float spec = pow(max(dot(norm, halfVec), 0.0), material.shininess);
@@ -181,7 +182,7 @@ void main()
      {
          // If inside the bounding box, combine texture with target texture
          vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
-         vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, 4));
+         vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, targetTexLayer));
          applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
      }
      

@@ -9,7 +9,7 @@ namespace Vox.Genesis
     public class ChunkCache
     {
         private static int renderDistance = RegionManager.GetRenderDistance();
-        private static int bounds = RegionManager.CHUNK_BOUNDS;
+        private static int bounds;
         private static Chunk? playerChunk;        
         private static Dictionary<string, Chunk> chunks = [];
         private static Dictionary<string, Region> regions = [];
@@ -17,9 +17,8 @@ namespace Vox.Genesis
         /**
          *
          * Updates, stores, and returns a list of in-memory
-         * chunks that should be rendered around a player at
-         * a certain point in time.
-         * @param bounds The length and width of the square chunk.
+         * chunks that should be rendered around a player in a frame.
+         * @param bounds The length, width, and height of the cubic chunk.
          * @param playerChunk The chunk a player inhabits.
          */
         public ChunkCache(int bounds, Chunk playerChunk)
@@ -28,7 +27,6 @@ namespace Vox.Genesis
             ChunkCache.playerChunk = playerChunk;
 
         }
-
         public static void SetBounds(int bounds)
         {
             ChunkCache.bounds = bounds;
@@ -42,6 +40,11 @@ namespace Vox.Genesis
             playerChunk = c;
         }
 
+        /**
+         * Returns a list of chunks around a player based on a render distance and radius value
+         * and updates chunks that surround a player in a world space
+         * @return The list of chunks that should be rendered.
+         */
         public static void GetRadialChunks()
         {
             int bounds = RegionManager.CHUNK_BOUNDS;
@@ -81,50 +84,8 @@ namespace Vox.Genesis
                 }
             }
         }
-        /**
-         * Gets the chunks diagonally oriented from the chunk the player is in.
-         * This includes each 4 quadrants surrounding the player. This does not include the chunks
-         * aligned straight out from the player.
-         *
-         * @return A list of chunks that should be rendered diagonally from the chunk the
-         * player is in.
-         */
-        private static void GetQuadrantChunks()
-        {
-          //  renderDistance = renderDistance + renderDistance + 1;
-            int playerElevation = (int) (playerChunk.yLoc / RegionManager.CHUNK_BOUNDS); 
-            for (int y = playerElevation - (renderDistance); y <= (renderDistance); y++)
-            {
-                //Top left quadrant
-                Vector3 TLstart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z + bounds);
-                for (int x = (int)TLstart.X; x > TLstart.X - (renderDistance * bounds); x -= bounds)
-                    for (int z = (int)TLstart.Z; z < TLstart.Z + (renderDistance * bounds); z += bounds)
-                        CacheHelper(x, y * bounds, z);
 
-                //Top right quadrant
-                Vector3 TRStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z + bounds);
-                for (int x = (int)TRStart.X; x < TRStart.X + (renderDistance * bounds); x += bounds)
-                    for (int z = (int)TRStart.Z; z < TRStart.Z + (renderDistance * bounds); z += bounds)
-                        CacheHelper(x, y * bounds, z);
-                
-
-                //Bottom right quadrant
-                Vector3 BRStart = new(playerChunk.GetLocation().X - bounds, 0, playerChunk.GetLocation().Z - bounds);
-                for (int x = (int)BRStart.X; x > BRStart.X - (renderDistance * bounds); x -= bounds)
-                    for (int z = (int)BRStart.Z; z > BRStart.Z - (renderDistance * bounds); z -= bounds)
-                        CacheHelper(x, y * bounds, z);
-                
-
-                //Bottom left quadrant
-                Vector3 BLStart = new(playerChunk.GetLocation().X + bounds, 0, playerChunk.GetLocation().Z - bounds);
-                for (int x = (int)BLStart.X; x < BLStart.X + (renderDistance * bounds); x += bounds)
-                    for (int z = (int)BLStart.Z; z > BLStart.Z - (renderDistance * bounds); z -= bounds)
-                        CacheHelper(x, y * bounds, z);
-                
-            }
-        }
-
-        //Clears and resets cahce without repopulating it
+        //Clears and resets cache without repopulating it
         public static void ClearChunkCache()
         {
             chunks.Clear();
@@ -174,60 +135,13 @@ namespace Vox.Genesis
         }
 
         /**
-         * Gets the chunks that should be rendered along the X And Z axis. E.X a renderer distance
-         * of 2 would return 8 chunks, 2 on every side of the player in each cardinal direction
-         *
-         * @return A list of chunks that should be rendered in x, z, -x, and -z directions
-         */
-        private static void GetCardinalChunks()
-        {
-            int playerElevation = (int)(playerChunk.yLoc / RegionManager.CHUNK_BOUNDS);
-            for (int y = playerElevation - renderDistance; y <= renderDistance; y++)
-            {
-                //Positive X
-                for (int i = 1; i <= renderDistance; i++)
-                {
-                    int x = (int)playerChunk.GetLocation().X + (i * bounds);
-                    int z = (int)playerChunk.GetLocation().Z;
-                    CacheHelper(x, y * bounds, z);
-                }
-
-                //Negative X
-                for (int i = 1; i <= renderDistance; i++)
-                {
-                    int x = (int)playerChunk.GetLocation().X - (i * bounds);
-                    int z = (int)playerChunk.GetLocation().Z;
-                    CacheHelper(x, y * bounds, z);
-                }
-
-                //Positive Z
-                for (int i = 1; i <= renderDistance; i++)
-                {
-                    int x = (int)playerChunk.GetLocation().X;
-                    int z = (int)playerChunk.GetLocation().Z + (i * bounds);
-                    CacheHelper(x, y * bounds, z);
-                }
-                //Negative Z
-                for (int i = 1; i <= renderDistance; i++)
-                {
-
-                    int x = (int)playerChunk.GetLocation().X;
-                    int z = (int)playerChunk.GetLocation().Z - (i * bounds);
-                    CacheHelper(x, y * bounds, z);
-                }
-            }
-        }
-
-        /**
          * Returns a list of chunks that should be rendered around a player based on a render distance value
          * and updates chunks that surround a player in a global scope.
          * @return The list of chunks that should be rendered.
          */
         public static Dictionary<string, Chunk> UpdateChunkCache()
         {
-
             GetRadialChunks();
-
             return chunks;
    }
 

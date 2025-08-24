@@ -233,6 +233,7 @@ namespace Vox
             terrainShaders.CreateUniform("crosshairOrtho");
             terrainShaders.SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
+            terrainShaders.CreateUniform("targetTexLayer");
             terrainShaders.CreateUniform("lightSpaceMatrix");
             terrainShaders.CreateUniform("playerMin");
             terrainShaders.CreateUniform("playerMax");
@@ -320,10 +321,6 @@ namespace Vox
             GL.DrawBuffer(DrawBufferMode.None);
             GL.ReadBuffer(ReadBufferMode.None);
 
-
-            //Remeber to clear cache each frame 
-            ChunkCache.ClearChunkCache();
-
             if (loadedWorld == null)
             {
                 if (angle > 360)
@@ -377,6 +374,8 @@ namespace Vox
             }
             else
             {
+                terrainShaders?.SetIntFloatUniform("targetTexLayer", AssetLookup.GetTextureValue("target.png"));
+                terrainShaders?.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _));
                 terrainShaders?.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
                 terrainShaders?.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
                 terrainShaders?.SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
@@ -394,7 +393,7 @@ namespace Vox
             terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
             terrainShaders?.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
             terrainShaders?.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
-            terrainShaders?.SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _).GetLowerCorner());
+          
 
             //material uniforms
             terrainShaders?.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
@@ -528,26 +527,20 @@ namespace Vox
         {
             base.OnMouseDown(e);
 
-           // if (!IsMenuRendered())
-           // {
-           //     BlockDetail block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace);
-           //     Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int)block.GetLowerCorner().X, (int)block.GetLowerCorner().Y, (int)block.GetLowerCorner().Z);
-           //
-           //     if (e.Button == MouseButton.Left)
-           //     {
-           //         Console.WriteLine("Add Block: " + block.GetLowerCorner());
-           //         if (block.IsSurrounded() && !block.IsRendered())
-           //             actionChunk.AddBlockToChunk(block.GetLowerCorner());
-           //         else if (block.IsRendered())
-           //             actionChunk.AddBlockToChunk(block.GetLowerCorner() + blockFace);
-           //     }
-           //     if (e.Button == MouseButton.Right)
-           //     {
-           //         Console.WriteLine("Remove Block: " + block.GetLowerCorner());
-           //         actionChunk.RemoveBlockFromChunk(block.GetLowerCorner());
-           //     }
-           //
-           // }
+            if (!IsMenuRendered())
+            {
+                Vector3 block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
+
+                if (e.Button == MouseButton.Left)
+                {
+                    RegionManager.AddBlockToChunk(blockSpace);
+                }
+                if (e.Button == MouseButton.Right)
+                {
+                    RegionManager.RemoveBlockFromChunk(block);
+                }
+           
+            }
         }
 
         protected override void OnTextInput(TextInputEventArgs e)
@@ -731,7 +724,7 @@ namespace Vox
                 ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
 
                 Face f = Face.ALL;
-                BlockDetail block = GetPlayer().UpdateViewTarget(out f, out Vector3 blockface);
+                Vector3 block = GetPlayer().UpdateViewTarget(out f, out Vector3 blockface, out Vector3 blockSpace);
                 ImGui.Text("Facing Add: " + blockface);
                 ImGui.Text("");
 
@@ -835,6 +828,8 @@ namespace Vox
  
         private void RenderWorld()
         {
+            //Remeber to clear cache each frame 
+            ChunkCache.ClearChunkCache();
 
             //Recalculate SSBO size
             int blockFacesPerBlock = 6;
@@ -976,75 +971,6 @@ namespace Vox
             GL.BindVertexArray(0);
         }
 
-        public static void RenderBlockTarget()
-        {
-
-            BlockDetail block = GetPlayer().UpdateViewTarget(out _, out Vector3 blockFace);
-            if (block.IsSurrounded() && !block.IsRendered())
-            {
-                BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
-
-                /*==================================
-                Render View Target Block Outline
-                ====================================*/
-                TerrainVertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
-
-                if (viewBlockVertices.Length > 0)
-                {
-
-                    int viewVBO = GL.GenBuffer();
-
-                    // Bind and upload vertex data
-                    GL.BindBuffer(BufferTarget.ArrayBuffer, viewVBO);
-                    GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<TerrainVertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
-
-
-                    //Draw the view target outline
-                    terrainShaders.Bind();
-                    GL.DrawElements(PrimitiveType.TriangleStrip, 24, DrawElementsType.UnsignedInt, 0);
-
-                }
-            }
-          //else if (block.IsSurrounded() && block.IsRendered())
-          //{
-          //    BlockModel model = ModelLoader.GetModel(BlockType.TARGET_BLOCK);
-          //
-          //    /*==================================
-          //    Render View Target Block Outline
-          //    ====================================*/
-          //
-          //    Vertex[] viewBlockVertices = GetPlayer().GetViewTargetForRendering();
-          //
-          //    //Add offset to prevent placing a block in a position that already contains one
-          //    for (int i = 0; i < viewBlockVertices.Length; i++)
-          //    {
-          //        viewBlockVertices[i].SetVector(viewBlockVertices[i].GetVector() + blockFace);
-          //    }
-          //
-          //    if (viewBlockVertices.Length > 0)
-          //    {
-          //
-          //        int viewVBO = GL.GenBuffer();
-          //
-          //        // Bind and upload vertex data
-          //        GL.BindBuffer(BufferTarget.ArrayBuffer, viewVBO);
-          //        GL.BufferData(BufferTarget.ArrayBuffer, viewBlockVertices.Length * Unsafe.SizeOf<Vertex>(), viewBlockVertices, BufferUsageHint.StaticDraw);
-          //
-          //
-          //        //Draw the view target outline
-          //        GL.DrawElements(PrimitiveType.TriangleStrip, 24, DrawElementsType.UnsignedInt, 0);
-          //
-          //    }
-          //}
-        }
-
-
-        public static Chunk GetGlobalChunk()
-        {
-            if (globalPlayerChunk == null)
-                return RegionManager.GetAndLoadGlobalChunkFromCoords(0, 0, 0);
-            return globalPlayerChunk;
-        }
         private static float[] GetCrosshair()
         {
             return [
@@ -1087,10 +1013,6 @@ namespace Vox
             player ??= new();
 
             return player;
-        }
-        public static RegionManager GetWorld()
-        {
-            return loadedWorld;
         }
         public static ShaderProgram GetShaders()
         {

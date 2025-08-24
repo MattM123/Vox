@@ -1,7 +1,10 @@
 ﻿
+using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using MessagePack;
+using OpenTK.Mathematics;
 using Vox.Model;
+using Vox.Rendering;
 namespace Vox.Genesis
 {
 
@@ -71,6 +74,20 @@ namespace Vox.Genesis
         }
 
         /**
+         * Given a 3D point in world space, convert to chunk relative coordinates within
+         * the range of the chunks bounds.
+         **/
+        public static Vector3 GetChunkRelativeCoordinates(Vector3 v)
+        {
+            int bounds = RegionManager.CHUNK_BOUNDS;
+            return new Vector3(
+                Math.Abs(v.X % bounds),
+                Math.Abs(v.Y % bounds),
+                Math.Abs(v.Z % bounds)
+            );
+        }
+
+        /**
         * Given an x, y, and z value for a blocks location, generates the blocks type using
         * Simplex noise.
         * @param x coordinate of block
@@ -103,6 +120,7 @@ namespace Vox.Genesis
             //    return BlockType.GRASS_BLOCK;
             //else if (noise < 0.6f)
             //    return BlockType.DIRT_BLOCK;
+            //    return BlockType.DIRT_BLOCK;
             //else
             //    return BlockType.STONE_BLOCK;
 
@@ -110,6 +128,47 @@ namespace Vox.Genesis
             return (BlockType)index;
 
         }
+        public static BlockType GetGlobalBlockType(Vector3 blockSpace)
+        {
+            int x = (int) blockSpace.X;
+            int y = (int) blockSpace.Y;
+            int z = (int) blockSpace.Z;
+
+            long seed;
+            if (Window.IsMenuRendered())
+                seed = Window.GetMenuSeed();
+            else
+                seed = WORLD_SEED;
+
+            //Generate noise and normalize to 0-1 from -1-1
+            float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
+
+            //how many different types of blocks are there?
+            int blocktypes = Enum.GetValues(typeof(BlockType)).Length;
+
+            // Multiply normalized noise to get an index
+            int index = (int)(noise * blocktypes);
+
+            // Clamp to exlude "non-blocks"
+            index = Math.Clamp(index, 1, blocktypes - 3);
+
+            //Manually define ranges for certain block types like this:
+            //if (noise < 0.3f)
+            //    return BlockType.GRASS_BLOCK;
+            //else if (noise < 0.6f)
+            //    return BlockType.DIRT_BLOCK;
+            //    return BlockType.DIRT_BLOCK;
+            //else
+            //    return BlockType.STONE_BLOCK;
+
+            // Convert index to BlockType
+            return (BlockType)index;
+
+        }
+        /**
+         * Gets the current memory usage for the visibile chunks 
+         * surrounding the player withinin render distance
+         */
         public static int PollChunkMemory()
         {
             int count = 0;
@@ -154,6 +213,9 @@ namespace Vox.Genesis
 
         }
 
+        /**
+         * Write new or existing region to file
+         */
         public static void WriteRegion(string rIndex)
         {
             Region r = VisibleRegions[rIndex];
@@ -165,6 +227,9 @@ namespace Vox.Genesis
             File.WriteAllBytes(path, serializedRegion);
         }
 
+        /**
+         * Read existing region from file
+         */
         public static Region? ReadRegion(string path)
         {
             byte[] serializedData = File.ReadAllBytes(path);
@@ -242,7 +307,10 @@ namespace Vox.Genesis
             }
 
         }
- 
+
+        /**
+         * Get new empty region given any x,z coordinate pair.
+         */
         public static Region GetGlobalRegionFromChunkCoords(int x, int z)
         {
             Region returnRegion = null;
@@ -266,6 +334,9 @@ namespace Vox.Genesis
             return new Region(xUpperLimit, zUpperLimit);
         }
 
+        /**
+         * Get any chunk given a x,y,z coordinate trio and load it into memory
+         */
         public static Chunk GetAndLoadGlobalChunkFromCoords(int x, int y, int z)
         {
 
@@ -284,6 +355,181 @@ namespace Vox.Genesis
                 r.chunks.Add(playerChunkIdx, value);
             }
             return value;
+        }
+        public static Chunk GetAndLoadGlobalChunkFromCoords(Vector3 v)
+        {
+            int x = (int)v.X;
+            int y = (int)v.Y;
+            int z = (int)v.Z;
+
+            string playerChunkIdx =
+                $"{Math.Floor((float)x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
+                $"{Math.Floor((float)y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
+                $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+
+            int[] chunkIdxArray = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
+            string playerRegionIdx = Region.GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
+            Region r = EnterRegion(playerRegionIdx);
+
+            if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
+            {
+                value = new Chunk().Initialize(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
+                r.chunks.Add(playerChunkIdx, value);
+            }
+            return value;
+        }
+
+        /**
+         * Given an x,y,z coordinate trio representing a block location,
+         * get the chunk that block is supposed to be in and add it
+         */
+        public static void AddBlockToChunk(Vector3 blockSpace)
+        {
+            //The chunk that is added to
+            Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
+
+            //The block data index within that chunk to modify
+            Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
+
+            //Update block type in chunk data
+            int playerBlockType = (int)  Window.GetPlayer().GetPlayerBlockType();
+
+            actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = playerBlockType;
+           
+            /*=============================================
+             * Add a single block to the SSBO for rendering
+             *=============================================*/
+
+            int bounds = CHUNK_BOUNDS;
+
+            int x = (int)blockDataIndex.X;
+            int y = (int)blockDataIndex.Y;
+            int z = (int)blockDataIndex.Z;
+
+            //Positive Y (UP)
+            if (blockSpace.Y + 1 >= bounds || actionChunk.blockData[x, y + 1, z] == 0)                                         
+            {
+                BlockFaceInstance face = new(blockSpace, Face.UP,
+                    (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.UP));
+                actionChunk.UploadFace(face);
+                actionChunk.IncrementFaceCount();
+            }
+            // Positive X (EAST)
+            if (x + 1 >= bounds ||actionChunk.blockData[x + 1, y, z] == 0)
+            {
+                BlockFaceInstance face = new(blockSpace, Face.EAST,
+                         (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.EAST));
+                actionChunk.UploadFace(face);
+                actionChunk.IncrementFaceCount();
+            }
+
+            //Negative X (WEST)
+            if (x - 1 < 0 ||actionChunk.blockData[x - 1, y, z] == 0)
+            {
+                //Texture enum value corresponds to texture array layer 
+                BlockFaceInstance face = new(blockSpace, Face.WEST,
+                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.WEST));
+
+                actionChunk.UploadFace(face);
+                actionChunk.IncrementFaceCount();
+            }
+
+            //Negative Y (DOWN)
+            if ((y - 1 < 0 ||actionChunk.blockData[x, y - 1, z] == 0)
+                 //If player is below the blocks Y level, render the bottom face
+                 && Window.GetPlayer().GetPosition().Y < y)
+            {
+                //Texture enum value corresponds to texture array layer 
+                BlockFaceInstance face = new(blockSpace, Face.DOWN,
+                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.DOWN));
+
+                actionChunk.UploadFace(face);
+                actionChunk.IncrementFaceCount();
+            }
+
+            //Positive Z (NORTH)
+            if (z + 1 >= bounds ||actionChunk.blockData[x, y, z + 1] == 0)
+            {
+                //Texture enum value corresponds to texture array layer 
+                BlockFaceInstance face = new(blockSpace, Face.NORTH,
+                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.NORTH));
+
+                actionChunk.UploadFace(face);
+                actionChunk.IncrementFaceCount();
+            }
+
+            //Negative Z (SOUTH)
+            if (z - 1 < 0 ||actionChunk.blockData[x, y, z - 1] == 0)
+            {
+                //Texture enum value corresponds to texture array layer 
+                BlockFaceInstance face = new(blockSpace, Face.SOUTH,
+                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.SOUTH));
+
+               actionChunk.UploadFace(face);
+               actionChunk.IncrementFaceCount();
+            }
+        }
+
+
+        /**
+         * Given an x,y,z coordinate trio representing a block location,
+         * get the chunk that block is supposed to be in and remove the block
+         * if it is there
+         */
+        public static void RemoveBlockFromChunk(Vector3 blockSpace)
+        {
+            //The chunk that is added to
+            Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
+
+            //The block data index within that chunk to modify
+            Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
+
+            //Update block type in chunk data
+            actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = (int) BlockType.AIR;
+
+            /*==================================================
+            * Set face instances to BlockType 0 for Air in SSBO
+            *=================================================*/
+
+            int bounds = CHUNK_BOUNDS;
+
+            int x = (int)blockDataIndex.X;
+            int y = (int)blockDataIndex.Y;
+            int z = (int)blockDataIndex.Z;
+            BlockFaceInstance face;
+
+            //Positive Y (UP)
+            face = new(blockSpace, Face.UP, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.UP));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();
+
+            // Positive X (EAST)
+            face = new(blockSpace, Face.EAST, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.EAST));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();
+
+            //Negative X (WEST)
+            face = new(blockSpace, Face.WEST, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.WEST));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();
+
+            //Negative Y (DOWN)
+            face = new(blockSpace, Face.DOWN, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.DOWN));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();          
+
+            //Positive Z (NORTH)
+            face = new(blockSpace, Face.NORTH, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.NORTH));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();
+
+            //Negative Z (SOUTH)
+            face = new(blockSpace, Face.SOUTH, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.SOUTH));
+            actionChunk.UploadFace(face);
+            actionChunk.IncrementFaceCount();
+            
+
+
         }
     }
 }

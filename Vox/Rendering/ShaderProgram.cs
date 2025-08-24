@@ -192,7 +192,6 @@ namespace Vox.Rendering
         public void Bind()
         {
             GL.UseProgram(programId);
-
             GL.GetInteger((GetPName)All.CurrentProgram, out int currentProgram);
         }
 

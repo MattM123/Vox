@@ -16,11 +16,13 @@ namespace Vox.Model
         private readonly List<Element> elements = [];
         private bool transparent = false;
         BlockModel parentModel;
+        BlockType type;
 
         public BlockModel() { }
 
-        public BlockModel(JObject jsonObject)
+        public BlockModel(JObject jsonObject, BlockType type)
         {
+            this.type = type;
             JToken? parent = jsonObject["parent"];
             JObject? jsonTextures = jsonObject["textures"] as JObject;
             JArray? jsonElements = jsonObject["elements"] as JArray;
@@ -30,7 +32,7 @@ namespace Vox.Model
             {
                 string parentPath = parent.ToString();
                 JObject parentObj = AssetManager.GetInstance().GetJson(new AssetPath(Path.Combine(Window.assets, "BlockModels\\" + parent)));
-                parentModel = new BlockModel(parentObj);
+                parentModel = new BlockModel(parentObj, type);
             }
             else
             {
@@ -102,9 +104,21 @@ namespace Vox.Model
         }
 
         public bool IsTransparent() { return transparent; }
+
+        /**
+         * Retrieves a texture from a block model for rendering.
+         * If there the model has no texture assigned it assumes its AIR
+         */
         public Texture GetTexture(Face side)
         {
-            Enum.TryParse(textures[side], true, out Texture output);
+            Texture output = Texture.AIR;
+            try
+            {
+                Enum.TryParse(textures[side], true, out output);
+            } catch (Exception e)
+            {
+                return Texture.AIR;
+            }
             return output;
         }
 
@@ -166,6 +180,7 @@ namespace Vox.Model
             return model;
         }
 
+        public BlockType GetBlockType() { return type; }
         public override string ToString()
         {
             string tex = "";
@@ -189,11 +204,11 @@ namespace Vox.Model
             return "\ntextures=\n" + tex + "elements=\n" + ele + "faces=\n" + faces;
         }
 
-        public static BlockModel ForPath(AssetPath path)
-        {
-            JObject obj = AssetManager.GetInstance().GetJson(path);
-            return new BlockModel(obj);
-        }
+       //public static BlockModel ForPath(AssetPath path)
+       //{
+       //    JObject obj = AssetManager.GetInstance().GetJson(path);
+       //    return new BlockModel(obj);
+       //}
     }
 }
 

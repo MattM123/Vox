@@ -30,25 +30,6 @@ namespace Vox.Genesis
             regionBounds = new(x, z, RegionManager.REGION_BOUNDS, RegionManager.REGION_BOUNDS);
 
         }
-        /**
-         * Returns true if at least one chunk in a region has changed. If true,
-         * the region as a whole is also marked as having changed therefore
-         * should be re-written to file.
-         *
-         * @return True if at least one chunk has changed, false if not
-         */
-        public bool DidChange()
-        {
-            foreach (KeyValuePair<string, Chunk> c in chunks)
-            {
-                if (c.Value.DidChange())
-                {
-                    didChange = true;
-                    break;
-                }
-            }
-            return didChange;
-        }
 
         public static bool IsChunkLoaded(Vector3 chunkLocation)
         {

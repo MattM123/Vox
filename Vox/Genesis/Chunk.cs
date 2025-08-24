@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Model;
@@ -31,24 +32,15 @@ namespace Vox.Genesis
         public bool IsInitialized = false;
  
         [Key(5)]
-        public bool didChange = false;
- 
-        [Key(6)]
         public short[,,] lightmap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
  
-        [Key(7)]
+        [Key(6)]
         public Queue<LightNode> BFSEmissivePropagationQueue = new((int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
  
-        [Key(8)]
+        [Key(7)]
         public Queue<LightNode> BFSSunlightPropagationQueue = new((int) Math.Pow(RegionManager.CHUNK_BOUNDS, 3));
- 
-        [Key(9)]
-        public List<float> blocksToAdd = [];
- 
-        [Key(10)]
-        public List<float> blocksToExclude = [];
 
-        [Key(11)]
+        [Key(8)]
         public int [,,] blockData = new int[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
         [IgnoreMember]
@@ -156,7 +148,8 @@ namespace Vox.Genesis
         public void GenerateRenderData()
         {
             int bounds = RegionManager.CHUNK_BOUNDS;
-                                                            //If the chunk above this is generated, we don't need to generate this chunk   
+
+                                  //If the chunk above this one is generated, we don't need to generate this chunk   
             if ((!isGenerated) && !RegionManager.GetAndLoadGlobalChunkFromCoords((int)xLoc, (int)(yLoc + bounds), (int)zLoc).isGenerated)
             {
                 for (int x = 0; x < bounds; x++)
@@ -171,9 +164,7 @@ namespace Vox.Genesis
                                
                                 
                                 //Positive Y (UP)
-                                if ((y + 1 >= bounds || blockData[x, y + 1, z] == 0))// &&
-                                //yLoc + y >= CalculateMeshDepth(
-                                 //    RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                if (y + 1 >= bounds || blockData[x, y + 1, z] == 0)
                                 {
                                     BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.UP,
                                         (int)ModelLoader.GetModel(type).GetTexture(Face.UP));
@@ -181,9 +172,7 @@ namespace Vox.Genesis
                                     blockFacesInChunk++;
                                 }
                                 // Positive X (EAST)
-                                if ((x + 1 >= bounds || blockData[x + 1, y, z] == 0))// &&
-                                //         yLoc + y >= CalculateMeshDepth(
-                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                if (x + 1 >= bounds || blockData[x + 1, y, z] == 0)
                                 {
                                     BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.EAST,
                                              (int)ModelLoader.GetModel(type).GetTexture(Face.EAST));
@@ -193,9 +182,7 @@ namespace Vox.Genesis
 
                                 
                                 //Negative X (WEST)
-                                if ((x - 1 < 0 || blockData[x - 1, y, z] == 0))// &&
-                                //        yLoc + y >= CalculateMeshDepth(
-                                //             RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                if (x - 1 < 0 || blockData[x - 1, y, z] == 0)
                                 {
                                     //Texture enum value corresponds to texture array layer 
                                     BlockFaceInstance face = new(new(x + xLoc , y + yLoc, z + zLoc), Face.WEST,
@@ -219,9 +206,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Positive Z (NORTH)
-                                if ((z + 1 >= bounds || blockData[x, y, z + 1] == 0))// &&
-                                 //    yLoc + y >= CalculateMeshDepth(
-                                 //        RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                if (z + 1 >= bounds || blockData[x, y, z + 1] == 0)
                                 {
                                     //Texture enum value corresponds to texture array layer 
                                     BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.NORTH,
@@ -232,9 +217,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Negative Z (SOUTH)
-                                if ((z - 1 < 0 || blockData[x, y, z - 1] == 0))// &&
-                                //    yLoc + y >= CalculateMeshDepth(
-                                //         RegionManager.GetGlobalHeightMapValue(x, z), x + 1, z + 1, x - 1, z - 1))
+                                if (z - 1 < 0 || blockData[x, y, z - 1] == 0)
                                 {
                                     //Texture enum value corresponds to texture array layer 
                                     BlockFaceInstance face = new(new(x + xLoc, y + yLoc, z + zLoc), Face.SOUTH,
@@ -251,7 +234,15 @@ namespace Vox.Genesis
             }
         }
 
-        private void UploadFace(BlockFaceInstance face)
+
+        public void IncrementFaceCount()
+        {
+            blockFacesInChunk++;
+        }
+        /**
+         * Uploads a single block face to the SSBO for rendering
+         */
+        public void UploadFace(BlockFaceInstance face)
         {
 
             //Write face directly to SSBO
@@ -269,7 +260,43 @@ namespace Vox.Genesis
                 Window.GetAndIncrementNextFaceIndex();
             }
         }
+        
+        //work in progress
+        public void UpdateFace(BlockFaceInstance face)
+        {
+            unsafe
+            {
+                int offset =0; //Get ooset for a soecfic face 
+                byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
+                int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
+                // Check if the face exists in the SSBO - important for safety
+                if (offset + instanceSize <= Window.SSBOSize)
+                {
+                    // Update the existing face
+                    *instancePtr = face;
+                }
+                else
+                {
+                    // Handle the case where the face doesn't exist.  You could:
+                    // 1.  Throw an exception (more strict)
+                    // 2.  Log a warning (less strict, useful for debugging)
+                    // 3.  Do nothing (least strict, but could lead to unexpected behavior)
+
+                    //Example: Throw an exception
+                    throw new InvalidOperationException("Face not found in SSBO");
+                }
+
+                Window.GetAndIncrementNextFaceIndex();
+            }
+        }
+
+
+        /**
+         * Returns the raw block data for this chunk
+         * @return 3D array of block types in this chunk
+         */
         public int[,,] GetBlockData()
         {
             return blockData;
@@ -284,17 +311,6 @@ namespace Vox.Genesis
         {
             return location;
         }
-
-        /**
-         * This flag should only be updated to true when the chunk needs to re-render.
-         * Ex. If a block was destroyer or placed or otherwise modified
-         * */
-        public void DidChange(bool f)
-        {
-            didChange = f;
-        }
-    
-        public bool DidChange() { return didChange; }
 
         public static Matrix4 GetModelMatrix()
         {
@@ -429,69 +445,6 @@ namespace Vox.Genesis
                 // Check other five neighbors
             }
         }
-
-        public void AddBlockToChunk(Vector3 v)
-        {
-            for (int i = 0; i < blocksToExclude.Count; i += 3)
-            {
-                if (blocksToExclude[i] == v.X && blocksToExclude[i + 1] == v.Y && blocksToExclude[i + 2] == v.Z)
-                    blocksToExclude.RemoveRange(i, 3);
-            }
-            
-
-            blocksToAdd.AddRange([v.X, v.Y, v.Z]);
-            DidChange(true);
-           // GetTerrainRenderTask();
-        }
- 
-        public void RemoveBlockFromChunk(Vector3 v)
-        {
-            for (int i = 0; i < blocksToAdd.Count; i += 3)
-            {
-                if (blocksToAdd[i] == v.X && blocksToAdd[i + 1] == v.Y && blocksToAdd[i + 2] == v.Z)
-                    blocksToAdd.RemoveRange(i, 3);
-            }
-            blocksToExclude.AddRange([v.X,v.Y, v.Z]);
-
-            //Check for terrain holes after removing a block
-            BlockDetail detail = new(
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.NORTH, v, this),
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.SOUTH, v, this),
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.UP,    v, this),
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.DOWN,  v, this),
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.EAST,  v, this),
-                ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.WEST,  v, this)
-            );
-        
-            //Fill in holes resulting from a removed block
-            //Only works when underground
-            foreach (Vector3 adjBlock in detail.GetFaceAdjacentBlocks())
-            {
-                bool containsRange = false;
-                for (int i = 0; i < blocksToExclude.Count; i += 3)
-                {
-                    if (blocksToExclude[i] == adjBlock.X && blocksToExclude[i + 1] == adjBlock.Y && blocksToExclude[i + 2] == adjBlock.Z)
-                        containsRange = true;
-                }
-
-                if ((adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z) 
-                    || adjBlock.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z) 
-                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)v.X, (int)v.Z)
-                    || v.Y < RegionManager.GetGlobalHeightMapValue((int)adjBlock.X, (int)adjBlock.Z))
-                    && !containsRange)
-
-                {
-                    Console.WriteLine("Filling in terrain hole at " + adjBlock);
-                    AddBlockToChunk(adjBlock);
-                }
-             
-            }
-            
-            DidChange(true);
-            //GetTerrainRenderTask();
-
-        }
-
         public bool IsGenerated()
         {
             return isGenerated;

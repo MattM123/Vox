@@ -1,4 +1,5 @@
 ﻿
+using System.IO;
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
 namespace Vox.Rendering
@@ -12,10 +13,7 @@ namespace Vox.Rendering
         private static int height;
         private static int channels;
         private static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
-        private static int numLayers = 3;
-        private static Dictionary<int, string> TextureLayerToFileName = [];
-        private static Dictionary<string, Texture> FileNameToTexture = [];
-
+        private static int numLayers;
 
         static TextureLoader()
         {
@@ -24,14 +22,6 @@ namespace Vox.Rendering
             Directory.CreateDirectory(assets + "BlockTextures");
         }
 
-        public static Dictionary<int, string> GetTextureLayerToFileName()
-        {
-            return TextureLayerToFileName;
-        }
-        public static Dictionary<string, Texture> GetFileNameToTexture()
-        {
-            return FileNameToTexture;
-        }
         public static int LoadTextures(int slot)
         {
 
@@ -77,24 +67,24 @@ namespace Vox.Rendering
 
             for (int i = 0; i < numLayers; i++)
             {
-                TextureLayerToFileName.Add(i, tex[i]);
-                FileNameToTexture.Add(tex[i], (Texture)Enum.ToObject(typeof(Texture), i));
-
                 using var memoryStream = new MemoryStream();
                 FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
                 image = Stbi.LoadFromMemory(memoryStream, 4);
 
+                string filename = stream.Name[(stream.Name.LastIndexOf('\\') + 1)..];
+
                 byte[] subimageData = image.Data.ToArray();
                 // Use TexSubImage3D to upload the image data to the specific layer
                 GL.TexSubImage3D(
-                    TextureTarget.Texture2DArray, //Target
-                    0,                            //Level
-                    0, 0, i,                      //XYZ offset
-                    width, height, 1,             //Width, height, depth
-                    PixelFormat.Rgba,             //Pixel Format
-                    PixelType.UnsignedByte,       //Pixel Type
-                    subimageData);                //Image data
+                    TextureTarget.Texture2DArray,               //Target
+                    0,                                          //Level
+                    0, 0,                                       //XY Offset
+                    AssetLookup.GetTextureValue(filename),    //Z offset
+                    width, height, 1,                           //Width, height, depth
+                    PixelFormat.Rgba,                           //Pixel Format
+                    PixelType.UnsignedByte,                     //Pixel Type
+                    subimageData);                              //Image data
                 image.Dispose();
             }
 
