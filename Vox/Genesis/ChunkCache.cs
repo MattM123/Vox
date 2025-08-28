@@ -83,6 +83,7 @@ namespace Vox.Genesis
                     }
                 }
             }
+         * Regenerates chunks in cache and clears CPU SSBO storage for chunk update.
         }
 
         //Clears and resets cache without repopulating it
