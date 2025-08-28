@@ -9,11 +9,6 @@
         UP,
         DOWN,
 
-
-        BACK,
-        FRONT,
-        RIGHT,
-        LEFT,
         BOTTOM,
         TOP,
         SIDE,

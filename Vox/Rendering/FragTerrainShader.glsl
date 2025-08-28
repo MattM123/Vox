@@ -186,9 +186,10 @@ void main()
          applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
      }
      
-     else {
-       applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
-     }
+     else 
+        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
+    
 
-    color = pow(applyTex, vec4(gamma));
+        color = pow(applyTex, vec4(gamma));
+
  }

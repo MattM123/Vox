@@ -1,8 +1,5 @@
-﻿using System;
-using System.Diagnostics;
+﻿
 using OpenTK.Mathematics;
-using Vox.Model;
-using Vox.Rendering;
 
 namespace Vox.Genesis
 {
@@ -13,6 +10,7 @@ namespace Vox.Genesis
         private static Chunk? playerChunk;        
         private static Dictionary<string, Chunk> chunks = [];
         private static Dictionary<string, Region> regions = [];
+        private static object chunkLock = new();
 
         /**
          *
@@ -83,10 +81,29 @@ namespace Vox.Genesis
                     }
                 }
             }
-         * Regenerates chunks in cache and clears CPU SSBO storage for chunk update.
+        }
+        /**
+         * Clears CPU SSBO storage for chunk and regenerates chunks in cache and update.
+         * Used only if a block is removed and has to account for buffer data removal/update.
+         */
+        public static void RegenerateCache()
+        {
+
+            CountdownEvent countdown = new(chunks.Count);
+            foreach (KeyValuePair<string, Chunk> c in chunks)
+            {
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    c.Value.Reset();
+                    countdown.Signal();
+                }));
+            }
+            countdown.Wait();
         }
 
-        //Clears and resets cache without repopulating it
+        /**
+         * Clears and resets cache without repopulating it
+         */
         public static void ClearChunkCache()
         {
             chunks.Clear();
@@ -107,29 +124,31 @@ namespace Vox.Genesis
                 RegionManager.EnterRegion(regionIdx); //cache region in memory for future additions to chunk list
             }
 
-
-            Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}") ? chunkRegion.chunks[$"{x}|{y}|{z}"] : null;
-
-            if (chunk != null)
+            lock (chunkLock)
             {
-                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                    chunks.Add($"{x}|{y}|{z}", chunk);
+                Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}") ? chunkRegion.chunks[$"{x}|{y}|{z}"] : null;
+            
+                if (chunk != null)
+                {
+                    if (!chunks.ContainsKey($"{x}|{y}|{z}"))
+                        chunks.Add($"{x}|{y}|{z}", chunk);
     
-                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
-                    chunkRegion.chunks.Add($"{x}|{y}|{z}", chunk);
+                    if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                        chunkRegion.chunks.Add($"{x}|{y}|{z}", chunk);
                     
-            }
-            else
-            {
-                Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
+                }
+                else
+                {
+                    Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
 
-                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
-                    chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
+                    if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                        chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
 
-                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                    chunks.Add($"{x}|{y}|{z}", c);
+                    if (!chunks.ContainsKey($"{x}|{y}|{z}"))
+                        chunks.Add($"{x}|{y}|{z}", c);
 
                
+                }
             }
             if (!regions.ContainsKey(Region.GetRegionIndex(x, z))) 
                 regions.Add(Region.GetRegionIndex(x, z), chunkRegion);

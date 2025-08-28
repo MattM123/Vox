@@ -69,5 +69,48 @@ namespace Vox
         {
             return (int)(((float)(input - fromMin) / (fromMax - fromMin)) * (toMax - toMin) + toMin);
         }
+
+        private static readonly Lazy<IEnumerable<Func<long>>> TotalVramUsageCounters = new
+        (
+            () =>
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    var cat = new PerformanceCounterCategory("GPU Adapter Memory");
+                    return [.. cat.GetInstanceNames().SelectMany(cat.GetCounters)
+                            .Where(static c => c?.CounterName?.EndsWith("Usage") == true)
+                            .Select(static c => new Func<long>(() => c.NextSample().RawValue))];
+                }
+                else
+                {
+                    return [];
+                }
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication
+        );
+
+        private static readonly Lazy<IEnumerable<Func<long>>> TotalCommittedVram = new
+        (
+            () =>
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    var cat = new PerformanceCounterCategory("GPU Adapter Memory");
+                    return [.. cat.GetInstanceNames().SelectMany(cat.GetCounters)
+                            .Where(static c => c?.CounterName?.Equals("Total Committed") == true)
+                            .Select(static c => new Func<long>(() => c.NextSample().RawValue))];
+                }
+                else
+                {
+                    return [];
+                }
+            },
+            LazyThreadSafetyMode.ExecutionAndPublication
+        );
+
+
+        public static long GetTotalVRamUsage() => TotalVramUsageCounters.Value.Select(x => x()).Sum();
+        public static long GetTotalVramCommitted() => TotalCommittedVram.Value.Select(x => x()).Sum();
+
     }
 }

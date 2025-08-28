@@ -107,15 +107,6 @@ namespace Vox
                 {
                     blockSpace = previousBlock;
 
-                    block = new(
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.NORTH, target, actionChunk),
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.SOUTH, target, actionChunk),
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.UP, target, actionChunk),
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.DOWN, target, actionChunk),
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.EAST, target, actionChunk),
-                        ModelUtils.GetCuboidFace(BlockType.TEST_BLOCK, Face.WEST, target, actionChunk)
-                    );
-
                     //calculate direction player is facing from their view matrix
                     Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
                     if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)

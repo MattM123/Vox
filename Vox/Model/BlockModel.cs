@@ -111,11 +111,11 @@ namespace Vox.Model
          */
         public Texture GetTexture(Face side)
         {
-            Texture output = Texture.AIR;
+            Texture output;
             try
             {
                 Enum.TryParse(textures[side], true, out output);
-            } catch (Exception e)
+            } catch (Exception)
             {
                 return Texture.AIR;
             }

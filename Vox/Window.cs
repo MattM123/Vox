@@ -534,6 +534,7 @@ namespace Vox
                 if (e.Button == MouseButton.Left)
                 {
                     RegionManager.AddBlockToChunk(blockSpace);
+
                 }
                 if (e.Button == MouseButton.Right)
                 {
@@ -623,17 +624,7 @@ namespace Vox
                                 foreach (Chunk c in menuChunks)
                                     c.Reset();
 
-                                // Clear face data and reset index to 0
-                                GL.ClearNamedBufferSubData(
-                                    SSBOhandle,
-                                    PixelInternalFormat.R32ui,    // Treat as 32-bit unsigned integers
-                                    IntPtr.Zero,
-                                    SSBOSize,
-                                    PixelFormat.RedInteger,       // Matches how OpenGL will interpret each 4-byte component
-                                    PixelType.UnsignedInt,        // 4-byte units
-                                    IntPtr.Zero                   // Null → zero out
-                                );
-                                _nextFaceIndex = 0;
+                                ResetSSBO();
 
                                 renderMenu = false;
                                 RegionManager rm = new(folder);
@@ -751,6 +742,7 @@ namespace Vox
 
                 ImGui.Text("FPS: " + fps);
                 ImGui.Text("Memory: " + Utils.FormatSize(Process.GetCurrentProcess().WorkingSet64) + "/" + Utils.FormatSize(Process.GetCurrentProcess().PrivateMemorySize64));
+                ImGui.Text("VRAM: " + Utils.FormatSize(Utils.GetTotalVRamUsage()) + "/" + Utils.FormatSize(Utils.GetTotalVramCommitted()));
                 ImGui.Text("");
 
                 ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
@@ -761,6 +753,7 @@ namespace Vox
                 ImGui.End();
             }
         }
+       
 
         public static bool IsMenuRendered() { return renderMenu; }
 
@@ -883,7 +876,7 @@ namespace Vox
                 globalPlayerChunk = player.GetChunkWithPlayer();
                 ChunkCache.SetPlayerChunk(globalPlayerChunk);
 
-                chunksToRender = ChunkCache.UpdateChunkCache();
+                chunksToRender = ChunkCache.UpdateChunkCache();       
 
                 //Updates the regions when player moves into different region
                 if (!player.GetRegionWithPlayer().Equals(globalPlayerRegion))
@@ -896,18 +889,21 @@ namespace Vox
             CountdownEvent countdown = new(chunksToRender.Count);
             foreach (KeyValuePair<string, Chunk> c in chunksToRender)
             {
-               // ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-                //{
-                    if (!c.Value.IsGenerated())
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    //If the chunk above this one is generated, we don't need to generate this chunk   
+                    if ((!c.Value.IsGenerated()) 
+                    && !RegionManager.GetAndLoadGlobalChunkFromCoords(
+                        (int)c.Value.xLoc, (int)(c.Value.yLoc + RegionManager.CHUNK_BOUNDS), 
+                        (int)c.Value.zLoc).IsGenerated())
                     {
                         c.Value.GenerateRenderData();
                     }
 
-                ///    countdown.Signal();
-              // }));
+                   countdown.Signal();
+               }));
             }
-          //  countdown.Wait();
-
+            countdown.Wait();
 
             /*==========================================
              * DEPTH RENDERING PRE-PASS
@@ -985,8 +981,7 @@ namespace Vox
         }
         protected override void OnClosing(CancelEventArgs e)
         {
-            base.OnClosing(e);
-
+            base.OnClosing(e);    
             terrainShaders?.Cleanup();
             crosshairShader?.Cleanup();
             TextureLoader.Unbind();
@@ -1064,6 +1059,24 @@ namespace Vox
         public static int GetAndIncrementNextFaceIndex()
         {
             return Interlocked.Increment(ref _nextFaceIndex) - 1;
+        }
+
+        public static void ResetSSBO()
+        {
+            if (SSBOPtr != IntPtr.Zero)
+            {
+                // Clear face data and reset index to 0
+                GL.ClearNamedBufferSubData(
+                    SSBOhandle,
+                    PixelInternalFormat.R32ui,    // Treat as 32-bit unsigned integers
+                    IntPtr.Zero,
+                    SSBOSize,
+                    PixelFormat.RedInteger,       // Matches how OpenGL will interpret each 4-byte component
+                    PixelType.UnsignedInt,        // 4-byte units
+                    IntPtr.Zero                   // Null → zero out
+                );
+                _nextFaceIndex = 0;
+            }
         }
         static void Main()
         {

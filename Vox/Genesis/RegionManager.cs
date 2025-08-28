@@ -17,6 +17,7 @@ namespace Vox.Genesis
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
+        private static object chunkLock = new();
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -46,7 +47,7 @@ namespace Vox.Genesis
         * @param z coordinate of column
         * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
         */
-        public static int GetGlobalHeightMapValue(int x, int z)
+        public static short GetGlobalHeightMapValue(int x, int z)
         {
             long seed;
             if (Window.IsMenuRendered())
@@ -69,7 +70,7 @@ namespace Vox.Genesis
             //Normalized teh noise value
             float noise = (f * 0.5f) + 0.5f;
 
-            return  (int)(noise * CHUNK_HEIGHT);
+            return  (short)(noise * CHUNK_HEIGHT);
 
         }
 
@@ -352,7 +353,10 @@ namespace Vox.Genesis
             if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
             {
                 value = new Chunk().Initialize(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
-                r.chunks.Add(playerChunkIdx, value);
+                lock (chunkLock)
+                {
+                    r.chunks.Add(playerChunkIdx, value);
+                }
             }
             return value;
         }
@@ -381,7 +385,7 @@ namespace Vox.Genesis
 
         /**
          * Given an x,y,z coordinate trio representing a block location,
-         * get the chunk that block is supposed to be in and add it
+         * get the chunk that block is supposed to be in and add it to the chunk
          */
         public static void AddBlockToChunk(Vector3 blockSpace)
         {
@@ -392,7 +396,7 @@ namespace Vox.Genesis
             Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block type in chunk data
-            int playerBlockType = (int)  Window.GetPlayer().GetPlayerBlockType();
+            short playerBlockType = (short) Window.GetPlayer().GetPlayerBlockType();
 
             actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = playerBlockType;
            
@@ -407,66 +411,53 @@ namespace Vox.Genesis
             int z = (int)blockDataIndex.Z;
 
             //Positive Y (UP)
-            if (blockSpace.Y + 1 >= bounds || actionChunk.blockData[x, y + 1, z] == 0)                                         
+            if (y + 1 >= bounds || actionChunk.blockData[x, y + 1, z] == 0)
             {
-                BlockFaceInstance face = new(blockSpace, Face.UP,
-                    (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.UP));
-                actionChunk.UploadFace(face);
-                actionChunk.IncrementFaceCount();
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.UP);
+                Face faceDir = Face.UP;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
             // Positive X (EAST)
-            if (x + 1 >= bounds ||actionChunk.blockData[x + 1, y, z] == 0)
+            if (x + 1 >= bounds || actionChunk.blockData[x + 1, y, z] == 0)
             {
-                BlockFaceInstance face = new(blockSpace, Face.EAST,
-                         (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.EAST));
-                actionChunk.UploadFace(face);
-                actionChunk.IncrementFaceCount();
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.EAST);
+                Face faceDir = Face.EAST;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
 
-            //Negative X (WEST)
-            if (x - 1 < 0 ||actionChunk.blockData[x - 1, y, z] == 0)
-            {
-                //Texture enum value corresponds to texture array layer 
-                BlockFaceInstance face = new(blockSpace, Face.WEST,
-                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.WEST));
 
-                actionChunk.UploadFace(face);
-                actionChunk.IncrementFaceCount();
+            //Negative X (WEST)
+            if (x - 1 < 0 || actionChunk.blockData[x - 1, y, z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.WEST);
+                Face faceDir = Face.WEST;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Negative Y (DOWN)
-            if ((y - 1 < 0 ||actionChunk.blockData[x, y - 1, z] == 0)
+            if ((y - 1 < 0 || actionChunk.blockData[x, y - 1, z] == 0)
                  //If player is below the blocks Y level, render the bottom face
                  && Window.GetPlayer().GetPosition().Y < y)
             {
-                //Texture enum value corresponds to texture array layer 
-                BlockFaceInstance face = new(blockSpace, Face.DOWN,
-                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.DOWN));
-
-                actionChunk.UploadFace(face);
-                actionChunk.IncrementFaceCount();
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.DOWN);
+                Face faceDir = Face.DOWN;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Positive Z (NORTH)
-            if (z + 1 >= bounds ||actionChunk.blockData[x, y, z + 1] == 0)
+            if (z + 1 >= bounds || actionChunk.blockData[x, y, z + 1] == 0)
             {
-                //Texture enum value corresponds to texture array layer 
-                BlockFaceInstance face = new(blockSpace, Face.NORTH,
-                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.NORTH));
-
-                actionChunk.UploadFace(face);
-                actionChunk.IncrementFaceCount();
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.NORTH);
+                Face faceDir = Face.NORTH;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Negative Z (SOUTH)
-            if (z - 1 < 0 ||actionChunk.blockData[x, y, z - 1] == 0)
+            if (z - 1 < 0 || actionChunk.blockData[x, y, z - 1] == 0)
             {
-                //Texture enum value corresponds to texture array layer 
-                BlockFaceInstance face = new(blockSpace, Face.SOUTH,
-                  (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.SOUTH));
-
-               actionChunk.UploadFace(face);
-               actionChunk.IncrementFaceCount();
+                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.SOUTH);
+                Face faceDir = Face.SOUTH;
+                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
             }
         }
 
@@ -484,50 +475,30 @@ namespace Vox.Genesis
             //The block data index within that chunk to modify
             Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
-            //Update block type in chunk data
+            //Update block type in chunk data to AIR
             actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = (int) BlockType.AIR;
 
             /*==================================================
-            * Set face instances to BlockType 0 for Air in SSBO
+            * Set face instances to BlockType.AIR in SSBO
             *=================================================*/
-
             int bounds = CHUNK_BOUNDS;
-
+            
             int x = (int)blockDataIndex.X;
             int y = (int)blockDataIndex.Y;
             int z = (int)blockDataIndex.Z;
-            BlockFaceInstance face;
 
-            //Positive Y (UP)
-            face = new(blockSpace, Face.UP, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.UP));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();
+            actionChunk.AddBlockFace(blockSpace, 0, Face.UP);   //Positive Y (UP)        
+            actionChunk.AddBlockFace(blockSpace, 0, Face.EAST); //Positive X (EAST)
+            actionChunk.AddBlockFace(blockSpace, 0, Face.WEST); //Negative X (WEST)    
+            actionChunk.AddBlockFace(blockSpace, 0, Face.DOWN); //Negative Y (DOWN)      
+            actionChunk.AddBlockFace(blockSpace, 0, Face.NORTH);//Positive Z (NORTH)
+            actionChunk.AddBlockFace(blockSpace, 0, Face.SOUTH);//Negative Z (SOUTH)  
 
-            // Positive X (EAST)
-            face = new(blockSpace, Face.EAST, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.EAST));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();
 
-            //Negative X (WEST)
-            face = new(blockSpace, Face.WEST, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.WEST));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();
-
-            //Negative Y (DOWN)
-            face = new(blockSpace, Face.DOWN, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.DOWN));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();          
-
-            //Positive Z (NORTH)
-            face = new(blockSpace, Face.NORTH, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.NORTH));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();
-
-            //Negative Z (SOUTH)
-            face = new(blockSpace, Face.SOUTH, (int)ModelLoader.GetModel(BlockType.AIR).GetTexture(Face.SOUTH));
-            actionChunk.UploadFace(face);
-            actionChunk.IncrementFaceCount();
-            
+            /*==================================================
+            / Check for terrain holes after block removal
+            *=================================================*/
+            foreach (int type in actionChunk.blockData) { }
 
 
         }
