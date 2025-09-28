@@ -444,7 +444,7 @@ namespace Vox
             //Move light in a circlular path around the player to simulate sunlight
             //x = h + r⋅cos(θ)
             //y = k + r⋅sin(θ)
-            float radius = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
+            float radius = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance() * 2f;
             Vector3 playerPos = GetPlayer().GetPosition();
             float x = playerPos.X + radius * MathF.Cos(angle);
             float z = playerPos.Z + radius * MathF.Sin(angle);
