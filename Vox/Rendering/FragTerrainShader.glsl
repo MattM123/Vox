@@ -39,6 +39,7 @@ uniform int targetTexLayer;
 
 in vec4 fragPosLightSpace;
 flat in float fTexLayer;
+flat in int fLighting;
 in vec4 fTargetVertex;
 in vec2 ftexCoords;
 in vec3 fragPos;
@@ -50,20 +51,21 @@ out vec4 color;
 //Override specular function
 #define SPECULAR_FNC specularBeckmann
 
+//Shader data datatype
+#line 1 "shadingData.glsl"
+#include "lygia\\lighting\\shadingData\\shadingData.glsl"
 
 //2D and 3D Simplex noise
 #line 1 "snoise.glsl"
 #include "lygia\\generative\\snoise.glsl"
 
+//Specular lighting
+#line 1 "cookTorrance.glsl"
+#include "lygia\\lighting\\specular\\cookTorrance.glsl"
 
-//Lighting
+//Diffuse lighting
 #line 1 "diffuse.glsl"
-#include "lygia\\lighting\\Diffuse.glsl"
-
-
-#line 1 "specular.glsl"
-#include "lygia\\lighting\\specular.glsl"
-
+#include "lygia\\lighting\\diffuse.glsl"
 
 
 float ShadowCalculation(vec4 fragPosLightSpace)
@@ -93,28 +95,26 @@ void main()
     // Lighting
     //=========================================
 
-    //diffuse 
- // vec3 norm = normalize(fnormal);
- // vec3 lightDir = normalize(light.position - fragPos);
- // float diff = max(dot(norm, lightDir), 0.0);
- // vec3 diffuse = light.diffuse * (diff * material.diffuse); //Remember to use the material here.
- //
- // //specular
- // vec3 viewDir = normalize(viewPos - fragPos);
- // vec3 reflectDir = reflect(-lightDir, norm);
- // float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
- // vec3 specular = light.specular * (spec * material.specular); //Remember to use the material here.
- //
- //
+    // Blue component (bits 0-3)           
+    float blue = fLighting & 0x000F;
 
- 
-   // float sunDot = dot(-lightDir, norm);
-   // float falloff = dot(vec3(0,1,0), -lightDir);
-   // float ambient = clamp(0.5 * falloff, 0, 1);
-   // float ambientValue = clamp(ambient + (max(0.0, sunDot) * falloff), 0.1, 1.0);
+    // Green component (bits 4-7)
+    float green = fLighting & 0x00F0;
 
+    // Red component (bits 8-11)
+    float red = (fLighting >> 8) & 0x0F00;
+
+    //Normalize color value
+    vec3 emissiveColor = vec3((red * 16) / 255, (green * 16) / 255, (blue * 16) / 255);
+
+    // Sunlight component (bits 12-15)
+    float sunlight = (fLighting & 0x0F);
     
-    vec3 frensel = vec3(0.04);                              //~4% reflectivity for everything
+
+   //========================================
+   //Shading data 
+   //========================================
+    vec3 frensel = vec3(0.2);                               //~10% reflectivity for everything
     vec3 norm = normalize(fnormal);                         // Surface normal
     vec3 viewDir = normalize(viewPos - fragPos);            // View direction
     vec3 lightDir = normalize(light.position - fragPos);    // Light direction
@@ -128,11 +128,11 @@ void main()
     float dist = length(light.position - fragPos);
    // float attenuation = 3000.0 / (dist * dist); // Inverse square law
 
-    //Blinn-Phong Specular
-    float spec = pow(max(dot(norm, halfVec), 0.0), material.shininess);
+
     
     //Diffuse shader data setup
     ShadingData shadingData;
+
     shadingData.N = norm;
     shadingData.V = viewDir;
     shadingData.L = lightDir;
@@ -146,24 +146,37 @@ void main()
     shadingData.roughness = 0.5;
     shadingData.linearRoughness = shadingData.roughness * shadingData.roughness;
     shadingData.diffuseColor = material.diffuse;
-    shadingData.specularColor = spec * material.specular * lightColor;
+    shadingData.specularColor = material.specular * lightColor;
     shadingData.energyCompensation = (1.0 - shadingData.specularColor) * material.diffuse;
 
     shadingData.directDiffuse = lightColor * material.diffuse * max(dot(norm, lightDir), 0.0);
-    shadingData.directSpecular = lightColor * spec * shadingData.specularColor;
+    shadingData.directSpecular = lightColor * shadingData.specularColor;
     shadingData.indirectDiffuse = light.ambient * material.diffuse;
     shadingData.indirectSpecular =  material.specular;
 
-    vec3 diffuse = diffuse(shadingData) * light.diffuse * material.diffuse;
-    vec3 specular = specular(shadingData) * light.specular * material.specular;
+     float specular = specColor;
+     vec3 diffuse = diffuse(shadingData) * light.diffuse * material.diffuse;
       
-    // calculate shadow     
+    // calculate shadow    
     float shadow = ShadowCalculation(fragPosLightSpace); 
 
-    float lightIntensity = 0.3;
-    vec3 lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * lightIntensity;// * attenuation;
+    float lightIntensity = 0.1;
 
-    vec3 result =  diffuse + shadingData.specularColor;
+
+    vec3 lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity);
+    vec3 result = (diffuse + shadingData.specularColor);
+
+    //If block is emissive, render block lighting properly
+   if (blue > 0 || red > 0 || green > 0) {
+        //Add the emissive color to the blocks lighting value
+        lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity) + emissiveColor;
+        
+        //We want emissive blocks to glow in the dark at night
+        result = vec3(1,1,1);
+      
+   }
+
+
 
     //=========================================
     // Render block target
@@ -175,21 +188,22 @@ void main()
     vec4 applyTex;
     float gamma = 1.0 / 2.2; 
 
-    // Check if the fragment's position is inside the bounding box
-     if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
-         fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
-         fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
-     {
-         // If inside the bounding box, combine texture with target texture
-         vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
-         vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, targetTexLayer));
-         applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);
-     }
-     
-     else 
-        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0);   
-    
 
-        color = pow(applyTex, vec4(gamma));
+    // Check if the fragment's position is inside the bounding box
+    if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
+        fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
+        fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
+    {
+        // If inside the bounding box, combine texture with target texture
+        vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
+        vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, targetTexLayer));
+        applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0) * vec4(lighting, 1.0);  
+    }
+ 
+    else 
+        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0) * vec4(lighting, 1.0); 
+
+
+    color = pow(applyTex, vec4(gamma));
 
  }

@@ -30,7 +30,7 @@ namespace Vox.Model
             models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json")), BlockType.STONE_BLOCK));
             models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json")), BlockType.TEST_BLOCK));
             models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\target.json")), BlockType.TARGET_BLOCK));
-
+            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\lamp.json")), BlockType.LAMP_BLOCK));
         }
         public static List<BlockModel> GetModels()
         {

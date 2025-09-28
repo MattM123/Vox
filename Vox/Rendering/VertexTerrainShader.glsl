@@ -5,7 +5,9 @@ struct BlockFaceInstance
     vec3 facePosition;  
     int faceDirection;   
     int textureLayer;       
-    int _pad0, _pad1, _pad2;
+    int index; 
+    int lighting;
+    int _pad2;
     
 };
 
@@ -38,6 +40,7 @@ out vec3 fragPos;
 out vec3 fnormal;
 out vec4 fTargetVertex;
 flat out float fTexLayer;
+flat out int fLighting;
 
 uniform vec3 blockCenter;
 uniform vec3 curPos;
@@ -123,6 +126,7 @@ void main() {
 
         //passthrough
         fTexLayer = instance.textureLayer;
+        fLighting = instance.lighting;
 
         vec2 texCoords[4] = vec2[4](
             vec2(0.0f, 0.0f),

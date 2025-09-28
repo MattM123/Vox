@@ -126,29 +126,13 @@ namespace Vox.Genesis
 
             lock (chunkLock)
             {
-                Chunk? chunk = chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}") ? chunkRegion.chunks[$"{x}|{y}|{z}"] : null;
-            
-                if (chunk != null)
-                {
-                    if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                        chunks.Add($"{x}|{y}|{z}", chunk);
-    
-                    if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
-                        chunkRegion.chunks.Add($"{x}|{y}|{z}", chunk);
-                    
-                }
-                else
-                {
-                    Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
-
-                    if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
-                        chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
-
-                    if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                        chunks.Add($"{x}|{y}|{z}", c);
-
-               
-                }
+                Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
+                
+                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
+                
+                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunks.Add($"{x}|{y}|{z}", c);
             }
             if (!regions.ContainsKey(Region.GetRegionIndex(x, z))) 
                 regions.Add(Region.GetRegionIndex(x, z), chunkRegion);

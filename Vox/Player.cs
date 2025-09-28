@@ -32,7 +32,7 @@ namespace Vox
         private Vector3 blockedDirection = Vector3.Zero;
         public readonly float reachDistance = 100f;
         public TerrainVertex[] viewTarget = [];
-        private readonly BlockType playerSelectedBlock = BlockType.DIRT_BLOCK;
+        private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
 
         private static readonly float gravity = 0f;// 9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)

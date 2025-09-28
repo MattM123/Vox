@@ -18,7 +18,6 @@ using Vox.Model;
 using Vox.Rendering;
 using BlendingFactor = OpenTK.Graphics.OpenGL4.BlendingFactor;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
-using BufferUsageHint = OpenTK.Graphics.OpenGL4.BufferUsageHint;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
 using DebugProc = OpenTK.Graphics.OpenGL4.DebugProc;
 using DebugSeverity = OpenTK.Graphics.OpenGL4.DebugSeverity;
@@ -26,7 +25,6 @@ using DebugSource = OpenTK.Graphics.OpenGL4.DebugSource;
 using DebugType = OpenTK.Graphics.OpenGL4.DebugType;
 using DepthFunction = OpenTK.Graphics.OpenGL4.DepthFunction;
 using DrawBufferMode = OpenTK.Graphics.OpenGL4.DrawBufferMode;
-using DrawElementsType = OpenTK.Graphics.OpenGL4.DrawElementsType;
 using EnableCap = OpenTK.Graphics.OpenGL4.EnableCap;
 using FramebufferAttachment = OpenTK.Graphics.OpenGL4.FramebufferAttachment;
 using FramebufferTarget = OpenTK.Graphics.OpenGL4.FramebufferTarget;
@@ -69,10 +67,8 @@ namespace Vox
         private static Matrix4 viewMatrix;
         private static float fps = 0.0f;
         public static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
-        private static BlockModel menuModel;
         private static List<Chunk> menuChunks = [];
         private static long menuSeed;
-        private float mouseSensitivity = 0.1f;
         private static Vector3 _lightPos = new(0.0f, RegionManager.CHUNK_HEIGHT + 100, 0.0f);
         private static int crosshairTex;
         private static int sunlightDepthMapFBO;
@@ -83,9 +79,8 @@ namespace Vox
         private static Matrix4 lightSpaceMatrix;
         private static int SSBOhandle;
         private static IntPtr SSBOPtr;
-        private static IntPtr stagingBufferPtr;
         private static int _nextFaceIndex;
-        public static int SSBOSize;
+        private static int SSBOSize;
 
         //used for player and lighting projection matrices
         private static float FAR = 1000.0f;
@@ -448,12 +443,9 @@ namespace Vox
             Vector3 playerPos = GetPlayer().GetPosition();
             float x = playerPos.X + radius * MathF.Cos(angle);
             float z = playerPos.Z + radius * MathF.Sin(angle);
-            float y = RegionManager.CHUNK_HEIGHT / 2 + radius * 0.5f * MathF.Sin(angle); // or simulate arc: playerPos.Y + radius * 0.5f * MathF.Sin(angle)
-
-            if (!IsMenuRendered())
-                _lightPos = new Vector3(x, y, z);
-            else
-                _lightPos = new Vector3(x, y, z);
+            float y = playerPos.Y + radius * 0.5f * MathF.Sin(angle);
+            
+            _lightPos = new Vector3(x, y, z);
 
 
 
@@ -468,7 +460,7 @@ namespace Vox
                 sunlightViewMatrix = Matrix4.LookAt(_lightPos, GetPlayer().GetPosition(), Vector3.UnitY);
 
             float dist1 = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist1, dist1, -dist1, dist1, 1f, dist1 * 2);
+            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist1, dist1, -dist1, dist1 , 1f, dist1);
 
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
@@ -533,7 +525,7 @@ namespace Vox
 
                 if (e.Button == MouseButton.Left)
                 {
-                    RegionManager.AddBlockToChunk(blockSpace);
+                    RegionManager.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), false);
 
                 }
                 if (e.Button == MouseButton.Right)
@@ -1077,6 +1069,11 @@ namespace Vox
                 );
                 _nextFaceIndex = 0;
             }
+        }
+
+        public static int GetSSBOSize()
+        {
+            return SSBOSize;
         }
         static void Main()
         {

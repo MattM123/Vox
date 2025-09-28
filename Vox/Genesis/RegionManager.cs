@@ -18,6 +18,8 @@ namespace Vox.Genesis
         public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
         private static object chunkLock = new();
+
+        private static Queue<LightNode> BFSEmissivePropagationQueue = new((int)Math.Pow(CHUNK_BOUNDS, 3));
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -41,6 +43,26 @@ namespace Vox.Genesis
             ChunkCache.SetRenderDistance(RENDER_DISTANCE);
         }
 
+        public static void EnqueueEmissiveLightNode(LightNode node)
+        {
+           // lock (chunkLock)
+           // {
+                BFSEmissivePropagationQueue.Enqueue(node);
+           // }
+        }
+
+        public static LightNode DequeueEmissiveLightNode()
+        {
+           // lock (chunkLock)
+           // {
+                return BFSEmissivePropagationQueue.Dequeue();
+            // }
+        }
+
+        public static int GetEmissiveQueueCount()
+        {
+            return BFSEmissivePropagationQueue.Count;
+        }
         /**
         * Retrieves the Y value for any given x,z column in any chunk
         * @param x coordinate of column
@@ -78,13 +100,13 @@ namespace Vox.Genesis
          * Given a 3D point in world space, convert to chunk relative coordinates within
          * the range of the chunks bounds.
          **/
-        public static Vector3 GetChunkRelativeCoordinates(Vector3 v)
+        public static Vector3i GetChunkRelativeCoordinates(Vector3 v)
         {
             int bounds = RegionManager.CHUNK_BOUNDS;
-            return new Vector3(
-                Math.Abs(v.X % bounds),
-                Math.Abs(v.Y % bounds),
-                Math.Abs(v.Z % bounds)
+            return new Vector3i(
+                (int) Math.Abs(v.X % bounds),
+                (int) Math.Abs(v.Y % bounds),
+                (int) Math.Abs(v.Z % bounds)
             );
         }
 
@@ -114,7 +136,7 @@ namespace Vox.Genesis
             int index = (int)(noise * blocktypes);
 
             // Clamp to exlude "non-blocks"
-            index = Math.Clamp(index, 1, blocktypes - 3);
+            index = Math.Clamp(index, 1, blocktypes - 4);
 
             //Manually define ranges for certain block types like this:
             //if (noise < 0.3f)
@@ -151,7 +173,7 @@ namespace Vox.Genesis
             int index = (int)(noise * blocktypes);
 
             // Clamp to exlude "non-blocks"
-            index = Math.Clamp(index, 1, blocktypes - 3);
+            index = Math.Clamp(index, 1, blocktypes - 4);
 
             //Manually define ranges for certain block types like this:
             //if (noise < 0.3f)
@@ -387,19 +409,26 @@ namespace Vox.Genesis
          * Given an x,y,z coordinate trio representing a block location,
          * get the chunk that block is supposed to be in and add it to the chunk
          */
-        public static void AddBlockToChunk(Vector3 blockSpace)
+        public static void AddBlockToChunk(Vector3 blockSpace, BlockType type, bool isRemove)
         {
+
+
             //The chunk that is added to
             Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
 
+
             //The block data index within that chunk to modify
-            Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
+            Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
-            //Update block type in chunk data
-            short playerBlockType = (short) Window.GetPlayer().GetPlayerBlockType();
+            //Update block data in chunk 
+            actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
+            actionChunk.voxelVisibility[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = true;
 
-            actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = playerBlockType;
-           
+            //Set block emissiveness
+            if (type == BlockType.LAMP_BLOCK)
+            {
+                actionChunk.SetBlockLight(blockDataIndex, 10, 1, 6);
+            }
             /*=============================================
              * Add a single block to the SSBO for rendering
              *=============================================*/
@@ -413,54 +442,54 @@ namespace Vox.Genesis
             //Positive Y (UP)
             if (y + 1 >= bounds || actionChunk.blockData[x, y + 1, z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.UP);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.UP);
                 Face faceDir = Face.UP;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
             // Positive X (EAST)
             if (x + 1 >= bounds || actionChunk.blockData[x + 1, y, z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.EAST);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.EAST);
                 Face faceDir = Face.EAST;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
 
 
             //Negative X (WEST)
             if (x - 1 < 0 || actionChunk.blockData[x - 1, y, z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.WEST);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.WEST);
                 Face faceDir = Face.WEST;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Negative Y (DOWN)
-            if ((y - 1 < 0 || actionChunk.blockData[x, y - 1, z] == 0)
-                 //If player is below the blocks Y level, render the bottom face
-                 && Window.GetPlayer().GetPosition().Y < y)
+            if (y - 1 < 0 || actionChunk.blockData[x, y - 1, z] == 0)
+            //If player is below the blocks Y level, render the bottom face
+            // && Window.GetPlayer().GetPosition().Y < y)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.DOWN);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN);
                 Face faceDir = Face.DOWN;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Positive Z (NORTH)
             if (z + 1 >= bounds || actionChunk.blockData[x, y, z + 1] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.NORTH);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH);
                 Face faceDir = Face.NORTH;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
 
             //Negative Z (SOUTH)
             if (z - 1 < 0 || actionChunk.blockData[x, y, z - 1] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(playerBlockType).GetTexture(Face.SOUTH);
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH);
                 Face faceDir = Face.SOUTH;
-                actionChunk.AddBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
             }
+            
         }
-
 
         /**
          * Given an x,y,z coordinate trio representing a block location,
@@ -475,8 +504,9 @@ namespace Vox.Genesis
             //The block data index within that chunk to modify
             Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
-            //Update block type in chunk data to AIR
+            //Update block data in chunk  
             actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = (int) BlockType.AIR;
+            //actionChunk.voxelVisibility[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = false;
 
             /*==================================================
             * Set face instances to BlockType.AIR in SSBO
@@ -487,19 +517,124 @@ namespace Vox.Genesis
             int y = (int)blockDataIndex.Y;
             int z = (int)blockDataIndex.Z;
 
-            actionChunk.AddBlockFace(blockSpace, 0, Face.UP);   //Positive Y (UP)        
-            actionChunk.AddBlockFace(blockSpace, 0, Face.EAST); //Positive X (EAST)
-            actionChunk.AddBlockFace(blockSpace, 0, Face.WEST); //Negative X (WEST)    
-            actionChunk.AddBlockFace(blockSpace, 0, Face.DOWN); //Negative Y (DOWN)      
-            actionChunk.AddBlockFace(blockSpace, 0, Face.NORTH);//Positive Z (NORTH)
-            actionChunk.AddBlockFace(blockSpace, 0, Face.SOUTH);//Negative Z (SOUTH)  
-
+            AddBlockToChunk(blockSpace, BlockType.AIR, true);
 
             /*==================================================
             / Check for terrain holes after block removal
             *=================================================*/
-            foreach (int type in actionChunk.blockData) { }
 
+            //==============================Positive Y (UP)==============================
+            Vector3 u = new(blockSpace.X, (int)blockSpace.Y + 1, (int)blockSpace.Z);
+            Vector3 blockDataIndexUP = GetChunkRelativeCoordinates(u);
+            Chunk up = GetAndLoadGlobalChunkFromCoords(u);
+
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexUP.Y + 1 == bounds)
+            {
+                blockDataIndexUP.Y = 0;
+                up = GetAndLoadGlobalChunkFromCoords(new Vector3(u.X, u.Y + bounds, u.Z));
+            }
+
+            BlockType typeU = (BlockType)up.blockData[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
+            bool isVisibleU = up.voxelVisibility[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
+            //Only add block if it already exists in SSBO
+            if (typeU == GetGlobalBlockType(u) || !isVisibleU)
+                AddBlockToChunk(u, typeU, false);
+
+            //==============================Negative Y (DOWN)==============================
+            Vector3 d = new(blockSpace.X, (int)blockSpace.Y - 1, (int)blockSpace.Z);
+            Vector3 blockDataIndexDOWN = GetChunkRelativeCoordinates(d);
+            Chunk down = GetAndLoadGlobalChunkFromCoords(d);
+            
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexDOWN.Y - 1 <= 0)
+            {
+                blockDataIndexDOWN.Y = bounds - 1;
+                down = GetAndLoadGlobalChunkFromCoords(new Vector3(d.X, d.Y - bounds, d.Z));
+            }
+
+            BlockType typeD = (BlockType) down.blockData[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
+            bool isVisibleD = down.voxelVisibility[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
+            //Only add block if it already exists in SSBO
+            if (typeD  == GetGlobalBlockType(d) || !isVisibleD)
+                AddBlockToChunk(d, typeD, false);
+
+            //==============================Positive X (EAST)==============================
+            Vector3 e = new(blockSpace.X + 1, (int)blockSpace.Y, (int)blockSpace.Z);
+            Vector3 blockDataIndexEAST = GetChunkRelativeCoordinates(e);
+            Chunk east = GetAndLoadGlobalChunkFromCoords(e);
+            
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexEAST.X + 1 == bounds)
+            { 
+                blockDataIndexEAST.X = 0;
+                east = GetAndLoadGlobalChunkFromCoords(new Vector3(e.X + bounds, e.Y, e.Z));
+            }
+
+            BlockType typeE = (BlockType)east.blockData[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
+            bool isVisibleE = east.voxelVisibility[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
+            //Only add block if it already exists in SSBO
+            if (typeE == GetGlobalBlockType(e) || !isVisibleE)
+                AddBlockToChunk(e, typeE, false);
+
+
+            //==============================Negative X (WEST)==============================
+            Vector3 w = new(blockSpace.X - 1, (int)blockSpace.Y, (int)blockSpace.Z);
+            Vector3 blockDataIndexWEST = GetChunkRelativeCoordinates(w);
+            Chunk west = GetAndLoadGlobalChunkFromCoords(w);
+            
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexWEST.X - 1 <= 0)
+            {
+                blockDataIndexWEST.X = bounds - 1;
+                west = GetAndLoadGlobalChunkFromCoords(new Vector3(w.X - bounds, w.Y, w.Z));
+            }
+
+            BlockType typeW = (BlockType)west.blockData[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
+            bool isVisibleW = west.voxelVisibility[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
+            //Only add block if it already exists in SSBO
+            if (typeW == GetGlobalBlockType(w) || !isVisibleW)
+                AddBlockToChunk(w, typeW, false);
+
+
+            //==============================Positive Z (NORTH)==============================
+            Vector3 n = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z + 1);
+            Vector3 blockDataIndexNORTH = GetChunkRelativeCoordinates(n);
+            Chunk north = GetAndLoadGlobalChunkFromCoords(n);
+            
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexNORTH.Z + 1 == bounds)
+            {
+                blockDataIndexNORTH.Z = 0;
+                north = GetAndLoadGlobalChunkFromCoords(new Vector3(n.X, n.Y, n.Z + bounds));
+            }
+
+            BlockType typeN = (BlockType) north.blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
+            bool isVisibleN = north.voxelVisibility[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
+            //Only add block if it already exists in SSBO
+            if (typeN == GetGlobalBlockType(n) || !isVisibleN)
+                AddBlockToChunk(n, typeN, false);
+
+            //==============================Negative Z (SOUTH)==============================
+            Vector3 s = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z - 1);
+            Vector3 blockDataIndexSOUTH = GetChunkRelativeCoordinates(s);
+            Chunk south = GetAndLoadGlobalChunkFromCoords(s);
+            
+            //If at the edge of a chunk, wrap to the next chunk
+            if (blockDataIndexSOUTH.Z - 1 <= 0)
+            {
+                blockDataIndexSOUTH.Z = bounds - 1;
+                south = GetAndLoadGlobalChunkFromCoords(new Vector3(s.X, s.Y, s.Z - bounds));
+            }
+
+            BlockType typeS = (BlockType) south.blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
+            bool isVisibleS = south.voxelVisibility[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
+            //Only add block if it already exists in SSBO
+            if (typeS == GetGlobalBlockType(s) || !isVisibleS)
+            {
+                AddBlockToChunk(s, typeS, false);
+            }
+              
 
         }
     }

@@ -10,6 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="AssetBuilder.cs" />
+    <Compile Remove="AssetManager.cs" />
+    <Compile Remove="AssetPack.cs" />
+    <Compile Remove="AssetPath.cs" />
+    <Compile Remove="AssetPathReader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Assets\BlockModels\cube.json" />
     <None Remove="Assets\BlockModels\cube_all.json" />
     <None Remove="Assets\BlockModels\cube_bottom_top.json" />
