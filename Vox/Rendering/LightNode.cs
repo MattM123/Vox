@@ -8,12 +8,9 @@ namespace Vox.Rendering
     * to determine light levels of block faces
     */
 
-    [MessagePackObject]
     public struct LightNode(short index, Chunk chunk)
     {
-        [Key(0)]
         public short Index { get; set; } = index;
-        [Key(1)]
         public Chunk Chunk { get; set; } = chunk;
     }
 }

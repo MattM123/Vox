@@ -102,15 +102,14 @@ void main()
     float green = fLighting & 0x00F0;
 
     // Red component (bits 8-11)
-    float red = (fLighting >> 8) & 0x0F00;
+    float red = (fLighting & 0x0F00) >> 8;
 
     //Normalize color value
-    vec3 emissiveColor = vec3((red * 16) / 255, (green * 16) / 255, (blue * 16) / 255);
+    vec3 emissiveColor = vec3(red / 15, green / 15, blue / 15);
 
     // Sunlight component (bits 12-15)
     float sunlight = (fLighting & 0x0F);
     
-
    //========================================
    //Shading data 
    //========================================
@@ -169,10 +168,10 @@ void main()
     //If block is emissive, render block lighting properly
    if (blue > 0 || red > 0 || green > 0) {
         //Add the emissive color to the blocks lighting value
-        lighting = (light.ambient + material.ambient + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity) + emissiveColor;
+        lighting = ((light.ambient + material.ambient) + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity) + emissiveColor;
         
-        //We want emissive blocks to glow in the dark at night
-        result = vec3(1,1,1);
+
+        result = vec3(1,1,1) * (lightIntensity + emissiveColor) + diffuse;
       
    }
 

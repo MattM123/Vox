@@ -79,11 +79,11 @@ namespace Vox.Genesis
 
             //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
             // a rougher, raised terrain
-            float var1 = 12;
+            float var1 = 25;
 
             //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
             //more smooth, spread out hills.
-            double var2 = 0.01;
+            double var2 = 0.008;
 
             float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
                     + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
@@ -427,7 +427,10 @@ namespace Vox.Genesis
             //Set block emissiveness
             if (type == BlockType.LAMP_BLOCK)
             {
-                actionChunk.SetBlockLight(blockDataIndex, 10, 1, 6);
+                actionChunk.SetBlockLight(blockDataIndex, new ColorVector(15, 0, 0));
+                actionChunk.PropagateBlockLight(blockSpace);
+              //  Console.WriteLine("getred: " + actionChunk.GetBlockLight(blockDataIndex).Red);
+               // actionChunk.RegenerateChunk();
             }
             /*=============================================
              * Add a single block to the SSBO for rendering
