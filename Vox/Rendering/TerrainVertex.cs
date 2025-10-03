@@ -3,7 +3,7 @@ using System.Drawing.Printing;
 using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
-using Vox.Model;
+using Vox.Enums;
 
 namespace Vox.Rendering
 {
@@ -32,12 +32,12 @@ namespace Vox.Rendering
         [Key(9)]
         public float blocktype;
         [Key(10)]
-        public Face face;
+        public BlockFace face;
 
 
         [SerializationConstructor]
         public TerrainVertex(float x, float y, float z,
-            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, float blocktype, Face face)
+            Texture texLayer, int texCoord, int sunlight, float normalX, float normalY, float normalZ, float blocktype, BlockFace face)
         {
             this.x = x;
             this.y = y;

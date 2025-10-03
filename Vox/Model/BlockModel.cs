@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Schema;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.AssetManagement;
+using Vox.Enums;
 using Vox.Rendering;
 
 namespace Vox.Model
@@ -12,7 +13,7 @@ namespace Vox.Model
     public class BlockModel
     {
 
-        private Dictionary<Face, string> textures = [];
+        private Dictionary<BlockFace, string> textures = [];
         private readonly List<Element> elements = [];
         private bool transparent = false;
         BlockModel parentModel;
@@ -39,7 +40,7 @@ namespace Vox.Model
                 parentModel = new BlockModel();
             }
 
-            textures = new Dictionary<Face, string>(parentModel.textures);
+            textures = new Dictionary<BlockFace, string>(parentModel.textures);
             elements = new List<Element>(parentModel.elements);
             transparent = jsonObject.Value<bool>("transparent");
 
@@ -47,7 +48,7 @@ namespace Vox.Model
             {
                 foreach (var texture in jsonTextures)
                 {
-                    Face face;
+                    BlockFace face;
                     Enum.TryParse(texture.Key, true, out face);
 
                     textures[face] = texture.Value.ToString();
@@ -72,25 +73,25 @@ namespace Vox.Model
 
 
             //Map parent texture references to child model textures
-            foreach (Face key in textures.Keys)
+            foreach (BlockFace key in textures.Keys)
             {
 
-                if (textures.TryGetValue(Face.ALL, out string? all))
+                if (textures.TryGetValue(BlockFace.ALL, out string? all))
                 {
                     if (textures[key] == "#all")
                         textures[key] = all;
                 }
-                if (textures.TryGetValue(Face.TOP, out string? top))
+                if (textures.TryGetValue(BlockFace.TOP, out string? top))
                 {
                     if (textures[key] == "#top")
                         textures[key] = top;
                 }
-                if (textures.TryGetValue(Face.BOTTOM, out string? bottom))
+                if (textures.TryGetValue(BlockFace.BOTTOM, out string? bottom))
                 {
                     if (textures[key] == "#bottom")
                         textures[key] = bottom;
                 }
-                if (textures.TryGetValue(Face.SIDE, out string? side))
+                if (textures.TryGetValue(BlockFace.SIDE, out string? side))
                 {
                     if (textures[key] == "#side")
                     {
@@ -109,7 +110,7 @@ namespace Vox.Model
          * Retrieves a texture from a block model for rendering.
          * If there the model has no texture assigned it assumes its AIR
          */
-        public Texture GetTexture(Face side)
+        public Texture GetTexture(BlockFace side)
         {
             Texture output;
             try
@@ -122,7 +123,7 @@ namespace Vox.Model
             return output;
         }
 
-        public Dictionary<Face, string> GetTextures()
+        public Dictionary<BlockFace, string> GetTextures()
         {
             return textures;
         }
@@ -184,7 +185,7 @@ namespace Vox.Model
         public override string ToString()
         {
             string tex = "";
-            foreach (KeyValuePair<Face, string> t in textures)
+            foreach (KeyValuePair<BlockFace, string> t in textures)
             {
                 tex += $"[{t.Key}, {t.Value}]\n";
             }

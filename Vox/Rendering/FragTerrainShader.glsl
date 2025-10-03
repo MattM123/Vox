@@ -99,7 +99,7 @@ void main()
     float blue = fLighting & 0x000F;
 
     // Green component (bits 4-7)
-    float green = fLighting & 0x00F0;
+    float green = (fLighting & 0x00F0) >> 4;
 
     // Red component (bits 8-11)
     float red = (fLighting & 0x0F00) >> 8;

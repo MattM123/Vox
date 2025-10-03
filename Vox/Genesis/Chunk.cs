@@ -1,7 +1,9 @@
-﻿
+﻿using System;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
+using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
 
@@ -28,19 +30,16 @@ namespace Vox.Genesis
         public bool IsInitialized = false;
  
         [Key(5)]
-        public ushort[,,] lightmap = new ushort[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
-
-        [Key(6)]
         public short [,,] blockData = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
-        //O(1) Lookup on all elements by Vector3 location gives max 6 elements.
+
         //Vector4 (x, y, z, faceDir)
         [IgnoreMember]
         public Dictionary<Vector4, BlockFaceInstance> SSBOdata = [];
 
         //Track the visibility of each voxel in the chunk, used for rendering and mesh updates
-        [IgnoreMember]
-        public bool[,,] voxelVisibility = new bool[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+       // [IgnoreMember]
+       // public bool[,,] voxelVisibility = new bool[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
 
         [IgnoreMember]
         public bool IsEmpty = true;
@@ -119,15 +118,13 @@ namespace Vox.Genesis
                             if (y + y1 <= elevation && elevation >= GetLocation().Y)
                             {
                                 blockData[x1, y1, z1] = (short)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
-                                voxelVisibility[x1, y1, z1] = true;
+                              //  voxelVisibility[x1, y1, z1] = true;
                             }
                             else
                             {
                                 blockData[x1, y1, z1] = 0;
-                                voxelVisibility[x1, y1, z1] = false;
+                              //  voxelVisibility[x1, y1, z1] = false;
                             }
-                            //SetSunlight(x1, y1, z1, 7);
-                            SetBlockLight(new(x1, y1, z1), new ColorVector(0,0,0));
                         }
                     }
                 }
@@ -152,22 +149,22 @@ namespace Vox.Genesis
                         for (int z = 0; z < bounds; z++)
                         {
                             Vector3 facePos = new(x + xLoc, y + yLoc, z + zLoc);
-                            if (voxelVisibility[x, y, z] == true)
+                            if (blockData[x, y, z] > 0)
                             {
                                 BlockType type = (BlockType)blockData[x, y, z];
 
                                 //Positive Y (UP)
                                 if (y + 1 >= bounds || blockData[x, y + 1, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.UP);
-                                    Face faceDir = Face.UP;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                                    BlockFace faceDir = BlockFace.UP;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                                 // Positive X (EAST)
                                 if (x + 1 >= bounds || blockData[x + 1, y, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.EAST);
-                                    Face faceDir = Face.EAST;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                                    BlockFace faceDir = BlockFace.EAST;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
@@ -175,8 +172,8 @@ namespace Vox.Genesis
                                 //Negative X (WEST)
                                 if (x - 1 < 0 || blockData[x - 1, y, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.WEST);
-                                    Face faceDir = Face.WEST;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                                    BlockFace faceDir = BlockFace.WEST;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
@@ -185,24 +182,24 @@ namespace Vox.Genesis
                                      //If player is below the blocks Y level, render the bottom face
                                      && Window.GetPlayer().GetPosition().Y < y)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN);
-                                    Face faceDir = Face.DOWN;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                                    BlockFace faceDir = BlockFace.DOWN;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
                                 //Positive Z (NORTH)
                                 if (z + 1 >= bounds || blockData[x, y, z + 1] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH);
-                                    Face faceDir = Face.NORTH;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                                    BlockFace faceDir = BlockFace.NORTH;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
                                 //Negative Z (SOUTH)
                                 if (z - 1 < 0 || blockData[x, y, z - 1] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH);
-                                    Face faceDir = Face.SOUTH;
+                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                                    BlockFace faceDir = BlockFace.SOUTH;
                                     AddUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                             }
@@ -217,77 +214,48 @@ namespace Vox.Genesis
          * Adds a blockface to the chunk in memory to cache for any necessary updating
          * and also uploads it to the SSBO for rendering.
          */
-        public void AddUpdateBlockFace(Vector3 facePos, int texLayer, Face faceDir) 
+        public void AddUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir)
         {
-            //The block data index within that chunk to modify
-            Vector3i blockDataIndex = RegionManager.GetChunkRelativeCoordinates(facePos);
 
+            Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
+            
             //Look for existing face to update
-            if (SSBOdata.ContainsKey(new(facePos, (float)faceDir)))
+            if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
-                BlockFaceInstance existingFace = SSBOdata[new(facePos, (float)faceDir)];
-
-                //Exit early if nothing is changing
-                if (existingFace.lighting == lightmap[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z] &&
-                    existingFace.textureLayer == (int) ModelLoader.GetModel(blockData[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z]).GetTexture(faceDir))
-                    return;
-
-                //Update fields
+                //Update Texture
                 existingFace.textureLayer = texLayer;
-                //Update lighting
-                existingFace.lighting = lightmap[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z];
-
+   
                 //Update entire instance
-                SSBOdata[new(facePos, (float)faceDir)] = existingFace;
-
+                SSBOdata[key] = existingFace;
+           
             }
             else
                 //Add instance if it doesnt exist
-                SSBOdata.Add(new(facePos, (float)faceDir), new(facePos, faceDir, texLayer,
-                    Window.GetAndIncrementNextFaceIndex(), lightmap[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z]));
-
-            UploadFaceToMemory(SSBOdata[new(facePos, (float)faceDir)]);
-            blockFacesInChunk++;
+                SSBOdata.TryAdd(key, new(facePos, faceDir, texLayer, Window.GetAndIncrementNextFaceIndex(), 0));
+            
+            //Update data for GPU
+            AddOrUpdateFaceInMemory(SSBOdata[key]);
         }
 
         /**
         * Update the lighting value in the correct BlockFaceInstance which is 
         * then passsed to the shaders for rendering
         */
-        public void UpdateEmissiveLighting(Vector3 facePos, Face faceDir, Chunk chunk)
+        public void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, int lighting)
         {
-            //The block data index within that chunk to modify
-            Vector3i blockDataIndex = RegionManager.GetChunkRelativeCoordinates(facePos);
-           // Vector3 facePos = new(blockDataIndex.X + chunk.xLoc, blockDataIndex.Y + chunk.yLoc, blockDataIndex.Z + chunk.zLoc);
+            Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
 
-            Console.WriteLine("Updating light at location " + facePos + " SSBO Index: " + facePos + " " + faceDir.ToString());
-            //Look for existing face to update
-            if (chunk.SSBOdata.ContainsKey(new(facePos, (float)faceDir)))
+            if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
-                BlockFaceInstance existingFace = chunk.SSBOdata[new(facePos, (float)faceDir)];
-
-                //Exit early if nothing is changing
-                if (existingFace.lighting == chunk.lightmap[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z])
-                {
-                    Console.WriteLine("Exit early");
-                    return;
-                }
-
-                int t = existingFace.lighting;
                 //Update lighting
-                existingFace.lighting = chunk.lightmap[blockDataIndex.X, blockDataIndex.Y, blockDataIndex.Z];
-
+                existingFace.lighting = lighting;
+           
                 //Update entire instance
-                chunk.SSBOdata[new(facePos, (float)faceDir)] = existingFace;
-
+                SSBOdata[key] = existingFace;
+           
                 //Update data for GPU
-                Console.WriteLine("Uploading light value: Before " + t + " After " + existingFace.lighting);
-                UploadFaceToMemory(chunk.SSBOdata[new(facePos, (float)faceDir)]);
-            } else
-            {
-                Console.WriteLine("Face not found af " + facePos);
+                AddOrUpdateFaceInMemory(SSBOdata[key]);
             }
-
 
         }
 
@@ -300,7 +268,7 @@ namespace Vox.Genesis
          * If the index is already present, updates the face data.
          */
 
-        private void UploadFaceToMemory(BlockFaceInstance face)
+        private void AddOrUpdateFaceInMemory(BlockFaceInstance face)
         {
 
             //Write face directly to SSBO
@@ -351,47 +319,59 @@ namespace Vox.Genesis
             return heightMap;
         }
 
-
         //========================
         //Light helper functions
         //========================
 
         //Given the block data index of a chunk, returns the light level for red green and blue channels
-        public ColorVector GetBlockLight(Vector3i v)
+        public ColorVector GetBlockLightVector(Vector3 location)
         {
-            return new(GetRedLight(v), GetGreenLight(v), GetBlueLight(v));
+            return new(GetRedLight(location), GetGreenLight(location), GetBlueLight(location));
+
+        }
+        public ushort GetBlockLight(Vector3 location, BlockFace faceDir)
+        {
+            try
+            {
+                return (ushort) SSBOdata[new(location.X, location.Y, location.Z, (int)faceDir)].lighting;
+            }
+            catch (KeyNotFoundException)
+            {
+                return 0;
+            }
+
         }
         // Set emissive RGB values
-        public void SetBlockLight(Vector3i v, ColorVector color)
+        public void SetBlockFaceLight(Vector3 location, BlockFace faceDir, ColorVector color)
         {
-            SetRedLight(v, color.Red);
-            SetGreenLight(v, color.Green);
-            SetBlueLight(v, color.Blue);
+            SetRedLight(location, faceDir, color.Red);
+            SetGreenLight(location, color.Green);
+            SetBlueLight(location, color.Blue);
         }
 
         // Get the bits XXXX0000
         public int GetSunlight(int x, int y, int z)
         {
-            return (lightmap[x,y,z] >> 4) & 0xF;
+            return 0;// (lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] >> 4) & 0xF;
         }
         public int GetSunlight(Vector3i v)
         {
-            return (lightmap[v.X, v.Y, v.Z] >> 4) & 0xF;
+            return 0;// (lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] >> 4) & 0xF;
         }
 
         // Set the bits XXXX0000
         public void SetSunlight(int x, int y, int z, int val)
         {
-            lightmap[x, y, z] = (byte) ((lightmap[x, y, z] & 0xF000) | (val << 4));
+           // lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] = (byte) ((lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] & 0xF000) | (val << 4));
         }
         // ================ Blue component (bits 0-3) =================
-        public int GetBlueLight(Vector3i v)
+        public int GetBlueLight(Vector3 location)
         {
             // Convert the short to an unsigned integer for correct masking
-            uint temp = lightmap[v.X, v.Y, v.Z];
-            return (int)(temp & 0x0F);
+            //  uint temp = lightmap[GetIndex(new((int) location.X, (int) location.Y, (int) location.Z))];
+            return 0;// (int)(temp & 0x0F);
         }
-        public void SetBlueLight(Vector3i v, int val)
+        public void SetBlueLight(Vector3 location, int val)
         {
             if (val < 0)
                 val = 0;
@@ -402,14 +382,14 @@ namespace Vox.Genesis
             int newValue = val & 0x000F;
 
             // Combine existing and new blue values without affecting higher-order bits
-            lightmap[v.X, v.Y, v.Z] = (ushort)(lightmap[v.X, v.Y, v.Z] | newValue);
+            //lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] = (ushort)(lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] | newValue);
         }
         // ================ Green component (bits 4-7) ================
-        public int GetGreenLight(Vector3i v)
+        public int GetGreenLight(Vector3 location)
         {
-            return ((char)(lightmap[v.X, v.Y, v.Z] >> 4)) & 0x0F;
+            return 0;// ((char)(lightmap[GetIndex(new((int) location.X, (int) location.Y, (int) location.Z))] >> 4)) & 0x0F;
         }
-        public void SetGreenLight(Vector3i v, int val)
+        public void SetGreenLight(Vector3 location, int val)
         {
 
             if (val < 0)
@@ -421,17 +401,24 @@ namespace Vox.Genesis
             int newValue = (val << 4) & 0x00F0;
 
             // Combine existing and new green values without affecting higher-order bits
-            lightmap[v.X, v.Y, v.Z] = (ushort) (lightmap[v.X, v.Y, v.Z] | newValue);
+           // lightmap[GetIndex(new(location.X + (int)xLoc, location.Y + (int)yLoc, location.Z + (int)zLoc))] = (ushort) (lightmap[GetIndex(new(location.X + (int)xLoc, location.Y + (int)yLoc, location.Z + (int)zLoc))] | newValue);
 
         }
         // ===========================================================
 
         // ================ Red component (bits 8-11) ================
-        public int GetRedLight(Vector3i v)
+        public int GetRedLight(Vector3 location)
         {
-            return ((char)(lightmap[v.X, v.Y, v.Z] >> 8)) & 0x0F;
+            if (SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)BlockFace.UP)))
+            {
+                int red = SSBOdata[new(location.X, location.Y, location.Z, (int)BlockFace.UP)].lighting;
+                return ((char)red >> 8) & 0x0F;
+            }
+            else
+                return 0;
+
         }
-        public void SetRedLight(Vector3i v, int val)
+        public void SetRedLight(Vector3 location, BlockFace faceDir, int val)
         {
             if (val < 0)
                 val = 0;
@@ -441,36 +428,60 @@ namespace Vox.Genesis
             // Apply mask to new value to ensure only relevant bits are set
             int newValue = (val << 8) & 0x0F00;
 
-            // Combine existing and new green values without affecting higher-order bits
-            lightmap[v.X, v.Y, v.Z] = (ushort)(lightmap[v.X, v.Y, v.Z] | newValue);
+            Vector3 facePos = new(location.X, location.Y, location.Z);
+            Vector3i index = RegionManager.GetChunkRelativeCoordinates(location);
+            BlockType type = (BlockType)blockData[index.X, index.Y, index.Z];
 
+            if (faceDir == BlockFace.ALL)
+            {
+
+                if (SSBOdata.ContainsKey(new(facePos, (int)faceDir))) {
+                    UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
+                    UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
+                    UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
+                    UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
+                    UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
+                    UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+                }
+            }
+            else
+            {
+                if (SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
+                    UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)SSBOdata[new(facePos, (int)faceDir)].lighting);
+            }
         }
         // ============================================================
 
 
+        private short GetIndex(Vector3i v)
+        {
+            int bounds = RegionManager.CHUNK_BOUNDS;
+            return (short)(v.X * bounds * bounds + v.Y * bounds + v.Z);
+        }
+
         //FIX: Propagates the opposite direction or doesnt propagate at all when X coordinates are negative
         //FIX: Only propagates when Z is positive
         //FIX: Properly propagate across chunk boundaries and region boundaries
-        public void PropagateBlockLight(Vector3 v)
+        //Idea: If I just update blockfaces directly in this function then i wouldnt ned to store them in memory
+        public void PropagateBlockLight(Vector3 location)
         {
-            int x = (int) v.X;
-            int y = (int) v.Y;
-            int z = (int) v.Z;
+            int x = (int) location.X;
+            int y = (int) location.Y;
+            int z = (int) location.Z;
 
-            Vector3i blockDataIndex = RegionManager.GetChunkRelativeCoordinates(v);
+            Vector3i blockDataIndex = RegionManager.GetChunkRelativeCoordinates(location);
 
             // Check the light level of the current node before propagating          
-            ColorVector originLightLevel = GetBlockLight(blockDataIndex);
+            ColorVector originLightLevel = GetBlockLightVector(location);
 
             if (originLightLevel.Red > 0 || originLightLevel.Green > 0 || originLightLevel.Blue > 0)
             {
                 int i = 1;
-                //blockDataIndex = RegionManager.GetChunkRelativeCoordinates(v);
                 int bounds = RegionManager.CHUNK_BOUNDS;
 
                 short index = (short)(x * bounds * bounds + y * bounds + z);
 
-                RegionManager.EnqueueEmissiveLightNode(new(index, this));
+                RegionManager.EnqueueEmissiveLightNode(new(index, RegionManager.GetAndLoadGlobalChunkFromCoords(location)));
 
                 while (RegionManager.GetEmissiveQueueCount() > 0)
                 {
@@ -479,60 +490,46 @@ namespace Vox.Genesis
                     // Get a reference to the front node.
                     LightNode node = RegionManager.DequeueEmissiveLightNode();
                     Chunk chunk = node.Chunk;
-
-
-                    //Look at all neighbouring voxels to that node.
+                    int currentIdx = node.Index;
+                    int lightLocationX = currentIdx % bounds;
+                    int lightLocationY = currentIdx / (bounds * bounds);
+                    int lightLocationZ = (currentIdx % (bounds * bounds)) / bounds;
+                   
+                    //Look at all neigZbouring voxels to that node.
                     //if their light level is 2 or more levels less than
                     //the current node, then set their light level to
                     //the current nodes light level - 1, and then add
                     //them to the queue.
                     Vector3i negXIndex = new(blockDataIndex.X - i, blockDataIndex.Y - 1, blockDataIndex.Z);
 
-                    if (negXIndex.X <= 0)
+                    chunk = RegionManager.GetAndLoadGlobalChunkFromCoords(new(location.X - i, location.Y - 1, location.Z));                   
+
+
+                    if ((originLightLevel.Red - i > 0 ||
+                        originLightLevel.Green - i > 0 ||
+                        originLightLevel.Blue - i > 0))
                     {
-                        //Wrap to neighboring chunk if out of bounds
-                        negXIndex.X = bounds - 1 - Math.Abs(negXIndex.X);
-                        chunk = RegionManager.GetAndLoadGlobalChunkFromCoords(new(v.X - i, v.Y, v.Z));                   
-                    }
-                    if (negXIndex.Y <= 0)
-                    {
-                        //Wrap to neighboring chunk if out of bounds
-                        negXIndex.Y = bounds - 1 - Math.Abs(negXIndex.Y);
-                        chunk = RegionManager.GetAndLoadGlobalChunkFromCoords(new(v.X - i, v.Y - 1, v.Z));
-                    }
 
-                    // try
-                    // {
+                        Vector3 setLightHere = new(location.X - i, location.Y - 1, location.Z);
+                        if (chunk.GetBlockLightVector(setLightHere).Red <= originLightLevel.Red && originLightLevel.Red - i > 0)
+                            // Add the propagated red light level to the blocks current level
+                            chunk.SetRedLight(setLightHere, BlockFace.UP, originLightLevel.Red - i + chunk.GetRedLight(setLightHere));
 
-
-                    if (chunk.GetBlockLight(negXIndex).Red <= originLightLevel.Red && originLightLevel.Red - i > 0)
-                    {
-                        // Set its light level
-                        chunk.SetRedLight(negXIndex, originLightLevel.Red - i);
-
-                        //Check Red light in -X direction
-                     //   Console.WriteLine("Red light: " + chunk.GetBlockLight(negXIndex).Red + " at " + negXIndex);
-                      //  Console.WriteLine("i: " + i);
-                        //chunk.SetRedLight(blockDataIndex.X - 1, blockDataIndex.Y, blockDataIndex.Z, lightLevel - 1);
-                        //chunk.SetBlueLight(blockDataIndex.X - 1, blockDataIndex.Y, blockDataIndex.Z, lightLevel - 1);
-                        //chunk.SetGreenLight(blockDataIndex.X - 1, blockDataIndex.Y, blockDataIndex.Z, lightLevel - 1);
+                       // if (chunk.GetBlockLight(negXIndex).Green <= originLightLevel.Green && originLightLevel.Green - i > 0)
+                       //     // Add the propagated green light level to the blocks current level
+                       //     chunk.SetGreenLight(negXIndex, originLightLevel.Green - i + chunk.GetGreenLight(negXIndex));
+                       //
+                       // if (chunk.GetBlockLight(negXIndex).Blue <= originLightLevel.Blue && originLightLevel.Blue - i > 0)
+                       //     // Add the propagated blue light level to the blocks current level
+                       //     chunk.SetBlueLight(negXIndex, originLightLevel.Blue - i + chunk.GetBlueLight(negXIndex));
 
                         // Emplace new node to queue. (could use push as well)
                         index = (short)((x - i) * bounds * bounds + y * bounds + z);
                         RegionManager.EnqueueEmissiveLightNode(new(index, chunk));
-
-                        i++;
-
                     }
-                    //  } catch (IndexOutOfRangeException) {
-                    //     Console.Write("Index out of range in light propagation\n");
-                    // }
-                    // Console.WriteLine("PROP RED: " + chunk.GetBlockLight(new(blockDataIndex.X - 2, blockDataIndex.Y, blockDataIndex.Z)).X);
-                    // Check other five neighbors
 
-                    //Graphically update light level before uploading ot GPU
-                    Vector3 facePos = new(negXIndex.X + xLoc, negXIndex.Y + yLoc, negXIndex.Z + zLoc);
-                    chunk.UpdateEmissiveLighting(facePos, Face.UP, chunk);
+                    i++;
+
                 }
             }
         }

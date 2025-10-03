@@ -1,4 +1,4 @@
-﻿namespace Vox.Model
+﻿namespace Vox.Enums
 {
     public enum BlockType
     {

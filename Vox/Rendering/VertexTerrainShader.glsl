@@ -120,7 +120,7 @@ void main() {
     float dist = distance(worldPos.xz, playerPos.xz);
 
     // Cull the vertex if the distance is greater than (chunkSize * renderDistance)
-    if (dist > (chunkSize * renderDistance - 5) && isMenuRendered == 0) {
+    if (dist > (chunkSize * renderDistance - 2) && isMenuRendered == 0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // Cull by moving out of view
     } else {
 

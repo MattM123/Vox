@@ -4,8 +4,8 @@ using System.Drawing;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
+using Vox.Enums;
 using Vox.Genesis;
-using Vox.Model;
 using Vox.Rendering;
 using Region = Vox.Genesis.Region;
 
@@ -69,9 +69,9 @@ namespace Vox
          * used to get where a block will appear if a player places a block
          * 
          */
-        public Vector3 UpdateViewTarget(out Face playerFacing, out Vector3 blockFace, out Vector3 blockSpace)
+        public Vector3 UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace)
         {
-            playerFacing = Face.ALL;
+            playerFacing = BlockFace.ALL;
             blockFace = Vector3.Zero;
             blockSpace = Vector3.Zero;
 
@@ -98,8 +98,10 @@ namespace Vox
                 //If the ray steps into an air block, continue to the next step iteration
                 Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
                 Vector3 blockDataIndex = RegionManager.GetChunkRelativeCoordinates(target);
-                if (actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] == (int)BlockType.AIR) {
+                if (actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
                     previousBlock = target;
+                    blockSpace = target;
+                   // Console.WriteLine("space1: " + blockSpace);
                     continue;
                 }   
                 //else, render block selection target and break the loop
@@ -107,16 +109,17 @@ namespace Vox
                 {
                     blockSpace = previousBlock;
 
+                   //Console.WriteLine("space: " + blockSpace);
                     //calculate direction player is facing from their view matrix
                     Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
                     if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)
-                        playerFacing = (rayDirection.X > 0 ? Face.EAST : Face.WEST);
+                        playerFacing = (rayDirection.X > 0 ? BlockFace.EAST : BlockFace.WEST);
 
                     else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
-                        playerFacing = (rayDirection.Y > 0 ? Face.UP : Face.DOWN);
+                        playerFacing = (rayDirection.Y > 0 ? BlockFace.UP : BlockFace.DOWN);
 
                     else
-                        playerFacing = (rayDirection.Z > 0 ? Face.NORTH : Face.SOUTH);
+                        playerFacing = (rayDirection.Z > 0 ? BlockFace.NORTH : BlockFace.SOUTH);
 
 
 

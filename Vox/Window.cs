@@ -12,6 +12,7 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using Vox.Enums;
 using Vox.Genesis;
 using Vox.GUI;
 using Vox.Model;
@@ -521,7 +522,7 @@ namespace Vox
 
             if (!IsMenuRendered())
             {
-                Vector3 block = GetPlayer().UpdateViewTarget(out Face playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
+                Vector3 block = GetPlayer().UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
 
                 if (e.Button == MouseButton.Left)
                 {
@@ -706,7 +707,7 @@ namespace Vox
                 ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
                 ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
 
-                Face f = Face.ALL;
+                BlockFace f = BlockFace.ALL;
                 Vector3 block = GetPlayer().UpdateViewTarget(out f, out Vector3 blockface, out Vector3 blockSpace);
                 ImGui.Text("Facing Add: " + blockface);
                 ImGui.Text("");

@@ -1,6 +1,6 @@
-﻿namespace Vox.Model
+﻿namespace Vox.Enums
 {
-    public enum Face
+    public enum BlockFace
     {
         NORTH,
         SOUTH,
@@ -9,10 +9,11 @@
         UP,
         DOWN,
 
+
+
         BOTTOM,
         TOP,
         SIDE,
         ALL,
-
     }
 }

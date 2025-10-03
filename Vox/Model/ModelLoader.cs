@@ -1,5 +1,6 @@
 ﻿
 using Newtonsoft.Json.Linq;
+using Vox.Enums;
 
 namespace Vox.Model
 {

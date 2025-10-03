@@ -3,6 +3,7 @@ using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using MessagePack;
 using OpenTK.Mathematics;
+using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
 namespace Vox.Genesis
@@ -13,7 +14,7 @@ namespace Vox.Genesis
         public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 384;
-        private static int RENDER_DISTANCE = 4;
+        private static int RENDER_DISTANCE = 6;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
@@ -416,22 +417,16 @@ namespace Vox.Genesis
             //The chunk that is added to
             Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
 
-
             //The block data index within that chunk to modify
             Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
+            Console.WriteLine("=======================");
+            Console.WriteLine("Block placed at: " + blockSpace + " in chunk " + actionChunk + " with block index of " + blockDataIndex);
+
             //Update block data in chunk 
             actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
-            actionChunk.voxelVisibility[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = true;
+            // actionChunk.voxelVisibility[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = true;
 
-            //Set block emissiveness
-            if (type == BlockType.LAMP_BLOCK)
-            {
-                actionChunk.SetBlockLight(blockDataIndex, new ColorVector(15, 0, 0));
-                actionChunk.PropagateBlockLight(blockSpace);
-              //  Console.WriteLine("getred: " + actionChunk.GetBlockLight(blockDataIndex).Red);
-               // actionChunk.RegenerateChunk();
-            }
             /*=============================================
              * Add a single block to the SSBO for rendering
              *=============================================*/
@@ -442,56 +437,72 @@ namespace Vox.Genesis
             int y = (int)blockDataIndex.Y;
             int z = (int)blockDataIndex.Z;
 
-            //Positive Y (UP)
-            if (y + 1 >= bounds || actionChunk.blockData[x, y + 1, z] == 0)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.UP);
-                Face faceDir = Face.UP;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
-            // Positive X (EAST)
-            if (x + 1 >= bounds || actionChunk.blockData[x + 1, y, z] == 0)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.EAST);
-                Face faceDir = Face.EAST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
+                //Positive Y (UP)
+                if (y + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y + 1), (short)z] == 0)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                    BlockFace faceDir = BlockFace.UP;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
+                // Positive X (EAST)
+                if (x + 1 >= bounds || actionChunk.blockData[(short)(x + 1), (short)y, (short)z] == 0)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                    BlockFace faceDir = BlockFace.EAST;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
 
 
-            //Negative X (WEST)
-            if (x - 1 < 0 || actionChunk.blockData[x - 1, y, z] == 0)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.WEST);
-                Face faceDir = Face.WEST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
+                //Negative X (WEST)
+                if (x - 1 < 0 || actionChunk.blockData[(short)(x - 1), (short)y, (short)z] == 0)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                    BlockFace faceDir = BlockFace.WEST;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
 
-            //Negative Y (DOWN)
-            if (y - 1 < 0 || actionChunk.blockData[x, y - 1, z] == 0)
-            //If player is below the blocks Y level, render the bottom face
-            // && Window.GetPlayer().GetPosition().Y < y)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.DOWN);
-                Face faceDir = Face.DOWN;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
+                //Negative Y (DOWN)
+                if (y - 1 < 0 || actionChunk.blockData[(short)x, (short)(y - 1), (short)z] == 0)
+                //If player is below the blocks Y level, render the bottom face
+                // && Window.GetPlayer().GetPosition().Y < y)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                    BlockFace faceDir = BlockFace.DOWN;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
 
-            //Positive Z (NORTH)
-            if (z + 1 >= bounds || actionChunk.blockData[x, y, z + 1] == 0)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.NORTH);
-                Face faceDir = Face.NORTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
+                //Positive Z (NORTH)
+                if (z + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                    BlockFace faceDir = BlockFace.NORTH;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
 
-            //Negative Z (SOUTH)
-            if (z - 1 < 0 || actionChunk.blockData[x, y, z - 1] == 0)
-            {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(Face.SOUTH);
-                Face faceDir = Face.SOUTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-            }
+                //Negative Z (SOUTH)
+                if (z - 1 < 0 || actionChunk.blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
+                {
+                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                    BlockFace faceDir = BlockFace.SOUTH;
+                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                }
+
+                //Set block emissiveness after addding faces
+                if (type == BlockType.LAMP_BLOCK)
+                {
+                   // actionChunk.SetBlockFaceLight(blockSpace, BlockFace.all, new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.UP,    new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.DOWN,  new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.EAST,  new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.WEST,  new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.NORTH, new ColorVector(15, 0, 0));
+                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.SOUTH, new ColorVector(15, 0, 0));
+
+                    actionChunk.PropagateBlockLight(blockSpace);
+
+                }
             
+
         }
 
         /**
@@ -508,7 +519,7 @@ namespace Vox.Genesis
             Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block data in chunk  
-            actionChunk.blockData[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = (int) BlockType.AIR;
+            actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int) BlockType.AIR;
             //actionChunk.voxelVisibility[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = false;
 
             /*==================================================
@@ -538,8 +549,8 @@ namespace Vox.Genesis
                 up = GetAndLoadGlobalChunkFromCoords(new Vector3(u.X, u.Y + bounds, u.Z));
             }
 
-            BlockType typeU = (BlockType)up.blockData[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
-            bool isVisibleU = up.voxelVisibility[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
+            BlockType typeU = (BlockType)up.blockData[(short)blockDataIndexUP.X, (short)(blockDataIndexUP.Y + 1), (short)blockDataIndexUP.Z];
+            bool isVisibleU = true;// up.voxelVisibility[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
             //Only add block if it already exists in SSBO
             if (typeU == GetGlobalBlockType(u) || !isVisibleU)
                 AddBlockToChunk(u, typeU, false);
@@ -556,8 +567,8 @@ namespace Vox.Genesis
                 down = GetAndLoadGlobalChunkFromCoords(new Vector3(d.X, d.Y - bounds, d.Z));
             }
 
-            BlockType typeD = (BlockType) down.blockData[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
-            bool isVisibleD = down.voxelVisibility[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
+            BlockType typeD = (BlockType) down.blockData[(short)blockDataIndexDOWN.X, (short)(blockDataIndexDOWN.Y - 1), (short)blockDataIndexDOWN.Z];
+            bool isVisibleD = true;//down.voxelVisibility[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
             //Only add block if it already exists in SSBO
             if (typeD  == GetGlobalBlockType(d) || !isVisibleD)
                 AddBlockToChunk(d, typeD, false);
@@ -574,8 +585,8 @@ namespace Vox.Genesis
                 east = GetAndLoadGlobalChunkFromCoords(new Vector3(e.X + bounds, e.Y, e.Z));
             }
 
-            BlockType typeE = (BlockType)east.blockData[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
-            bool isVisibleE = east.voxelVisibility[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
+            BlockType typeE = (BlockType)east.blockData[(short)(blockDataIndexEAST.X + 1), (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
+            bool isVisibleE = true;//east.voxelVisibility[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
             //Only add block if it already exists in SSBO
             if (typeE == GetGlobalBlockType(e) || !isVisibleE)
                 AddBlockToChunk(e, typeE, false);
@@ -593,8 +604,8 @@ namespace Vox.Genesis
                 west = GetAndLoadGlobalChunkFromCoords(new Vector3(w.X - bounds, w.Y, w.Z));
             }
 
-            BlockType typeW = (BlockType)west.blockData[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
-            bool isVisibleW = west.voxelVisibility[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
+            BlockType typeW = (BlockType)west.blockData[(short)(blockDataIndexWEST.X - 1), (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
+            bool isVisibleW = true;//west.voxelVisibility[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
             //Only add block if it already exists in SSBO
             if (typeW == GetGlobalBlockType(w) || !isVisibleW)
                 AddBlockToChunk(w, typeW, false);
@@ -612,8 +623,8 @@ namespace Vox.Genesis
                 north = GetAndLoadGlobalChunkFromCoords(new Vector3(n.X, n.Y, n.Z + bounds));
             }
 
-            BlockType typeN = (BlockType) north.blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
-            bool isVisibleN = north.voxelVisibility[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
+            BlockType typeN = (BlockType) north.blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)(blockDataIndexNORTH.Z + 1)];
+            bool isVisibleN = true;//north.voxelVisibility[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
             //Only add block if it already exists in SSBO
             if (typeN == GetGlobalBlockType(n) || !isVisibleN)
                 AddBlockToChunk(n, typeN, false);
@@ -630,8 +641,8 @@ namespace Vox.Genesis
                 south = GetAndLoadGlobalChunkFromCoords(new Vector3(s.X, s.Y, s.Z - bounds));
             }
 
-            BlockType typeS = (BlockType) south.blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
-            bool isVisibleS = south.voxelVisibility[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
+            BlockType typeS = (BlockType) south.blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)(blockDataIndexSOUTH.Z - 1)];
+            bool isVisibleS = true;// south.voxelVisibility[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
             //Only add block if it already exists in SSBO
             if (typeS == GetGlobalBlockType(s) || !isVisibleS)
             {
