@@ -433,76 +433,69 @@ namespace Vox.Genesis
 
             int bounds = CHUNK_BOUNDS;
 
-            int x = (int)blockDataIndex.X;
-            int y = (int)blockDataIndex.Y;
-            int z = (int)blockDataIndex.Z;
+            int x = blockDataIndex.X;
+            int y = blockDataIndex.Y;
+            int z = blockDataIndex.Z;
 
-                //Positive Y (UP)
-                if (y + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y + 1), (short)z] == 0)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
-                    BlockFace faceDir = BlockFace.UP;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
-                // Positive X (EAST)
-                if (x + 1 >= bounds || actionChunk.blockData[(short)(x + 1), (short)y, (short)z] == 0)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
-                    BlockFace faceDir = BlockFace.EAST;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
+            //Positive Y (UP)
+            if (y + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y + 1), (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                BlockFace faceDir = BlockFace.UP;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
+            // Positive X (EAST)
+            if (x + 1 >= bounds || actionChunk.blockData[(short)(x + 1), (short)y, (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                BlockFace faceDir = BlockFace.EAST;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
 
 
-                //Negative X (WEST)
-                if (x - 1 < 0 || actionChunk.blockData[(short)(x - 1), (short)y, (short)z] == 0)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
-                    BlockFace faceDir = BlockFace.WEST;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
+            //Negative X (WEST)
+            if (x - 1 < 0 || actionChunk.blockData[(short)(x - 1), (short)y, (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                BlockFace faceDir = BlockFace.WEST;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
 
-                //Negative Y (DOWN)
-                if (y - 1 < 0 || actionChunk.blockData[(short)x, (short)(y - 1), (short)z] == 0)
-                //If player is below the blocks Y level, render the bottom face
-                // && Window.GetPlayer().GetPosition().Y < y)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
-                    BlockFace faceDir = BlockFace.DOWN;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
+            //Negative Y (DOWN)
+            if (y - 1 < 0 || actionChunk.blockData[(short)x, (short)(y - 1), (short)z] == 0)
+            //If player is below the blocks Y level, render the bottom face
+            // && Window.GetPlayer().GetPosition().Y < y)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                BlockFace faceDir = BlockFace.DOWN;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
 
-                //Positive Z (NORTH)
-                if (z + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
-                    BlockFace faceDir = BlockFace.NORTH;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
+            //Positive Z (NORTH)
+            if (z + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                BlockFace faceDir = BlockFace.NORTH;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
 
-                //Negative Z (SOUTH)
-                if (z - 1 < 0 || actionChunk.blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
-                {
-                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
-                    BlockFace faceDir = BlockFace.SOUTH;
-                    actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
-                }
+            //Negative Z (SOUTH)
+            if (z - 1 < 0 || actionChunk.blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                BlockFace faceDir = BlockFace.SOUTH;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+            }
 
-                //Set block emissiveness after addding faces
-                if (type == BlockType.LAMP_BLOCK)
-                {
-                   // actionChunk.SetBlockFaceLight(blockSpace, BlockFace.all, new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.UP,    new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.DOWN,  new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.EAST,  new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.WEST,  new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.NORTH, new ColorVector(15, 0, 0));
-                    actionChunk.SetBlockFaceLight(blockSpace, BlockFace.SOUTH, new ColorVector(15, 0, 0));
+            //Set block emissiveness after addding faces
+            if (type == BlockType.LAMP_BLOCK)
+            {
+                //Set all bloc faces to the same light levels
+                actionChunk.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(15, 10, 5));
 
-                    actionChunk.PropagateBlockLight(blockSpace);
+                actionChunk.PropagateBlockLight(blockSpace);
 
-                }
-            
-
+            }
         }
 
         /**

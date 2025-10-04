@@ -324,9 +324,9 @@ namespace Vox.Genesis
         //========================
 
         //Given the block data index of a chunk, returns the light level for red green and blue channels
-        public ColorVector GetBlockLightVector(Vector3 location)
+        public ColorVector GetBlockLightVector(Vector3 location, BlockFace faceDir)
         {
-            return new(GetRedLight(location), GetGreenLight(location), GetBlueLight(location));
+            return new(GetRedLight(location, faceDir), GetGreenLight(location, faceDir), GetBlueLight(location, faceDir));
 
         }
         public ushort GetBlockLight(Vector3 location, BlockFace faceDir)
@@ -345,33 +345,37 @@ namespace Vox.Genesis
         public void SetBlockFaceLight(Vector3 location, BlockFace faceDir, ColorVector color)
         {
             SetRedLight(location, faceDir, color.Red);
-            SetGreenLight(location, color.Green);
-            SetBlueLight(location, color.Blue);
+            SetGreenLight(location, faceDir, color.Green);
+            SetBlueLight(location, faceDir, color.Blue);
         }
 
         // Get the bits XXXX0000
-        public int GetSunlight(int x, int y, int z)
-        {
-            return 0;// (lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] >> 4) & 0xF;
-        }
-        public int GetSunlight(Vector3i v)
-        {
-            return 0;// (lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] >> 4) & 0xF;
-        }
-
-        // Set the bits XXXX0000
-        public void SetSunlight(int x, int y, int z, int val)
-        {
-           // lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] = (byte) ((lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] & 0xF000) | (val << 4));
-        }
+        //public int GetSunlight(int x, int y, int z)
+        //{
+        //    return 0;// (lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] >> 4) & 0xF;
+        //}
+        //public int GetSunlight(Vector3i v)
+        //{
+        //    return 0;// (lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] >> 4) & 0xF;
+        //}
+        //
+        //// Set the bits XXXX0000
+        //public void SetSunlight(int x, int y, int z, int val)
+        //{
+        //   // lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] = (byte) ((lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] & 0xF000) | (val << 4));
+        //}
         // ================ Blue component (bits 0-3) =================
-        public int GetBlueLight(Vector3 location)
+        public int GetBlueLight(Vector3 location, BlockFace faceDir)
         {
-            // Convert the short to an unsigned integer for correct masking
-            //  uint temp = lightmap[GetIndex(new((int) location.X, (int) location.Y, (int) location.Z))];
-            return 0;// (int)(temp & 0x0F);
+            if (SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
+            {
+                int blue = SSBOdata[new(location.X, location.Y, location.Z, (int)faceDir)].lighting;
+                return blue & 0x0F;
+            }
+            else
+                return 0;
         }
-        public void SetBlueLight(Vector3 location, int val)
+        public void SetBlueLight(Vector3 location, BlockFace faceDir, int val)
         {
             if (val < 0)
                 val = 0;
@@ -381,17 +385,42 @@ namespace Vox.Genesis
             // Apply mask to new value to ensure only relevant bits are set
             int newValue = val & 0x000F;
 
-            // Combine existing and new blue values without affecting higher-order bits
-            //lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] = (ushort)(lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] | newValue);
+            Vector3 facePos = new(location.X, location.Y, location.Z);
+
+            if (faceDir == BlockFace.ALL)
+            {
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
+                    UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
+                    UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+            }
+            else
+            {
+                if (SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
+                    UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)SSBOdata[new(facePos, (int)faceDir)].lighting);
+            }
         }
         // ================ Green component (bits 4-7) ================
-        public int GetGreenLight(Vector3 location)
+        public int GetGreenLight(Vector3 location, BlockFace faceDir)
         {
-            return 0;// ((char)(lightmap[GetIndex(new((int) location.X, (int) location.Y, (int) location.Z))] >> 4)) & 0x0F;
+            if (SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
+            {
+                int green = SSBOdata[new(location.X, location.Y, location.Z, (int)faceDir)].lighting;
+                return ((char)green >> 4) & 0x0F;
+            }
+            else
+                return 0;
         }
-        public void SetGreenLight(Vector3 location, int val)
+        public void SetGreenLight(Vector3 location, BlockFace faceDir, int val)
         {
-
             if (val < 0)
                 val = 0;
             else if (val > 15)
@@ -400,18 +429,39 @@ namespace Vox.Genesis
             // Apply mask to new value to ensure only relevant bits are set
             int newValue = (val << 4) & 0x00F0;
 
-            // Combine existing and new green values without affecting higher-order bits
-           // lightmap[GetIndex(new(location.X + (int)xLoc, location.Y + (int)yLoc, location.Z + (int)zLoc))] = (ushort) (lightmap[GetIndex(new(location.X + (int)xLoc, location.Y + (int)yLoc, location.Z + (int)zLoc))] | newValue);
+            Vector3 facePos = new(location.X, location.Y, location.Z);
 
+            if (faceDir == BlockFace.ALL)
+            {
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
+                    UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
+                    UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+
+            }
+            else
+            {
+                if (SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
+                    UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)SSBOdata[new(facePos, (int)faceDir)].lighting);
+            }
         }
         // ===========================================================
 
         // ================ Red component (bits 8-11) ================
-        public int GetRedLight(Vector3 location)
+        public int GetRedLight(Vector3 location, BlockFace faceDir)
         {
-            if (SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)BlockFace.UP)))
+
+            if (SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
             {
-                int red = SSBOdata[new(location.X, location.Y, location.Z, (int)BlockFace.UP)].lighting;
+                int red = SSBOdata[new(location.X, location.Y, location.Z, (int)faceDir)].lighting;
                 return ((char)red >> 8) & 0x0F;
             }
             else
@@ -429,20 +479,22 @@ namespace Vox.Genesis
             int newValue = (val << 8) & 0x0F00;
 
             Vector3 facePos = new(location.X, location.Y, location.Z);
-            Vector3i index = RegionManager.GetChunkRelativeCoordinates(location);
-            BlockType type = (BlockType)blockData[index.X, index.Y, index.Z];
 
             if (faceDir == BlockFace.ALL)
             {
-
-                if (SSBOdata.ContainsKey(new(facePos, (int)faceDir))) {
-                    UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
-                    UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
-                    UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
-                    UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
-                    UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
-                    UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
-                }
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
+                    UpdateEmissiveLighting(facePos, BlockFace.UP,       newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.UP)]    .lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
+                    UpdateEmissiveLighting(facePos, BlockFace.DOWN,     newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.DOWN)]  .lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.EAST,     newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.EAST)]  .lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
+                    UpdateEmissiveLighting(facePos, BlockFace.WEST,     newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.WEST)]  .lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.NORTH,    newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.NORTH)] .lighting);
+                if (SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
+                    UpdateEmissiveLighting(facePos, BlockFace.SOUTH,    newValue | (ushort)SSBOdata[new(facePos, (int)BlockFace.SOUTH)] .lighting);
+                
             }
             else
             {
@@ -451,13 +503,6 @@ namespace Vox.Genesis
             }
         }
         // ============================================================
-
-
-        private short GetIndex(Vector3i v)
-        {
-            int bounds = RegionManager.CHUNK_BOUNDS;
-            return (short)(v.X * bounds * bounds + v.Y * bounds + v.Z);
-        }
 
         //FIX: Propagates the opposite direction or doesnt propagate at all when X coordinates are negative
         //FIX: Only propagates when Z is positive
@@ -471,9 +516,13 @@ namespace Vox.Genesis
 
             Vector3i blockDataIndex = RegionManager.GetChunkRelativeCoordinates(location);
 
-            // Check the light level of the current node before propagating          
-            ColorVector originLightLevel = GetBlockLightVector(location);
+            //======================================================================
+            // Propagate light for UP face
+            //======================================================================
 
+            // Check the light level of the current node before propagating          
+            BlockFace faceDir = BlockFace.UP;
+            ColorVector originLightLevel = GetBlockLightVector(location, faceDir);
             if (originLightLevel.Red > 0 || originLightLevel.Green > 0 || originLightLevel.Blue > 0)
             {
                 int i = 1;
@@ -491,19 +540,8 @@ namespace Vox.Genesis
                     LightNode node = RegionManager.DequeueEmissiveLightNode();
                     Chunk chunk = node.Chunk;
                     int currentIdx = node.Index;
-                    int lightLocationX = currentIdx % bounds;
-                    int lightLocationY = currentIdx / (bounds * bounds);
-                    int lightLocationZ = (currentIdx % (bounds * bounds)) / bounds;
-                   
-                    //Look at all neigZbouring voxels to that node.
-                    //if their light level is 2 or more levels less than
-                    //the current node, then set their light level to
-                    //the current nodes light level - 1, and then add
-                    //them to the queue.
-                    Vector3i negXIndex = new(blockDataIndex.X - i, blockDataIndex.Y - 1, blockDataIndex.Z);
 
                     chunk = RegionManager.GetAndLoadGlobalChunkFromCoords(new(location.X - i, location.Y - 1, location.Z));                   
-
 
                     if ((originLightLevel.Red - i > 0 ||
                         originLightLevel.Green - i > 0 ||
@@ -511,17 +549,17 @@ namespace Vox.Genesis
                     {
 
                         Vector3 setLightHere = new(location.X - i, location.Y - 1, location.Z);
-                        if (chunk.GetBlockLightVector(setLightHere).Red <= originLightLevel.Red && originLightLevel.Red - i > 0)
+                        if (chunk.GetBlockLightVector(setLightHere, faceDir).Red <= originLightLevel.Red && originLightLevel.Red - i > 0)
                             // Add the propagated red light level to the blocks current level
-                            chunk.SetRedLight(setLightHere, BlockFace.UP, originLightLevel.Red - i + chunk.GetRedLight(setLightHere));
+                            chunk.SetRedLight(setLightHere, faceDir, originLightLevel.Red - i + chunk.GetRedLight(setLightHere, faceDir));
 
-                       // if (chunk.GetBlockLight(negXIndex).Green <= originLightLevel.Green && originLightLevel.Green - i > 0)
-                       //     // Add the propagated green light level to the blocks current level
-                       //     chunk.SetGreenLight(negXIndex, originLightLevel.Green - i + chunk.GetGreenLight(negXIndex));
-                       //
-                       // if (chunk.GetBlockLight(negXIndex).Blue <= originLightLevel.Blue && originLightLevel.Blue - i > 0)
-                       //     // Add the propagated blue light level to the blocks current level
-                       //     chunk.SetBlueLight(negXIndex, originLightLevel.Blue - i + chunk.GetBlueLight(negXIndex));
+                        if (chunk.GetBlockLightVector(setLightHere, faceDir).Green   <= originLightLevel.Green && originLightLevel.Green - i > 0)
+                            // Add the propagated green light level to the blocks current level
+                            chunk.SetGreenLight(setLightHere, faceDir, originLightLevel.Green - i + chunk.GetGreenLight(setLightHere, faceDir));
+                       
+                        if (chunk.GetBlockLightVector(setLightHere, faceDir).Blue <= originLightLevel.Blue && originLightLevel.Blue - i > 0)
+                            // Add the propagated blue light level to the blocks current level
+                            chunk.SetBlueLight(setLightHere, faceDir, originLightLevel.Blue - i + chunk.GetBlueLight(setLightHere, faceDir));
 
                         // Emplace new node to queue. (could use push as well)
                         index = (short)((x - i) * bounds * bounds + y * bounds + z);
