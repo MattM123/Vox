@@ -56,10 +56,10 @@ const int NEG_Y = 5;
 
 //Vertex winding order
 const int texCoordMap[6][4] = int[6][4](
-    int[4](2, 3, 0, 1), // +Z = North = 0 //correct
-    int[4](2, 3, 0, 1), // -Z = South = 1 //correct
-    int[4](3, 1, 2, 0), // +X = East = 2 //correct
-    int[4](3, 1, 2, 0), // -X = West = 3 //correct
+    int[4](2, 3, 0, 1), // +Z = North = 0 
+    int[4](2, 3, 0, 1), // -Z = South = 1 
+    int[4](3, 1, 2, 0), // +X = East = 2 
+    int[4](3, 1, 2, 0), // -X = West = 3 
     int[4](3, 1, 2, 0), // +Y = Up = 4
     int[4](3, 1, 2, 0)  // -Y = Down = 5
 );
