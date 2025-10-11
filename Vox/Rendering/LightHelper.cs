@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using OpenTK.Mathematics;
 using Vox.Enums;
 using Vox.Genesis;
+using Vox.Model;
 
 namespace Vox.Rendering
 {
@@ -41,21 +42,56 @@ namespace Vox.Rendering
             SetBlueLight(location, faceDir, color.Blue, chunk);
         }
 
-        // Get the bits XXXX0000
-        //public int GetSunlight(int x, int y, int z)
-        //{
-        //    return 0;// (lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] >> 4) & 0xF;
-        //}
-        //public int GetSunlight(Vector3i v)
-        //{
-        //    return 0;// (lightmap[GetIndex(new(v.X + (int)xLoc, v.Y + (int)yLoc, v.Z + (int)zLoc))] >> 4) & 0xF;
-        //}
-        //
-        //// Set the bits XXXX0000
-        //public void SetSunlight(int x, int y, int z, int val)
-        //{
-        //   // lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] = (byte) ((lightmap[GetIndex(new(x + (int)xLoc, y + (int)yLoc, z + (int)zLoc))] & 0xF000) | (val << 4));
-        //}
+        public static void CombineLightValues(Vector3 location, BlockFace faceDir, ushort currentLightLevels, ushort toCombine, Chunk chunk)
+        {
+            // Extract components
+            int r = (currentLightLevels >> 8) & 0xF;
+            int g = (currentLightLevels >> 4) & 0xF;
+            int b = currentLightLevels & 0xF;
+
+            // Extract new components
+            int newR = (toCombine >> 8) & 0xF;
+            int newG = (toCombine >> 4) & 0xF;
+            int newB = toCombine & 0xF;
+
+            // Max blend formula
+            r = Math.Max(r, newR); 
+            g = Math.Max(g, newG); 
+            b = Math.Max(b, newB);
+
+            // Recombine
+            currentLightLevels = (ushort)((r << 8) | (g << 4) | b);
+            UpdateEmissiveLighting(location, faceDir, currentLightLevels, chunk);
+
+        }
+
+        /**
+        * Update the lighting value in the correct BlockFaceInstance which is 
+        * then passsed to the shaders for rendering
+        */
+        public static void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
+        {
+            Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
+
+            if (chunk.SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
+            {
+                //Update lighting
+                Console.WriteLine($"Updating lighting for {key} {chunk} from {existingFace.lighting} to {existingFace.lighting |= lighting}");
+
+                existingFace.lighting = lighting;
+
+                //Update entire instance
+                chunk.SSBOdata[key] = existingFace;
+
+                //Update data for GPU
+                chunk.AddOrUpdateFaceInMemory(chunk.SSBOdata[key]);
+            }
+            else
+            {
+                chunk.SSBOdata.TryAdd(key, new BlockFaceInstance(facePos, faceDir, 0, Window.GetAndIncrementNextFaceIndex(), lighting));
+            }
+        }
+
         // ================ Blue component (bits 0-3) =================
         public static int GetBlueLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
@@ -82,22 +118,33 @@ namespace Vox.Rendering
             if (faceDir == BlockFace.ALL)
             {
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
+                    CombineLightValues(facePos, BlockFace.UP, chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting, (ushort)newValue, chunk);
+                  
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
+                    CombineLightValues(facePos, BlockFace.DOWN, chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting, (ushort)newValue, chunk);
+
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
+                    CombineLightValues(facePos, BlockFace.EAST, chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting, (ushort)newValue, chunk);
+
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
+                    CombineLightValues(facePos, BlockFace.WEST, chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting, (ushort)newValue, chunk);
+
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
+                    CombineLightValues(facePos, BlockFace.NORTH, chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting, (ushort)newValue, chunk);
+
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+                    CombineLightValues(facePos, BlockFace.SOUTH, chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting, (ushort)newValue, chunk);
             }
             else
             {
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
-                    chunk.UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)faceDir)].lighting);
+                if (chunk.SSBOdata.TryGetValue(new(facePos, (int)faceDir), out var data))
+                {
+                    CombineLightValues(facePos, faceDir, data.lighting, (ushort)newValue, chunk);
+                }
+                else
+                {
+                    UpdateEmissiveLighting(facePos, faceDir, (ushort)newValue, chunk);
+                }
             }
         }
         // ===========================================================
@@ -127,23 +174,33 @@ namespace Vox.Rendering
             if (faceDir == BlockFace.ALL)
             {
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+                    CombineLightValues(facePos, BlockFace.UP, chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting, (ushort)newValue, chunk);
 
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
+                    CombineLightValues(facePos, BlockFace.DOWN, chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
+                    CombineLightValues(facePos, BlockFace.EAST, chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
+                    CombineLightValues(facePos, BlockFace.WEST, chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
+                    CombineLightValues(facePos, BlockFace.NORTH, chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
+                    CombineLightValues(facePos, BlockFace.SOUTH, chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting, (ushort)newValue, chunk);
             }
             else
             {
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
-                    chunk.UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)faceDir)].lighting);
+                if (chunk.SSBOdata.TryGetValue(new(facePos, (int)faceDir), out var data))
+                {
+                    CombineLightValues(facePos, faceDir, data.lighting, (ushort)newValue, chunk);
+                }
+                else
+                {
+                    UpdateEmissiveLighting(facePos, faceDir, (ushort)newValue, chunk);
+                }
             }
         }
         // ===========================================================
@@ -175,23 +232,33 @@ namespace Vox.Rendering
             if (faceDir == BlockFace.ALL)
             {
                 if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.UP)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.UP, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.DOWN, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.EAST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.WEST, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.NORTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting);
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
-                    chunk.UpdateEmissiveLighting(facePos, BlockFace.SOUTH, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting);
+                    CombineLightValues(facePos, BlockFace.UP, chunk.SSBOdata[new(facePos, (int)BlockFace.UP)].lighting, (ushort)newValue, chunk);
 
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.DOWN)))
+                    CombineLightValues(facePos, BlockFace.DOWN, chunk.SSBOdata[new(facePos, (int)BlockFace.DOWN)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.EAST)))
+                    CombineLightValues(facePos, BlockFace.EAST, chunk.SSBOdata[new(facePos, (int)BlockFace.EAST)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.WEST)))
+                    CombineLightValues(facePos, BlockFace.WEST, chunk.SSBOdata[new(facePos, (int)BlockFace.WEST)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.NORTH)))
+                    CombineLightValues(facePos, BlockFace.NORTH, chunk.SSBOdata[new(facePos, (int)BlockFace.NORTH)].lighting, (ushort)newValue, chunk);
+
+                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)BlockFace.SOUTH)))
+                    CombineLightValues(facePos, BlockFace.SOUTH, chunk.SSBOdata[new(facePos, (int)BlockFace.SOUTH)].lighting, (ushort)newValue, chunk);
             }
             else
             {
-                if (chunk.SSBOdata.ContainsKey(new(facePos, (int)faceDir)))
-                    chunk.UpdateEmissiveLighting(facePos, faceDir, newValue | (ushort)chunk.SSBOdata[new(facePos, (int)faceDir)].lighting);
+                if (chunk.SSBOdata.TryGetValue(new(facePos, (int)faceDir), out var data))
+                {
+                    CombineLightValues(facePos, faceDir, data.lighting, (ushort)newValue, chunk);
+                }
+                else
+                {
+                    UpdateEmissiveLighting(facePos, faceDir, (ushort)newValue, chunk);
+                }
             }
         }
         // ============================================================

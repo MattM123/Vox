@@ -1,4 +1,4 @@
-﻿namespace Vox.Rendering
+﻿namespace Vox.Enums
 {
     public enum Texture
     {
@@ -6,9 +6,9 @@
         DIRT,
         GRASS_FULL,
         GRASS_SIDE,
+        LAMP,
         STONE,
         TARGET,
         TEST,
-
     }
 }

@@ -1,4 +1,5 @@
 ﻿
+using Vox.Enums;
 using Vox.Model;
 
 namespace Vox.Rendering
@@ -11,6 +12,7 @@ namespace Vox.Rendering
             {"dirt.png", Texture.DIRT },
             {"grass_full.png", Texture.GRASS_FULL },
             {"grass_side.png", Texture.GRASS_SIDE },
+            {"lamp.png", Texture.LAMP }, 
             {"stone.png", Texture.STONE },
             {"test.png", Texture.TEST },
             {"target.png", Texture.TARGET }

@@ -80,7 +80,7 @@ namespace Vox.Rendering
                     TextureTarget.Texture2DArray,               //Target
                     0,                                          //Level
                     0, 0,                                       //XY Offset
-                    AssetLookup.GetTextureValue(filename),    //Z offset
+                    AssetLookup.GetTextureValue(filename),      //Z offset
                     width, height, 1,                           //Width, height, depth
                     PixelFormat.Rgba,                           //Pixel Format
                     PixelType.UnsignedByte,                     //Pixel Type

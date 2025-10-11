@@ -6,7 +6,7 @@ namespace Vox.Model
 {
     public static class ModelLoader
     {
-        private static readonly List<BlockModel> models = [];
+        private static readonly Dictionary<BlockType, BlockModel> models = [];
         static ModelLoader() { }
         public static void LoadModels()
         {
@@ -26,14 +26,14 @@ namespace Vox.Model
             }
 
             //Populate models to store in memory
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\grass.json")), BlockType.GRASS_BLOCK));
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\dirt.json")), BlockType.DIRT_BLOCK));
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json")), BlockType.STONE_BLOCK));
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json")), BlockType.TEST_BLOCK));
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\target.json")), BlockType.TARGET_BLOCK));
-            models.Add(new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\lamp.json")), BlockType.LAMP_BLOCK));
+            models.Add(BlockType.GRASS_BLOCK  , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\grass.json"))      ,   BlockType.GRASS_BLOCK   ));
+            models.Add(BlockType.DIRT_BLOCK   , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\dirt.json"))       ,   BlockType.DIRT_BLOCK    ));
+            models.Add(BlockType.STONE_BLOCK  , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\stone.json"))      ,   BlockType.STONE_BLOCK   ));
+            models.Add(BlockType.TEST_BLOCK   , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\testblock.json"))  ,   BlockType.TEST_BLOCK    ));
+            models.Add(BlockType.TARGET_BLOCK , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\target.json"))     ,   BlockType.TARGET_BLOCK  ));
+            models.Add(BlockType.LAMP_BLOCK   , new(JObject.Parse(File.ReadAllText(Window.assets + "BlockModels\\lamp.json"))       ,   BlockType.LAMP_BLOCK    ));
         }
-        public static List<BlockModel> GetModels()
+        public static Dictionary<BlockType, BlockModel> GetModels()
         {
             return models;
         }
@@ -42,9 +42,8 @@ namespace Vox.Model
             if (type == BlockType.AIR)
                 return new();
 
-            foreach (BlockModel model in models)
-                if (model.GetBlockType() == type)
-                    return model;
+            if (models.TryGetValue(type, out BlockModel? value))
+                return value;
 
             return new();
         }
@@ -53,9 +52,8 @@ namespace Vox.Model
             if ((BlockType) type == BlockType.AIR)
                 return new();
 
-            foreach (BlockModel model in models)
-                if (model.GetBlockType() == (BlockType) type)
-                    return model;
+            if (models.TryGetValue((BlockType) type, out BlockModel? value))
+                return value;
 
             return new();
         }

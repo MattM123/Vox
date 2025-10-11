@@ -6,7 +6,6 @@ using Newtonsoft.Json.Schema;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.AssetManagement;
 using Vox.Enums;
-using Vox.Rendering;
 
 namespace Vox.Model
 {
@@ -112,14 +111,12 @@ namespace Vox.Model
          */
         public Texture GetTexture(BlockFace side)
         {
-            Texture output;
-            try
-            {
-                Enum.TryParse(textures[side], true, out output);
-            } catch (Exception)
-            {
-                return Texture.AIR;
+            Texture output = 0;
+            if (textures.TryGetValue(side, out string? value)) {
+                Enum.TryParse(value, true, out output);
+                return output;
             }
+
             return output;
         }
 

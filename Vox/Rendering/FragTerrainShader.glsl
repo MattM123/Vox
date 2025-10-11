@@ -91,6 +91,10 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
 void main()
 {          
+    //If air block, discard fragment
+    if (fTexLayer == 0)
+        discard;
+
     //=========================================
     // Lighting
     //=========================================
@@ -168,14 +172,12 @@ void main()
     //If block is emissive, render block lighting properly
    if (blue > 0 || red > 0 || green > 0) {
         //Add the emissive color to the blocks lighting value
-        lighting = ((light.ambient + material.ambient) + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity) + emissiveColor;
+        lighting = ((light.ambient + material.ambient + emissiveColor) + (diffuse + specular) * (1.0 - shadow)) * (lightIntensity);
         
-
-        result = vec3(1,1,1) * (lightIntensity + emissiveColor) + diffuse;
+        result = result + emissiveColor;
+       // result = vec3(1,1,1) * (lightIntensity + emissiveColor) + diffuse;
       
    }
-
-
 
     //=========================================
     // Render block target

@@ -1,10 +1,12 @@
 ﻿
 using System;
 using System.Collections.Concurrent;
+using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using MessagePack;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.Common.Input;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
@@ -23,7 +25,7 @@ namespace Vox.Genesis
         public static long WORLD_SEED;
         private static object chunkLock = new();
 
-        private static ConcurrentQueue<LightNode> BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
+        private static readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -57,7 +59,7 @@ namespace Vox.Genesis
             if (BFSEmissivePropagationQueue.TryDequeue(out LightNode node))
                 return node;
             else 
-                return new LightNode(0, null);
+                return new LightNode("", null);
         }
 
         public static int GetEmissiveQueueCount()
@@ -227,8 +229,8 @@ namespace Vox.Genesis
         public static Region EnterRegion(string rIndex)
         {
             //If region is already visible
-            if (VisibleRegions.ContainsKey(rIndex))
-                return VisibleRegions[rIndex];
+            if (VisibleRegions.TryGetValue(rIndex, out Region? value))
+                return value;
 
             //Gets region from files if it's written to file but not visible
             Region region = TryGetRegionFromFile(rIndex);
@@ -308,7 +310,7 @@ namespace Vox.Genesis
          */
         public static Region TryGetRegionFromFile(string rIndex)
         {
-            int[] index = rIndex.Split('|').Select(int.Parse).ToArray();
+            int[] index = [.. rIndex.Split('|').Select(int.Parse)];
             string path = Path.Combine(worldDir, "regions", index[0] + "." + index[1] + ".dat");
 
 
@@ -423,6 +425,8 @@ namespace Vox.Genesis
             //Update block data in chunk 
             actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
             // actionChunk.voxelVisibility[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = true;
+            Console.WriteLine("=====================================");
+            Console.WriteLine("Adding block to chunk at: " + blockSpace);
 
             /*=============================================
              * Add a single block to the SSBO for rendering
@@ -488,9 +492,31 @@ namespace Vox.Genesis
             if (type == BlockType.LAMP_BLOCK)
             {
                 //Set all bloc faces to the same light levels
-                // LightHelper.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(11, 9, 7), actionChunk);
-                LightHelper.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(8, 8, 8), actionChunk);
-                PropagateBlockLight(blockSpace);
+                 LightHelper.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(12, 8, 8), actionChunk);
+                //LightHelper.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(8, 8, 8), actionChunk);
+                PropagateBlockLight(blockSpace, BlockFace.UP, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.UP, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.UP, "Blue");
+
+                PropagateBlockLight(blockSpace, BlockFace.DOWN, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.DOWN, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.DOWN, "Blue");
+
+                PropagateBlockLight(blockSpace, BlockFace.EAST, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.EAST, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.EAST, "Blue");
+
+                PropagateBlockLight(blockSpace, BlockFace.WEST, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.WEST, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.WEST, "Blue");
+
+                PropagateBlockLight(blockSpace, BlockFace.NORTH, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.NORTH, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.NORTH, "Blue");
+
+                PropagateBlockLight(blockSpace, BlockFace.SOUTH, "Red");
+                PropagateBlockLight(blockSpace, BlockFace.SOUTH, "Green");
+                PropagateBlockLight(blockSpace, BlockFace.SOUTH, "Blue");
 
             }
         }
@@ -642,148 +668,39 @@ namespace Vox.Genesis
 
         }
 
-        public static void PropagateBlockLight(Vector3 location)
+        public static void PropagateBlockLight(Vector3 location, BlockFace faceDir, string color)
         {
             int x = (int)location.X;
             int y = (int)location.Y;
             int z = (int)location.Z;
-            int maxLightLevel = 15;
+
+           // Vector3i locationIndex = GetChunkRelativeCoordinates(location);
+            //int maxLightLevel = 15;
            
-            Box3 block = new(
-                new(x, y, z),
-                new(x + 1, y + 1, z + 1)
-            );
-            float centerX = block.Center.X;
-            float centerY = block.Center.Y;
-            float centerZ = block.Center.Z;
 
-            //A cuboid representing the total area affected by light propagation
-            Box3 lightPropagationArea = new(
-                new(
-                    (float)Math.Floor(centerX - maxLightLevel),
-                    (float)Math.Floor(centerY - maxLightLevel),
-                    (float)Math.Floor(centerZ - maxLightLevel)
-                ),
-                new(
-                    (float)Math.Floor(centerX + maxLightLevel),
-                    (float)Math.Floor(centerY + maxLightLevel),
-                    (float)Math.Floor(centerZ + maxLightLevel)
-                )
-            );
-
-            //Top zone includes all blocks above the propagation origin
-            Box3 topZone = new(
-                new(
-                    lightPropagationArea.Min.X,
-                    lightPropagationArea.Min.Y + ((maxLightLevel - 1) / 2),
-                    lightPropagationArea.Min.Z
-                ),
-                lightPropagationArea.Max
-            );
-
-            //Bottom zone includes all blocks below the propagation origin
-            Box3 bottomZone = new(
-                lightPropagationArea.Min,
-                new(
-                    lightPropagationArea.Max.X,
-                    lightPropagationArea.Max.Y - ((maxLightLevel - 1) / 2),
-                    lightPropagationArea.Max.Z
-                )
-            );
-
-            //West zone includes all blocks to the east of the propagation origin
-            Box3 westZone = new(
-                new(
-                    lightPropagationArea.Min.X + 8,
-                    lightPropagationArea.Min.Y,
-                    lightPropagationArea.Min.Z
-                ),
-                lightPropagationArea.Max
-            );
-
-            //East zone includes all blocks to the west of the propagation origin
-            Box3 eastZone = new(
-                lightPropagationArea.Min,
-                new(
-                    lightPropagationArea.Max.X - 8,
-                    lightPropagationArea.Max.Y,
-                    lightPropagationArea.Max.Z
-                )
-            );
-
-            //North zone includes all blocks to the north of the propagation origin
-            Box3 northZone = new(
-                new(
-                    lightPropagationArea.Min.X,
-                    lightPropagationArea.Min.Y,
-                    lightPropagationArea.Min.Z + 8
-                ),
-                lightPropagationArea.Max
-            );
-
-            //South zone includes all blocks to the south of the propagation origin
-            Box3 southZone = new(
-                lightPropagationArea.Min,
-                new(
-                    lightPropagationArea.Max.X,
-                    lightPropagationArea.Max.Y,
-                    lightPropagationArea.Max.Z - 8
-                )
-            );
             //======================================================================
             // Propagate light for UP face
             //======================================================================
 
             // Check the light level of the current node before propagating          
-            BlockFace faceDir = BlockFace.UP;
             ColorVector originLightLevel = LightHelper.GetBlockLightVector(location, faceDir, GetAndLoadGlobalChunkFromCoords(location));
             if (originLightLevel.Red > 0 || originLightLevel.Green > 0 || originLightLevel.Blue > 0)
             {
-                int i = 1;
-                int bounds = CHUNK_BOUNDS;
-
-                short index = (short)(x * bounds * bounds + y * bounds + z);
+                string index = $"{x}|{y}|{z}";
 
                 EnqueueEmissiveLightNode(new(index, GetAndLoadGlobalChunkFromCoords(location)));
 
                 while (GetEmissiveQueueCount() > 0)
                 {
                     // Get a reference to the front node.
-                    //LightNode node = RegionManager.DequeueEmissiveLightNode();
-                    DequeueEmissiveLightNode();
-                    //Chunk chunk = node.Chunk;
-                    //int currentIdx = node.Index;
+                    LightNode node = DequeueEmissiveLightNode();
+                    string currentIdx = node.Index;
+                    int xLight = int.Parse(currentIdx.Split('|')[0]);
+                    int yLight = int.Parse(currentIdx.Split('|')[1]);
+                    int zLight = int.Parse(currentIdx.Split('|')[2]);
 
-                    Chunk chunk = GetAndLoadGlobalChunkFromCoords(new(location.X - i, location.Y - 1, location.Z));
-
-                    if (originLightLevel.Red - i > 0 ||
-                        originLightLevel.Green - i > 0 ||
-                        originLightLevel.Blue - i > 0)
-                    {
-
-                        //TODO: optimize triple for loop
-                        for (int xLight = (int)lightPropagationArea.Min.X; xLight < lightPropagationArea.Max.X; xLight++)
-                        {
-                            for (int yLight = (int)lightPropagationArea.Min.Y; yLight < lightPropagationArea.Max.Y; yLight++)
-                            {
-                                for (int zLight = (int)lightPropagationArea.Min.Z; zLight < lightPropagationArea.Max.Z; zLight++)
-                                {
-                                    Vector3 setLightHere = new(xLight, yLight, zLight);
-                                    chunk = GetAndLoadGlobalChunkFromCoords(setLightHere);
-                                    if (chunk.SSBOdata.ContainsKey(new(xLight, yLight, zLight, (int)BlockFace.UP)) && !setLightHere.Equals(location))
-                                    {
-                                        PropagationHelper(setLightHere, BlockFace.UP, location, i, originLightLevel);
-                                        PropagationHelper(setLightHere, BlockFace.WEST, location, i, originLightLevel);      
-                                        PropagationHelper(setLightHere, BlockFace.EAST, location, i, originLightLevel);      
-                                        PropagationHelper(setLightHere, BlockFace.NORTH, location, i, originLightLevel); 
-                                        PropagationHelper(setLightHere, BlockFace.SOUTH, location, i, originLightLevel);
-                                        PropagationHelper(setLightHere, BlockFace.DOWN, location, i, originLightLevel);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    i++;
+                    PropagationHelper(faceDir, color, node, location);
+                    
                 }
             }
         }
@@ -800,57 +717,369 @@ namespace Vox.Genesis
          * @Param originLightLevel The light level of the light source
          * 
          */
-        private static void PropagationHelper(Vector3 setLightHere, BlockFace faceDir, Vector3 location, int i, ColorVector originLightLevel)
+        private static void PropagationHelper(BlockFace faceDir, string color, LightNode node, Vector3 lightSource)
         {
 
-            int x = (int)location.X;
-            int y = (int)location.Y;
-            int z = (int)location.Z;
+            int maxLightLevel = 15;
+            Chunk chunk = node.Chunk;
+            string currentIdx = node.Index;
+            int xLight = int.Parse(currentIdx.Split('|')[0]);
+            int yLight = int.Parse(currentIdx.Split('|')[1]);
+            int zLight = int.Parse(currentIdx.Split('|')[2]);
 
-            Box3 block = new(
-                new(x, y, z),
-                new(x + 1, y + 1, z + 1)
-            );
+            // Grab the 16 bit light level of the current node
+            // ???? RRRR GGGG BBBB
+            ColorVector lightLevel = LightHelper.GetBlockLightVector(new(xLight, yLight, zLight), faceDir, chunk);
 
-            Chunk chunk = GetAndLoadGlobalChunkFromCoords(setLightHere);
+            switch (color)
+            {
+                
+                //RED LIGHT
+                case "Red":
+                {
+    
+                    //X - 1 chunk bounds check
+                    Vector3 loc1 = new(xLight - 1, yLight, zLight);
+                    Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
+                    if (!chunk.Equals(xMinusOne))
+                        chunk = xMinusOne;
 
-            //Calculate and invert light level
-            Vector3 subtraction = Vector3.Subtract(new(block.Center.X, block.Center.Y, block.Center.Z), setLightHere);
-            int invertedLightLevel = (int)-new Vector3(
-                (float)Math.Floor(subtraction.X),
-                (float)Math.Floor(subtraction.Y),
-                (float)Math.Floor(subtraction.Z)
-            ).Length + i;
+                    if ((LightHelper.GetRedLight(loc1, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc1, faceDir, lightLevel.Red - 1, chunk);
 
-          //Check and set light levels
-            if (LightHelper.GetBlockLightVector(setLightHere, faceDir, chunk).Red <= originLightLevel.Red && originLightLevel.Red - i > 0)
-                // Add the propagated red light level to the blocks current level
-                LightHelper.SetRedLight(setLightHere, faceDir,
-                    invertedLightLevel
-                    //Add it to the existing light level
-                    + LightHelper.GetRedLight(setLightHere, faceDir, chunk), chunk
-                );
+                        // Construct index
+                        string idx = $"{loc1.X}|{loc1.Y}|{loc1.Z}";
 
-          if (LightHelper.GetBlockLightVector(setLightHere, faceDir, chunk).Green <= originLightLevel.Green && originLightLevel.Green - i > 0)
-                // Add the propagated green light level to the blocks current level
-                LightHelper.SetGreenLight(setLightHere, faceDir,
-                    invertedLightLevel
-                    //Add it to the existing light level
-                    + LightHelper.GetGreenLight(setLightHere, faceDir, chunk), chunk
-                );
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
 
-          if (LightHelper.GetBlockLightVector(setLightHere, faceDir, chunk).Blue <= originLightLevel.Blue && originLightLevel.Blue - i > 0)
-                // Add the propagated blue light level to the blocks current level
-                LightHelper.SetBlueLight(setLightHere, faceDir,
-                    invertedLightLevel
-                    //Add it to the existing light level
-                    + LightHelper.GetBlueLight(setLightHere, faceDir, chunk), chunk
-                );
+                    //X + 1 chunk bounds check
+                    Vector3 loc2 = new(xLight + 1, yLight, zLight);
+                    Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
+                    if (!chunk.Equals(xPlusOne))
+                        chunk = xPlusOne;
 
-          // Emplace new node to queue. (could use push as well)
-            short index = (short)((x - i) * CHUNK_BOUNDS * CHUNK_BOUNDS + y * CHUNK_BOUNDS + z);
-            EnqueueEmissiveLightNode(new(index, chunk));
-         
+                    if ((LightHelper.GetRedLight(loc2, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc2, faceDir, lightLevel.Red - 1, chunk);
+
+                        // Construct index
+                        string idx = $"{loc2.X}|{loc2.Y}|{loc2.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Y - 1 chunk bounds check
+                    Vector3 loc3 = new(xLight, yLight - 1, zLight);
+                    Chunk yMinusOne = GetAndLoadGlobalChunkFromCoords(loc3);
+                    if (!chunk.Equals(yMinusOne))
+                        chunk = yMinusOne;
+
+                    if ((LightHelper.GetRedLight(loc3, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc3, faceDir, lightLevel.Red - 1, chunk);
+
+                        // Construct index
+                        string idx = $"{loc3.X}|{loc3.Y}|{loc3.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+
+                    //Y + 1 chunk bounds check
+                    Vector3 loc4 = new(xLight, yLight + 1, zLight);
+                    Chunk yPlusOne = GetAndLoadGlobalChunkFromCoords(loc4);
+                    if (!chunk.Equals(yPlusOne))
+                        chunk = yPlusOne;
+
+                    if ((LightHelper.GetRedLight(loc4, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc4, faceDir, (lightLevel.Red - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc4.X}|{loc4.Y}|{loc4.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Z - 1 chunk bounds check
+                    Vector3 loc5 = new(xLight, yLight, zLight - 1);
+                    Chunk zMinusOne = GetAndLoadGlobalChunkFromCoords(loc5);
+                    if (!chunk.Equals(zMinusOne))
+                        chunk = zMinusOne;
+
+                    if ((LightHelper.GetRedLight(loc5, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc5, faceDir, (lightLevel.Red - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc5.X}|{loc5.Y}|{loc5.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Z + 1 chunk bounds check
+                    Vector3 loc6 = new(xLight, yLight, zLight + 1);
+                    Chunk zPlusOne = GetAndLoadGlobalChunkFromCoords(loc6);
+                    if (!chunk.Equals(zPlusOne))
+                        chunk = zPlusOne;
+
+                    if ((LightHelper.GetRedLight(loc6, faceDir, chunk) + 2) <= lightLevel.Red)
+                    {
+                        // Set its light level
+                        LightHelper.SetRedLight(loc6, faceDir, (lightLevel.Red - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc6.X}|{loc6.Y}|{loc6.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+                    break;
+                }
+
+                //GREEN LIGHT
+                case "Green":
+                    {
+                        //X - 1 chunk bounds check
+                        Vector3 loc1 = new(xLight - 1, yLight, zLight);
+                        Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
+                        if (!chunk.Equals(xMinusOne))
+                            chunk = xMinusOne;
+
+                        if ((LightHelper.GetGreenLight(loc1, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc1, faceDir, lightLevel.Green - 1, chunk);
+
+                            // Construct index
+                            string idx = $"{loc1.X}|{loc1.Y}|{loc1.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+
+                        //X + 1 chunk bounds check
+                        Vector3 loc2 = new(xLight + 1, yLight, zLight);
+                        Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
+                        if (!chunk.Equals(xPlusOne))
+                            chunk = xPlusOne;
+
+                        if ((LightHelper.GetGreenLight(loc2, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc2, faceDir, lightLevel.Green - 1, chunk);
+
+                            // Construct index
+                            string idx = $"{loc2.X}|{loc2.Y}|{loc2.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+
+                        //Y - 1 chunk bounds check
+                        Vector3 loc3 = new(xLight, yLight - 1, zLight);
+                        Chunk yMinusOne = GetAndLoadGlobalChunkFromCoords(loc3);
+                        if (!chunk.Equals(yMinusOne))
+                            chunk = yMinusOne;
+
+
+                        if ((LightHelper.GetGreenLight(loc3, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc3, faceDir, lightLevel.Green - 1, chunk);
+
+                            // Construct index
+                            string idx = $"{loc3.X}|{loc3.Y}|{loc3.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+
+
+                        //Y + 1 chunk bounds check
+                        Vector3 loc4 = new(xLight, yLight + 1, zLight);
+                        Chunk yPlusOne = GetAndLoadGlobalChunkFromCoords(loc4);
+                        if (!chunk.Equals(yPlusOne))
+                            chunk = yPlusOne;
+
+                        if ((LightHelper.GetGreenLight(loc4, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc4, faceDir, (lightLevel.Green - 1), chunk);
+
+                            // Construct index
+                            string idx = $"{loc4.X}|{loc4.Y}|{loc4.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+
+
+                        //Z - 1 chunk bounds check
+                        Vector3 loc5 = new(xLight, yLight, zLight - 1);
+                        Chunk zMinusOne = GetAndLoadGlobalChunkFromCoords(loc5);
+                        if (!chunk.Equals(zMinusOne))
+                            chunk = zMinusOne;
+
+                        if ((LightHelper.GetGreenLight(loc5, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc5, faceDir, (lightLevel.Green - 1), chunk);
+
+                            // Construct index
+                            string idx = $"{loc5.X}|{loc5.Y}|{loc5.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+
+                        //Z + 1 chunk bounds check
+                        Vector3 loc6 = new(xLight, yLight, zLight + 1);
+                        Chunk zPlusOne = GetAndLoadGlobalChunkFromCoords(loc6);
+                        if (!chunk.Equals(zPlusOne))
+                            chunk = zPlusOne;
+
+                        if ((LightHelper.GetGreenLight(loc6, faceDir, chunk) + 2) <= lightLevel.Green)
+                        {
+                            // Set its light level
+                            LightHelper.SetGreenLight(loc6, faceDir, (lightLevel.Green - 1), chunk);
+
+                            // Construct index
+                            string idx = $"{loc6.X}|{loc6.Y}|{loc6.Z}";
+
+                            // Emplace new node to queue.
+                            EnqueueEmissiveLightNode(new(idx, chunk));
+                        }
+                        break;
+                    }
+
+                //BLUE LIGHT
+                case "Blue":
+                {
+
+                    //X - 1 chunk bounds check
+                    Vector3 loc1 = new(xLight - 1, yLight, zLight);
+                    Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
+                    if (!chunk.Equals(xMinusOne))
+                        chunk = xMinusOne;
+
+                    if ((LightHelper.GetBlueLight(loc1, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc1, faceDir, lightLevel.Blue - 1, chunk);
+
+                        // Construct index
+                        string idx = $"{loc1.X}|{loc1.Y}|{loc1.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //X + 1 chunk bounds check
+                    Vector3 loc2 = new(xLight + 1, yLight, zLight);
+                    Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
+                    if (!chunk.Equals(xPlusOne))
+                        chunk = xPlusOne;
+
+                    if ((LightHelper.GetBlueLight(loc2, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc2, faceDir, lightLevel.Blue - 1, chunk);
+
+                        // Construct index
+                        string idx = $"{loc2.X}|{loc2.Y}|{loc2.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Y - 1 chunk bounds check
+                    Vector3 loc3 = new(xLight, yLight - 1, zLight);
+                    Chunk yMinusOne = GetAndLoadGlobalChunkFromCoords(loc3);
+                    if (!chunk.Equals(yMinusOne))
+                        chunk = yMinusOne;
+
+                    if ((LightHelper.GetBlueLight(loc3, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc3, faceDir, lightLevel.Blue - 1, chunk);
+
+                        // Construct index
+                        string idx = $"{loc3.X}|{loc3.Y}|{loc3.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+
+                    //Y + 1 chunk bounds check
+                    Vector3 loc4 = new(xLight, yLight + 1, zLight);
+                    Chunk yPlusOne = GetAndLoadGlobalChunkFromCoords(loc4);
+                    if (!chunk.Equals(yPlusOne))
+                        chunk = yPlusOne;
+
+                    if ((LightHelper.GetBlueLight(loc4, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc4, faceDir, (lightLevel.Blue - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc4.X}|{loc4.Y}|{loc4.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Z - 1 chunk bounds check
+                    Vector3 loc5 = new(xLight, yLight, zLight - 1);
+                    Chunk zMinusOne = GetAndLoadGlobalChunkFromCoords(loc5);
+                    if (!chunk.Equals(zMinusOne))
+                        chunk = zMinusOne;
+
+                    if ((LightHelper.GetBlueLight(loc5, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc5, faceDir, (lightLevel.Blue - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc5.X}|{loc5.Y}|{loc5.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+
+                    //Z + 1 chunk bounds check
+                    Vector3 loc6 = new(xLight, yLight, zLight + 1);
+                    Chunk zPlusOne = GetAndLoadGlobalChunkFromCoords(loc6);
+                    if (!chunk.Equals(zPlusOne))
+                        chunk = zPlusOne;
+
+                    if ((LightHelper.GetBlueLight(loc6, faceDir, chunk) + 2) <= lightLevel.Blue)
+                    {
+                        // Set its light level
+                        LightHelper.SetBlueLight(loc6, faceDir, (lightLevel.Blue - 1), chunk);
+
+                        // Construct index
+                        string idx = $"{loc6.X}|{loc6.Y}|{loc6.Z}";
+
+                        // Emplace new node to queue.
+                        EnqueueEmissiveLightNode(new(idx, chunk));
+                    }
+                    break;
+                }
+            }
         }
     }
 }

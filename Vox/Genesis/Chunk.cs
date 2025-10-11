@@ -237,27 +237,33 @@ namespace Vox.Genesis
             AddOrUpdateFaceInMemory(SSBOdata[key]);
         }
 
+    
         /**
         * Update the lighting value in the correct BlockFaceInstance which is 
         * then passsed to the shaders for rendering
         */
-        public void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, int lighting)
-        {
-            Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
-
-            if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
-            {
-                //Update lighting
-                existingFace.lighting = lighting;
-           
-                //Update entire instance
-                SSBOdata[key] = existingFace;
-           
-                //Update data for GPU
-                AddOrUpdateFaceInMemory(SSBOdata[key]);
-            }
-
-        }
+        //public void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
+        //{
+        //    Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
+        //
+        //    if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
+        //    {
+        //        //Update lighting
+        //        existingFace.lighting = lighting;
+        //
+        //        //Update entire instance
+        //        SSBOdata[key] = existingFace;
+        //
+        //        //Update data for GPU
+        //        AddOrUpdateFaceInMemory(SSBOdata[key]);
+        //    }
+        //    else
+        //    {
+        //       // Vector3i idx = RegionManager.GetChunkRelativeCoordinates(facePos);
+        //       // BlockType type = blockData[]
+        //      //  SSBOdata.TryAdd(key, new BlockFaceInstance(facePos, faceDir, texLayer, Window.GetAndIncrementNextFaceIndex(), lighting));
+        //    }
+        //}
 
         public void IncrementFaceCount()
         {
@@ -268,7 +274,7 @@ namespace Vox.Genesis
          * If the index is already present, updates the face data.
          */
 
-        private void AddOrUpdateFaceInMemory(BlockFaceInstance face)
+        public void AddOrUpdateFaceInMemory(BlockFaceInstance face)
         {
 
             //Write face directly to SSBO
@@ -336,7 +342,17 @@ namespace Vox.Genesis
             return base.GetHashCode();
         }
 
+        public override bool Equals(object obj)
+        {
+            Vector3 chunk1 = new Vector3(xLoc, yLoc, zLoc);
 
+            if (obj is Chunk other)
+            {
+                Vector3 chunk2 = new(other.xLoc, other.yLoc, other.zLoc);
+                return chunk1.Equals(chunk2);
+            }
+            return false;
+        }
         /**
          * Flags chunk to regenerate next frame.
          */
