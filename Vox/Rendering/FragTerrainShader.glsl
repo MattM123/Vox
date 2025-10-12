@@ -55,14 +55,6 @@ out vec4 color;
 #line 1 "shadingData.glsl"
 #include "lygia\\lighting\\shadingData\\shadingData.glsl"
 
-//2D and 3D Simplex noise
-#line 1 "snoise.glsl"
-#include "lygia\\generative\\snoise.glsl"
-
-//Specular lighting
-#line 1 "cookTorrance.glsl"
-#include "lygia\\lighting\\specular\\cookTorrance.glsl"
-
 //Diffuse lighting
 #line 1 "diffuse.glsl"
 #include "lygia\\lighting\\diffuse.glsl"

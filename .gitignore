@@ -362,5 +362,76 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-# Lygia shader library
-Vox/Rendering/Lygia/
+# ==========================
+# Lygia Shaders
+# ===========================
+
+# Ignore everything in Lygia by default
+Vox/Rendering/lygia/animation/*
+
+Vox/Rendering/lygia/color/blend/*
+Vox/Rendering/lygia/color/composite/*
+Vox/Rendering/lygia/color/dither/*
+Vox/Rendering/lygia/color/layer/*
+Vox/Rendering/lygia/color/levels/*
+Vox/Rendering/lygia/color/palette/*
+Vox/Rendering/lygia/color/space/*
+Vox/Rendering/lygia/color/tonemap/*
+Vox/Rendering/lygia/color/*.*
+
+Vox/Rendering/lygia/distort/*
+Vox/Rendering/lygia/draw/*
+Vox/Rendering/lygia/filter/*
+Vox/Rendering/lygia/generative/*
+Vox/Rendering/lygia/geometry/*
+
+Vox/Rendering/lygia/lighting/common/*
+Vox/Rendering/lygia/lighting/diffuse/*
+Vox/Rendering/lygia/lighting/ior/*
+Vox/Rendering/lygia/lighting/light/*
+Vox/Rendering/lygia/lighting/ray/*
+Vox/Rendering/lygia/lighting/raymarch/*
+Vox/Rendering/lygia/lighting/medium/*
+Vox/Rendering/lygia/lighting/specular/*
+Vox/Rendering/lygia/lighting/material/*
+Vox/Rendering/lygia/lighting/*.*
+
+Vox/Rendering/lygia/math/quat/*
+Vox/Rendering/lygia/math/*.*
+
+Vox/Rendering/lygia/morphological/*
+Vox/Rendering/lygia/sample/*
+Vox/Rendering/lygia/sdf/*
+Vox/Rendering/lygia/simulate/*
+Vox/Rendering/lygia/space/*
+Vox/Rendering/lygia/*.*
+
+# Always track these base files
+!Vox/Rendering/lygia/README.md
+!Vox/Rendering/lygia/LICENSE.md
+!Vox/Rendering/lygia/math.glsl
+!Vox/Rendering/lygia/sample.glsl
+!Vox/Rendering/lygia/sampler.glsl
+!Vox/Rendering/lygia/sdf.glsl
+!Vox/Rendering/lygia/version.glsl
+
+# Only track used files and folders
+!Vox/Rendering/lygia/lighting/shadingData/
+!Vox/Rendering/lygia/lighting/material.glsl
+!Vox/Rendering/lygia/lighting/reflection.glsl
+!Vox/Rendering/lygia/lighting/ior/reflectance2f0.glsl
+!Vox/Rendering/lygia/lighting/material/albedo.glsl
+!Vox/Rendering/lygia/lighting/material/specular.glsl
+!Vox/Rendering/lygia/lighting/material/emissive.glsl
+!Vox/Rendering/lygia/lighting/material/occlusion.glsl
+!Vox/Rendering/lygia/lighting/material/normal.glsl
+!Vox/Rendering/lygia/lighting/material/metallic.glsl
+!Vox/Rendering/lygia/lighting/toMetallic.glsl
+!Vox/Rendering/lygia/lighting/material/roughness.glsl
+!Vox/Rendering/lygia/lighting/material/shininess.glsl
+!Vox/Rendering/lygia/lighting/toShininess.glsl
+!Vox/Rendering/lygia/lighting/diffuse.glsl
+
+!Vox/Rendering/lygia/color/space/gamma2linear.glsl
+
+!Vox/Rendering/lygia/math/saturate.glsl
