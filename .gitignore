@@ -417,19 +417,20 @@ Vox/Rendering/lygia/*.*
 
 # Only track used files and folders
 !Vox/Rendering/lygia/lighting/shadingData/
-!Vox/Rendering/lygia/lighting/material.glsl
 !Vox/Rendering/lygia/lighting/reflection.glsl
+!Vox/Rendering/lygia/lighting/common/perceptual2linearRoughness.glsl
 !Vox/Rendering/lygia/lighting/ior/reflectance2f0.glsl
+!Vox/Rendering/lygia/lighting/material.glsl
 !Vox/Rendering/lygia/lighting/material/albedo.glsl
 !Vox/Rendering/lygia/lighting/material/specular.glsl
 !Vox/Rendering/lygia/lighting/material/emissive.glsl
 !Vox/Rendering/lygia/lighting/material/occlusion.glsl
 !Vox/Rendering/lygia/lighting/material/normal.glsl
 !Vox/Rendering/lygia/lighting/material/metallic.glsl
-!Vox/Rendering/lygia/lighting/toMetallic.glsl
 !Vox/Rendering/lygia/lighting/material/roughness.glsl
 !Vox/Rendering/lygia/lighting/material/shininess.glsl
 !Vox/Rendering/lygia/lighting/toShininess.glsl
+!Vox/Rendering/lygia/lighting/toMetallic.glsl
 !Vox/Rendering/lygia/lighting/diffuse.glsl
 
 !Vox/Rendering/lygia/color/space/gamma2linear.glsl
