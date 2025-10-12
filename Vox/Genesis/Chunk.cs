@@ -237,38 +237,6 @@ namespace Vox.Genesis
             AddOrUpdateFaceInMemory(SSBOdata[key]);
         }
 
-    
-        /**
-        * Update the lighting value in the correct BlockFaceInstance which is 
-        * then passsed to the shaders for rendering
-        */
-        //public void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
-        //{
-        //    Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
-        //
-        //    if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
-        //    {
-        //        //Update lighting
-        //        existingFace.lighting = lighting;
-        //
-        //        //Update entire instance
-        //        SSBOdata[key] = existingFace;
-        //
-        //        //Update data for GPU
-        //        AddOrUpdateFaceInMemory(SSBOdata[key]);
-        //    }
-        //    else
-        //    {
-        //       // Vector3i idx = RegionManager.GetChunkRelativeCoordinates(facePos);
-        //       // BlockType type = blockData[]
-        //      //  SSBOdata.TryAdd(key, new BlockFaceInstance(facePos, faceDir, texLayer, Window.GetAndIncrementNextFaceIndex(), lighting));
-        //    }
-        //}
-
-        public void IncrementFaceCount()
-        {
-            blockFacesInChunk++;
-        }
         /**
          * Uploads a single block face to the SSBO for rendering.
          * If the index is already present, updates the face data.
@@ -294,16 +262,6 @@ namespace Vox.Genesis
             }
         }
 
-
-        /**
-         * Returns the raw block data for this chunk
-         * @return 3D array of block types in this chunk
-         */
-        public short[,,] GetBlockData()
-        {
-            return blockData;
-        }
-        
         /**
          * Since the location of each chunk is unique this is used as a
          * key to retrieve from spatial hashing storage.
@@ -325,9 +283,6 @@ namespace Vox.Genesis
             return heightMap;
         }
 
-       
-
-        
         public bool IsGenerated()
         {
             return isGenerated;

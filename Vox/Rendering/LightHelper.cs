@@ -12,36 +12,27 @@ namespace Vox.Rendering
 {
     public static class LightHelper
     {
-        //========================
-        //Light helper functions
-        //========================
 
-        //Given the block data index of a chunk, returns the light level for red green and blue channels
-        public static ColorVector GetBlockLightVector(Vector3 location, BlockFace faceDir, Chunk chunk)
+        public static ColorVector GetBlockLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
             return new(GetRedLight(location, faceDir, chunk), GetGreenLight(location, faceDir, chunk), GetBlueLight(location, faceDir, chunk));
 
         }
-        public static ushort GetBlockLight(Vector3 location, BlockFace faceDir, Chunk chunk)
-        {
-            try
-            {
-                return (ushort)chunk.SSBOdata[new(location.X, location.Y, location.Z, (int)faceDir)].lighting;
-            }
-            catch (KeyNotFoundException)
-            {
-                return 0;
-            }
 
-        }
-        // Set emissive RGB values
-        public static void SetBlockFaceLight(Vector3 location, BlockFace faceDir, ColorVector color, Chunk chunk)
+        public static void SetBlockLight(Vector3 location, BlockFace faceDir, ColorVector color, Chunk chunk)
         {
             SetRedLight(location, faceDir, color.Red, chunk);
             SetGreenLight(location, faceDir, color.Green, chunk);
             SetBlueLight(location, faceDir, color.Blue, chunk);
         }
 
+        /**
+         * Combines two light values together using a max blend formula
+         * and updates the emissive lighting for the block face instance.
+         * 
+         * If two light emitting blocks are placed next to eachother, 
+         * combines the light values together on overlapping faces.
+         */
         public static void CombineLightValues(Vector3 location, BlockFace faceDir, ushort currentLightLevels, ushort toCombine, Chunk chunk)
         {
             // Extract components
@@ -66,8 +57,10 @@ namespace Vox.Rendering
         }
 
         /**
-        * Update the lighting value in the correct BlockFaceInstance which is 
-        * then passsed to the shaders for rendering
+        * Update the lighting value in the correct BlockFaceInstance within 
+        * the chunks SSBO. The graphics are then updated once the GPU recieves the 
+        * new SSBO data.
+        * 
         */
         public static void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
         {
@@ -76,8 +69,6 @@ namespace Vox.Rendering
             if (chunk.SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
                 //Update lighting
-                Console.WriteLine($"Updating lighting for {key} {chunk} from {existingFace.lighting} to {existingFace.lighting |= lighting}");
-
                 existingFace.lighting = lighting;
 
                 //Update entire instance
@@ -91,6 +82,19 @@ namespace Vox.Rendering
                 chunk.SSBOdata.TryAdd(key, new BlockFaceInstance(facePos, faceDir, 0, Window.GetAndIncrementNextFaceIndex(), lighting));
             }
         }
+
+
+        /**
+         * Get and set functions for each color component for a given blockface with the SSBO.
+         * Each color component is stored in a 16 bit ushort as follows:
+         * 
+         * Bits 0-3: Blue
+         * Bits 4-7: Green
+         * Bits 8-11: Red
+         * Bits 12-15: Unused for now
+         * 
+         * Each color component can have a value from 0 to 15 (4 bits)
+         */
 
         // ================ Blue component (bits 0-3) =================
         public static int GetBlueLight(Vector3 location, BlockFace faceDir, Chunk chunk)
