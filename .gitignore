@@ -363,4 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Lygia shader library
-Rendering/Lygia/
+Rendering/lygia/
