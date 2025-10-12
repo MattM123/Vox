@@ -437,3 +437,4 @@ Vox/Rendering/lygia/*.*
 
 !Vox/Rendering/lygia/math/saturate.glsl
 !Vox/Rendering/lygia/math/const.glsl
+!Vox/Rendering/lygia/math/pow5.glsl
