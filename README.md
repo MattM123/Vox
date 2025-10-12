@@ -1,6 +1,6 @@
 # Vox
 
-## Vox is a more up to date recreation of my VoxelGame repo.
+### This game uses Lygia shader library locally. If you are running this please look at the [website](https://lygia.xyz) for cloning it. (I might change how shaders are referenced later because I know its annoying to have to clone a shader library to run the game)
 
 This project is an exploration into game development primarily into voxel based game dev using procedural generation
 
