@@ -7,7 +7,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 using Vox.Exceptions;
 
-namespace Vox.GUI
+namespace Vox.UI
 {
     public class ImGuiController : IDisposable
     {
@@ -48,11 +48,11 @@ namespace Vox.GUI
 
             GLVersion = major * 100 + minor * 10;
 
-            KHRDebugAvailable = (major == 4 && minor >= 3) || IsExtensionSupported("KHR_debug");
+            KHRDebugAvailable = major == 4 && minor >= 3 || IsExtensionSupported("KHR_debug");
 
             CompatibilityProfile = (GL.GetInteger((GetPName)All.ContextProfileMask) & (int)All.ContextCompatibilityProfileBit) != 0;
 
-            IntPtr context = ImGui.CreateContext();
+            nint context = ImGui.CreateContext();
             ImGui.SetCurrentContext(context);
             var io = ImGui.GetIO();
             io.Fonts.AddFontDefault();
@@ -95,12 +95,12 @@ namespace Vox.GUI
             _vertexBuffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBuffer);
             LabelObject(ObjectLabelIdentifier.Buffer, _vertexBuffer, "VBO: ImGui");
-            GL.BufferData(BufferTarget.ArrayBuffer, _vertexBufferSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            GL.BufferData(BufferTarget.ArrayBuffer, _vertexBufferSize, nint.Zero, BufferUsageHint.DynamicDraw);
 
             _indexBuffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, _indexBuffer);
             LabelObject(ObjectLabelIdentifier.Buffer, _indexBuffer, "EBO: ImGui");
-            GL.BufferData(BufferTarget.ElementArrayBuffer, _indexBufferSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+            GL.BufferData(BufferTarget.ElementArrayBuffer, _indexBufferSize, nint.Zero, BufferUsageHint.DynamicDraw);
 
             RecreateFontDeviceTexture();
 
@@ -160,7 +160,7 @@ namespace Vox.GUI
         public void RecreateFontDeviceTexture()
         {
             ImGuiIOPtr io = ImGui.GetIO();
-            io.Fonts.GetTexDataAsRGBA32(out IntPtr pixels, out int width, out int height, out int bytesPerPixel);
+            io.Fonts.GetTexDataAsRGBA32(out nint pixels, out int width, out int height, out int bytesPerPixel);
 
             int mips = (int)Math.Floor(Math.Log(Math.Max(width, height), 2));
 
@@ -189,7 +189,7 @@ namespace Vox.GUI
             GL.BindTexture(TextureTarget.Texture2D, prevTexture2D);
             GL.ActiveTexture((TextureUnit)prevActiveTexture);
 
-            io.Fonts.SetTexID((IntPtr)_fontTexture);
+            io.Fonts.SetTexID(_fontTexture);
 
             io.Fonts.ClearTexData();
         }
@@ -355,7 +355,7 @@ namespace Vox.GUI
                 {
                     int newSize = (int)Math.Max(_vertexBufferSize * 1.5f, vertexSize);
 
-                    GL.BufferData(BufferTarget.ArrayBuffer, newSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+                    GL.BufferData(BufferTarget.ArrayBuffer, newSize, nint.Zero, BufferUsageHint.DynamicDraw);
                     _vertexBufferSize = newSize;
 
                   //  Console.WriteLine($"Resized dear imgui vertex buffer to new size {_vertexBufferSize}");
@@ -365,7 +365,7 @@ namespace Vox.GUI
                 if (indexSize > _indexBufferSize)
                 {
                     int newSize = (int)Math.Max(_indexBufferSize * 1.5f, indexSize);
-                    GL.BufferData(BufferTarget.ElementArrayBuffer, newSize, IntPtr.Zero, BufferUsageHint.DynamicDraw);
+                    GL.BufferData(BufferTarget.ElementArrayBuffer, newSize, nint.Zero, BufferUsageHint.DynamicDraw);
                     _indexBufferSize = newSize;
 
                  //   Console.WriteLine($"Resized dear imgui index buffer to new size {_indexBufferSize}");
@@ -404,16 +404,16 @@ namespace Vox.GUI
             {
                 ImDrawListPtr cmd_list = draw_data.CmdLists[n];
 
-                GL.BufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, cmd_list.VtxBuffer.Size * Unsafe.SizeOf<ImDrawVert>(), cmd_list.VtxBuffer.Data);
+                GL.BufferSubData(BufferTarget.ArrayBuffer, nint.Zero, cmd_list.VtxBuffer.Size * Unsafe.SizeOf<ImDrawVert>(), cmd_list.VtxBuffer.Data);
                 CheckGLError($"Data Vert {n}");
 
-                GL.BufferSubData(BufferTarget.ElementArrayBuffer, IntPtr.Zero, cmd_list.IdxBuffer.Size * sizeof(ushort), cmd_list.IdxBuffer.Data);
+                GL.BufferSubData(BufferTarget.ElementArrayBuffer, nint.Zero, cmd_list.IdxBuffer.Size * sizeof(ushort), cmd_list.IdxBuffer.Data);
                 CheckGLError($"Data Idx {n}");
 
                 for (int cmd_i = 0; cmd_i < cmd_list.CmdBuffer.Size; cmd_i++)
                 {
                     ImDrawCmdPtr pcmd = cmd_list.CmdBuffer[cmd_i];
-                    if (pcmd.UserCallback != IntPtr.Zero)
+                    if (pcmd.UserCallback != nint.Zero)
                     {
                         throw new NotImplementedException();
                     }
@@ -430,7 +430,7 @@ namespace Vox.GUI
 
                         if ((io.BackendFlags & ImGuiBackendFlags.RendererHasVtxOffset) != 0)
                         {
-                            GL.DrawElementsBaseVertex(PrimitiveType.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (IntPtr)(pcmd.IdxOffset * sizeof(ushort)), unchecked((int)pcmd.VtxOffset));
+                            GL.DrawElementsBaseVertex(PrimitiveType.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (nint)(pcmd.IdxOffset * sizeof(ushort)), unchecked((int)pcmd.VtxOffset));
                         }
                         else
                         {

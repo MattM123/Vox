@@ -2,13 +2,16 @@
 
 using System;
 using System.Diagnostics;
-using System.Numerics;
+using OpenTK.Mathematics;
 using Vox.Genesis;
 
 namespace Vox
 {
     public class Utils()
     {
+        private const float SQRT2_MINUS_1 = 0.41421356f;
+        private const float SQRT3_MINUS_SQRT2 = 0.31783724f;
+
         public static int FloatCompare(float a, float b)
         {
             // If both numbers are equal, return 0.
@@ -108,9 +111,42 @@ namespace Vox
             LazyThreadSafetyMode.ExecutionAndPublication
         );
 
-
         public static long GetTotalVRamUsage() => TotalVramUsageCounters.Value.Select(x => x()).Sum();
         public static long GetTotalVramCommitted() => TotalCommittedVram.Value.Select(x => x()).Sum();
+
+        //Get Manhattan distance for speedy distance calculations
+        public static int GetVectorDistance(Vector3 a, Vector3 b)
+        {
+            //======================
+            //Chevyshev distance
+            //return (int) Math.Max(Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)), Math.Abs(a.Z - b.Z));
+
+            //======================
+            //Manhattan distance
+            //======================
+            //return (int)(Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y) + Math.Abs(a.Z - b.Z));
+
+            //======================
+            //Euclidean Distantce
+            //======================
+            // return (int) Vector3.Distance(a, b);
+
+            //===============
+            //Octile Distance
+            //===============
+            float dx = Math.Abs(a.X - b.X);
+            float dy = Math.Abs(a.Y - b.Y);
+            float dz = Math.Abs(a.Z - b.Z);
+            
+            float max = Math.Max(dx, Math.Max(dy, dz));
+            float min = Math.Min(dx, Math.Min(dy, dz));
+            
+            // mid approximated as (sum - max - min) but computed implicitly:
+            float mid = dx + dy + dz - max - min;
+            
+            return (int)(max + SQRT2_MINUS_1 * mid + SQRT3_MINUS_SQRT2 * min);
+
+        }
 
     }
 }

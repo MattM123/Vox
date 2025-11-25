@@ -1,8 +1,7 @@
-﻿
-using Vox.Enums;
+﻿using Vox.Enums;
 using Vox.Model;
 
-namespace Vox.Rendering
+namespace Vox.AssetManagement
 {
     internal static class AssetLookup
     {

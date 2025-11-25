@@ -11,7 +11,7 @@ namespace Vox.Rendering
         [FieldOffset(12)] public int faceDirection = (int) faceDirection;   // 4 bytes for face direction
         [FieldOffset(16)] public int textureLayer = textureLayer;           // 4 bytes for the texture layer
         [FieldOffset(20)] public int index = index;                         // 4 bytes to store index within the SSBO                                                                
-        [FieldOffset(24)] public ushort lighting = lighting;                   // 4 bytes to store bitpacked light color value for emissive blocks
+        [FieldOffset(24)] public ushort lighting = lighting;                // 4 bytes to store bitpacked light color value for emissive blocks
         [FieldOffset(28)] public int _pad2 = 1;                             // 4 bytes for padding
 
     }

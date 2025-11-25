@@ -108,22 +108,20 @@ namespace Vox.Genesis
                 }
                 for (int x1 = 0; x1 < RegionManager.CHUNK_BOUNDS; x1++)
                 {
-                    for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
+                    for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
                     {
-                        for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
+                        for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
                         {
                             int elevation = heightMap[z1, x1];
 
                             //Set block data to AIR and visibility to false if its not visible
-                            if (y + y1 <= elevation && elevation >= GetLocation().Y)
+                            if (y1 + yLoc <= elevation && elevation >= yLoc)
                             {
                                 blockData[x1, y1, z1] = (short)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
-                              //  voxelVisibility[x1, y1, z1] = true;
                             }
                             else
                             {
                                 blockData[x1, y1, z1] = 0;
-                              //  voxelVisibility[x1, y1, z1] = false;
                             }
                         }
                     }
@@ -178,9 +176,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Negative Y (DOWN)
-                                if ((y - 1 < 0 || blockData[x, y - 1, z] == 0)
-                                     //If player is below the blocks Y level, render the bottom face
-                                     && Window.GetPlayer().GetPosition().Y < y)
+                                if (y - 1 < 0 || blockData[x, y - 1, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                                     BlockFace faceDir = BlockFace.DOWN;

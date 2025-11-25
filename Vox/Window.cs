@@ -12,11 +12,12 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
+using Vox.AssetManagement;
 using Vox.Enums;
 using Vox.Genesis;
-using Vox.GUI;
 using Vox.Model;
 using Vox.Rendering;
+using Vox.UI;
 using BlendingFactor = OpenTK.Graphics.OpenGL4.BlendingFactor;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
@@ -58,6 +59,7 @@ namespace Vox
         private static ShaderProgram? terrainShaders = null;
         private static ShaderProgram? lightingShaders = null;
         private static ShaderProgram? crosshairShader = null;
+        private static ShaderProgram? debugShaders = null;
         private static Player? player = null;
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
         private static RegionManager? loadedWorld;
@@ -99,6 +101,7 @@ namespace Vox
             terrainShaders = new();
             crosshairShader = new();
             lightingShaders = new();
+            debugShaders = new();
 
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
@@ -137,35 +140,81 @@ namespace Vox
             //============================
             //Shader Compilation and Setup
             //============================
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(
+            "                            %%%%                            \n" +
+            "                          %%%%%%%%                          \n" +
+            "                         %%%%%%%%%%                         \n" +
+            "                       %%%%%%%%%%%%%%                       \n" +
+            "                     %%%%%%%%%%%%%%%%%%                     \n" +
+            "                   %%%%%%%%%%%%%%%%%%%%%%                   \n" +
+            "                 %%%%%%%%%%%%%%%%%%%%%%%%%%                 \n" +
+            "               @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%               \n" +
+            "             @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +-=             \n" +
+            "           @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::=           \n" +
+            "          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::-=          \n" +
+            "        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:::::::::::-=        \n" +
+            "      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +:::::::::::::::-=     \n" +
+            "    @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *:::::::::::::::::::=    \n" +
+            "  @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::::::::=@ \n" +
+            " %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::::::::::::::::::::-= \n" +
+            "@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%=:::::::::::::::::::::::::::-+\n" +
+            "  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::::::::::::::::::-=  \n" +
+            "    %%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::::::=   \n" +
+            "     @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::=     \n" +
+            "       @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +:::::::::::::= +     \n" +
+            "         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#+:::::::::=+         \n" +
+            "           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:::::-+           \n" +
+            "             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:-+             \n" +
+            "               %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#@              \n" +
+            "                @%%%%%%%%%%%%%%%%%%%%%%%%%%@                \n" +
+            "                  @%%%%%%%%%%%%%%%%%%%%%%@                  \n" +
+            "                    %%%%%%%%%%%%%%%%%%%%                    \n" +
+            "                      %%%%%%%%%%%%%%%%       LYGIA.xyz      \n" +
+            "                        %%%%%%%%%%%%   Processing Shaders...\n" +
+            "                         @%%%%%%%%@                         \n" +
+            "                           @%%%%@                           \n" +
+            "                             %@                             \n");
+            Console.ResetColor();
 
             //-----------------------Terrain shaders---------------------------------
             //Load main vertex shader from file
             string vertexTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\VertexTerrainShader.glsl");
-            terrainShaders.CreateVertexShader(vertexTerrainShaderSource);
+            terrainShaders.CreateVertexShader("VertexTerrainShader", vertexTerrainShaderSource);
 
             // Load main fragment shader from file
             string fragmentTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\FragTerrainShader.glsl");
-            terrainShaders.CreateFragmentShader(fragmentTerrainShaderSource);
+            terrainShaders.CreateFragmentShader("FragTerrainShader", fragmentTerrainShaderSource);
             //-----------------------Terrain shaders---------------------------------
 
             //-----------------------Lihgting shaders---------------------------------
             //Load main vertex shader from file
             string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\VertexDepthShader.glsl");
-            lightingShaders.CreateVertexShader(vertexLightingShaderSource);
+            lightingShaders.CreateVertexShader("VertexDepthShader", vertexLightingShaderSource);
 
             // Load main fragment shader from file
             string fragmentLightingSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\FragDepthShader.glsl");
-            lightingShaders.CreateFragmentShader(fragmentLightingSource);
+            lightingShaders.CreateFragmentShader("FragDepthShader", fragmentLightingSource);
+
             //-----------------------Lihgting shaders---------------------------------
 
             //Load crosshair vertex shaders
             string vertexCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex_Crosshair.glsl");
-            crosshairShader.CreateVertexShader(vertexCrosshairSource);
+            crosshairShader.CreateVertexShader("Vertex_Crosshair", vertexCrosshairSource);
 
             //Load crosshair frag shaders
             string fragmentCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Frag_Crosshair.glsl");
-            crosshairShader.CreateFragmentShader(fragmentCrosshairSource);
+            crosshairShader.CreateFragmentShader("Frag_Crosshair", fragmentCrosshairSource);
 
+            //-----------------------Debug shaders---------------------------------
+            string geometryShaderCode = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\DebugGeoShader.glsl");
+            debugShaders.CreateGeometryShader("DebugShader", geometryShaderCode);
+
+            string vertexDebugShaderCode = ProcessShaderIncludes("..\\..\\..\\Rendering\\VertexTerrainShader.glsl");
+            debugShaders.CreateVertexShader("VertexTerrainShader", vertexDebugShaderCode);
+            //-----------------------Debug shaders---------------------------------
+
+            debugShaders.Link();
             terrainShaders.Link();
             lightingShaders.Link();
 
@@ -231,8 +280,6 @@ namespace Vox
 
             terrainShaders.CreateUniform("targetTexLayer");
             terrainShaders.CreateUniform("lightSpaceMatrix");
-            terrainShaders.CreateUniform("playerMin");
-            terrainShaders.CreateUniform("playerMax");
             terrainShaders.CreateUniform("blockCenter");
             terrainShaders.CreateUniform("curPos");
             terrainShaders.CreateUniform("localHit");
@@ -245,6 +292,11 @@ namespace Vox
             terrainShaders.CreateUniform("viewMatrix");
             terrainShaders.CreateUniform("chunkModelMatrix");
             terrainShaders.CreateUniform("isMenuRendered");
+
+            debugShaders.CreateUniform("playerMin");
+            debugShaders.CreateUniform("playerMax");
+            debugShaders.CreateUniform("viewMatrix");
+            debugShaders.CreateUniform("projectionMatrix");
 
             // This is where we change the lights color over time using the sin function
             float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
@@ -299,7 +351,9 @@ namespace Vox
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
+
             base.OnRenderFrame(e);
+
 
             /*==============================
             Update UI input and config
@@ -376,6 +430,9 @@ namespace Vox
                 terrainShaders?.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
                 terrainShaders?.SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
 
+                terrainShaders?.SetVector3Uniform("playerMin", Player.playerMin);
+                terrainShaders?.SetVector3Uniform("playerMax", Player.playerMax);
+
             }
             terrainShaders?.SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection());
             terrainShaders?.SetVector3Uniform("playerPos", GetPlayer().GetPosition());
@@ -392,23 +449,30 @@ namespace Vox
           
 
             //material uniforms
-            terrainShaders?.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
-            terrainShaders?.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
-            terrainShaders?.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
-            terrainShaders?.SetIntFloatUniform("material.shininess", 32.0f);
+            //terrainShaders?.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
+            //terrainShaders?.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
+            //terrainShaders?.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
+            //terrainShaders?.SetIntFloatUniform("material.shininess", 32.0f);
         }
 
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
             base.OnUpdateFrame(args);
 
-
             //Update player and cursor state
             if (!IsMenuRendered())
             {
                 GetPlayer().Update((float)args.Time);
-                CursorState = CursorState.Grabbed;
-                Player.SetLookDir(MouseState.Y, MouseState.X);
+
+                if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
+                {
+                    CursorState = CursorState.Grabbed;
+                    Player.SetLookDir(MouseState.Y, MouseState.X);
+                }
+                else
+                    CursorState = CursorState.Normal;
+
+                
             }
 
             /*==================================
@@ -494,13 +558,44 @@ namespace Vox
                 if (current[Keys.D] && Math.Sign(GetPlayer().GetRightDirection().X) != Math.Sign(GetPlayer().GetBlockedDirection().X)) GetPlayer().MoveRight(1);
                                
                 if (current[Keys.Space] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != 1)
-                    player.MoveUp(1);
+                    player.MoveUp(3);
 
                 if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     player.MoveUp(-1);
 
                 if (current[Keys.Escape])
                     CursorState = CursorState.Normal;
+
+                //Color Picker
+                Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
+                Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(target);
+                Vector3i idx = RegionManager.GetChunkRelativeCoordinates(target);
+                if (current[Keys.C] && (BlockType) actionChunk.blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+                {
+                    if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
+                    {
+                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = true;
+                        CursorState = CursorState.Normal;
+                       // Cursor
+                    }
+                    else
+                    {
+                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
+                      //  Player.SetLookDir(MouseState.Y, MouseState.X);
+                        //   CursorState = CursorState.Grabbed;
+                    }
+                }
+                if (current[Keys.C] && (BlockType)actionChunk.blockData[idx.X, idx.Y, idx.Z] != BlockType.LAMP_BLOCK)
+                {
+                    if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
+                    {
+                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
+                        //  CursorState = CursorState.Grabbed;
+                    //    Player.SetLookDir(MouseState.Y, MouseState.X);
+                    }
+                } 
+
+
             }
 
             previousKeyboardState = current;
@@ -524,12 +619,12 @@ namespace Vox
             {
                 Vector3 block = GetPlayer().UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
 
-                if (e.Button == MouseButton.Left)
+                if (e.Button == MouseButton.Left && !ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
                 {
-                    RegionManager.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), false);
+                    RegionManager.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), new(0,0,0));
 
                 }
-                if (e.Button == MouseButton.Right)
+                if (e.Button == MouseButton.Right && !ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
                 {
                     RegionManager.RemoveBlockFromChunk(block);
                 }
@@ -553,202 +648,33 @@ namespace Vox
         {
             return menuSeed;
         }
-        private static void RenderUI()
+        private void RenderUI()
         {
             ImGuiIOPtr ioptr = ImGui.GetIO();
-            float horizontalMenuScale = 3.5f;
-            fps = ioptr.Framerate;
 
             if (renderMenu)
             {
-                ImGui.Begin("World List", ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
-
-                //Set menu style
-                ImGui.PushStyleColor(ImGuiCol.ChildBg, new System.Numerics.Vector4(0f, 0f, 0f, 0.3f));
-                //Set menu size
-
-                ImGui.SetWindowSize(new System.Numerics.Vector2(screenWidth - 400 / horizontalMenuScale, screenHeight));
-                ImGui.SetWindowPos(new System.Numerics.Vector2(screenWidth / 30, screenHeight / 40));
-
-                //  ImGui.PushFont(font);       
-                ImGui.Text("Choose a World");
-                //  ImGui.PopFont();
-
-                ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(screenWidth / horizontalMenuScale, screenHeight / 1.15f),
-                    ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
-
-                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
-                ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(20f, 2f));
-                ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(10f, 10f));
-
-                //Create UI entries for each world within world list
-                try
-                {
-                    IEnumerable<string> worldList = Directory.EnumerateDirectories(appFolder + "worlds");
-                    int dirLen = worldList.Count();
-
-                    if (dirLen > 0)
-                    {
-                        foreach (string folder in worldList)
-                        {
-
-                            //World label                  
-                            string label = "";
-                            string folderReverse = new(folder.Reverse().ToArray());
-
-                            for (int i = 0; i < folderReverse.Length - 1; i++)
-                            {
-                                if (folderReverse[i] != '\\')
-                                    label += folderReverse[i];
-                                else
-                                    break;
-                            }
-
-                            ImGui.Text(new(label.Reverse().ToArray()));
-                            ImGui.SameLine();
-
-                            ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
-                            //Load button
-
-                            ImGui.Button("Load World");
-                            if (ImGui.IsItemClicked())
-                            {
-                                //Reset the menu chunk coordinates so the render in the world.  
-                                foreach (Chunk c in menuChunks)
-                                    c.Reset();
-
-                                ResetSSBO();
-
-                                renderMenu = false;
-                                RegionManager rm = new(folder);
-                                loadedWorld = rm;
-                                player = new Player();
-                            }
-                            ImGui.SameLine();
-
-                            //Delete button
-                            ImGui.Button("Delete World");
-                            if (ImGui.IsItemClicked())
-                            {
-                                try
-                                {
-                                    Directory.Delete(folder, true);
-                                }
-                                catch (Exception e1)
-                                {
-                                    Logger.Error(e1);
-                                }
-                            }
-                        }
-                    }
-                    ImGui.Text("FPS: " + ioptr.Framerate);
-                }
-                catch (Exception e2)
-                {
-                    Logger.Error(e2);
-
-                }
-
-                ImGui.PopStyleVar();
-                ImGui.PopStyleVar();
-                ImGui.PopStyleColor();
-                ImGui.EndChild();
-
-                ImGui.PushItemWidth(screenWidth / horizontalMenuScale);
-
-                ImGui.SetKeyboardFocusHere();
-                byte[] buffer = new byte[30];
-
-                ImGui.InputText(" ", buffer, 30);
-
-                buffer = buffer.Reverse().ToArray();
-                buffer = buffer.SkipWhile(x => x == 0).ToArray();
-                string worldName = Encoding.Default.GetString(buffer);
-
-                ImGui.PopItemWidth();
-
-
-                ImGui.Button("Create New World: " + Encoding.Default.GetString(buffer.Reverse().ToArray()));
-                if (ImGui.IsItemClicked())
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(appFolder + "worlds\\" + Encoding.Default.GetString(buffer.Reverse().ToArray()));
-                    }
-                    catch (Exception e)
-                    {
-                        Logger.Error(e);
-                        Logger.Debug(appFolder + "worlds\\" + worldName);
-                    }
-                }
-
-                ImGui.PopStyleVar();
-                ImGui.PopStyleVar();
-                ImGui.PopStyleVar();
-                ImGui.PopStyleVar();
-                ImGui.PopStyleColor();
-                ImGui.End();
+                ImGuiHelper.ShowWorldMenu(ioptr);
             }
             else
             {
-                /*=====================================
-                Debug Display
-                =====================================*/
-                ImGui.Begin("Debug");
+              //  ImGuiHelper.ShowDebugMenu(ioptr);
+            }
 
-                ImGui.SetWindowPos(new System.Numerics.Vector2(0, 0));
-                ImGui.SetWindowSize(new System.Numerics.Vector2(screenWidth / 4.0f, screenHeight / 2.0f));
+            //Color Picker
+            KeyboardState current = KeyboardState.GetSnapshot();
+            Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out _);
 
-                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
-                ImGui.Text("Player");
-                ImGui.PopStyleColor();
+            if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER) {
 
-                ImGui.Text("Position: X:" + GetPlayer().GetPosition().X + " Y:" + GetPlayer().GetPosition().Y + " Z:" + GetPlayer().GetPosition().Z);
-                ImGui.Text("Rotation: X:" + GetPlayer().GetRotation().X + ", Y:" + GetPlayer().GetRotation().Y);
-                ImGui.Text("IsGrounded: " + GetPlayer().IsPlayerGrounded());
-
-                BlockFace f = BlockFace.ALL;
-                Vector3 block = GetPlayer().UpdateViewTarget(out f, out Vector3 blockface, out Vector3 blockSpace);
-                ImGui.Text("Facing Add: " + blockface);
-                ImGui.Text("");
-
-                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
-                ImGui.Text("World");
-                ImGui.PopStyleColor();
-
-                ImGui.Text("Region: " + GetPlayer().GetRegionWithPlayer().ToString());
-                ImGui.Text(GetPlayer().GetChunkWithPlayer().ToString());
-                ImGui.Text("Chunks Surrounding Player: " + ChunkCache.UpdateChunkCache().Count);
-
-                ImGui.Text("");
-                ImGui.Text("Chunks In Memory: " + RegionManager.PollChunkMemory());
-                string str = "Regions In Memory:\n";
-                foreach (KeyValuePair<string, Region> r in ChunkCache.GetRegions())
-                    str += $"[{r.Key}] {r.Value}\n";
-
-                ImGui.Text(str);
-                ImGui.Text("");
-
-                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
-                ImGui.Text("Performance");
-                ImGui.PopStyleColor();
-
-                ImGui.Text("FPS: " + fps);
-                ImGui.Text("Memory: " + Utils.FormatSize(Process.GetCurrentProcess().WorkingSet64) + "/" + Utils.FormatSize(Process.GetCurrentProcess().PrivateMemorySize64));
-                ImGui.Text("VRAM: " + Utils.FormatSize(Utils.GetTotalVRamUsage()) + "/" + Utils.FormatSize(Utils.GetTotalVramCommitted()));
-                ImGui.Text("");
-
-                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
-                ImGui.Text("Player Matrix");
-                ImGui.PopStyleColor();
-
-                ImGui.Text(player.GetViewMatrix().ToString());
-                ImGui.End();
+                ImGuiHelper.ShowBlockColorPicker(target);
             }
         }
        
 
         public static bool IsMenuRendered() { return renderMenu; }
+
+        public static void SetMenuRendered(bool val) { renderMenu = val; }
 
         private void RenderMenu()
         {
@@ -811,7 +737,18 @@ namespace Vox
             GL.BindVertexArray(0);
         }
 
- 
+        public static RegionManager GetLoadedWorld()
+        {
+            return loadedWorld;
+        }
+        public static void SetLoadedWorld(RegionManager rm)
+        {
+            loadedWorld = rm;
+        }
+        public static string GetAppFolder()
+        {
+            return appFolder;   
+        }
         private void RenderWorld()
         {
             //Remeber to clear cache each frame 
@@ -938,7 +875,7 @@ namespace Vox
              * COLOR/TEXTURE RENDERING PASS
              * ========================================*/
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
-            //-------------------------Render and Draw Terrain---------------------------------------
+
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -947,7 +884,7 @@ namespace Vox
 
 
             /*==================================
-            Drawing
+            Render and Draw Terrain
             ====================================*/
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,  // Drawing a triangle strip
@@ -956,8 +893,8 @@ namespace Vox
                 _nextFaceIndex                // Instance count (number of faces to draw)
             );
 
-            //-------------------------Render and Draw Terrain---------------------------------------
             GL.BindVertexArray(0);
+
         }
 
         private static float[] GetCrosshair()
@@ -1007,6 +944,10 @@ namespace Vox
             return terrainShaders;
         }
 
+        public static List<Chunk> GetMenuChunks()
+        {
+            return menuChunks;
+        }
         private static string ProcessShaderIncludes(string filePath, HashSet<string> visited = null)
         {
             visited ??= [];
@@ -1017,6 +958,25 @@ namespace Vox
 
             visited.Add(fullPath);
 
+            int index = fullPath.IndexOf("lygia", StringComparison.OrdinalIgnoreCase);
+            string relativePath = index >= 0 ? fullPath.Substring(index) : fullPath;
+
+            string[] temp = relativePath.Split('\\');
+
+            for (int i = 0; i < temp.Length; i++)
+            {
+                if (i == temp.Length - 1) {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.Write(temp[i]);
+                    Console.ResetColor();
+                } else
+                {
+                    Console.Write(temp[i]);
+                    Console.Write("/");
+                }
+
+            }
+            Console.WriteLine();
             var lines = File.ReadAllLines(fullPath);
             var sb = new StringBuilder();
 
@@ -1113,7 +1073,7 @@ namespace Vox
                 throw new Exception(message);
             }
         }
-
+        
         [GeneratedRegex("#include\\s+\"([^\"]+)\"")]
         private static partial Regex GLSLIncludeRegex();
     }

@@ -429,6 +429,7 @@ Vox/Rendering/lygia/*.*
 !Vox/Rendering/lygia/lighting/material/metallic.glsl
 !Vox/Rendering/lygia/lighting/material/roughness.glsl
 !Vox/Rendering/lygia/lighting/material/shininess.glsl
+!Vox/Rendering/lygia/lighting/material/new.glsl
 !Vox/Rendering/lygia/lighting/toShininess.glsl
 !Vox/Rendering/lygia/lighting/toMetallic.glsl
 !Vox/Rendering/lygia/lighting/diffuse.glsl

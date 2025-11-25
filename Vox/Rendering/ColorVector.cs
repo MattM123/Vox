@@ -9,7 +9,7 @@ namespace Vox.Rendering
 
         public override string ToString()
         {
-            return $"[{Red}, {Green}, {Blue}]";
+            return $"({Red}, {Green}, {Blue})";
         }
 
     }

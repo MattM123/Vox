@@ -7,7 +7,7 @@ struct BlockFaceInstance
     int textureLayer;       
     int index; 
     int lighting;
-    int _pad2;
+    int _pad1;
     
 };
 
@@ -31,6 +31,12 @@ uniform vec3 playerPos;
 uniform int chunkSize;
 uniform vec3 targetVertex;
 uniform vec3 forwardDir;
+
+uniform vec3 playerMin;
+uniform vec3 playerMax;
+
+out vec3 fPlayerMin;
+out vec3 fPlayerMax;
 
 out vec4 fragPosLightSpace;
 out vec4 fColor;
@@ -121,13 +127,15 @@ void main() {
     float dist = distance(worldPos.xz, playerPos.xz);
 
     // Cull the vertex if the distance is greater than (chunkSize * renderDistance)
-    if ((dist > (chunkSize * renderDistance - 2) && isMenuRendered == 0) || instance.textureLayer == 0) {
+    if ((dist > (chunkSize * renderDistance) && isMenuRendered == 0) || instance.textureLayer == 0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // Cull by moving out of view
     } else {
 
         //passthrough
         fTexLayer = instance.textureLayer;
         fLighting = instance.lighting;
+        fPlayerMin = playerMin;
+        fPlayerMax = playerMax;
 
         vec2 texCoords[4] = vec2[4](
             vec2(0.0f, 0.0f),

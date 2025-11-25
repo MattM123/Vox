@@ -2,6 +2,7 @@
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
+using Vox.AssetManagement;
 namespace Vox.Rendering
 {
     public class TextureLoader
@@ -11,8 +12,7 @@ namespace Vox.Rendering
         private static StbiImage image;
         private static int width;
         private static int height;
-        private static int channels;
-        private static string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
+        private static readonly string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static int numLayers;
 
         static TextureLoader()
@@ -26,7 +26,7 @@ namespace Vox.Rendering
         {
 
             string[] tex = Directory.EnumerateFiles(assets + "BlockTextures").ToArray();
-            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockTextures").ToArray();
+           // string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockTextures").ToArray();
 
             width = 16;
             height = 16;
@@ -36,18 +36,18 @@ namespace Vox.Rendering
             //========================
 
             //Copies textures into foler if not present
-            if (tex.Length != projTex.Length)
-            {
-                numLayers = projTex.Length;
-                Logger.Info("Reloading default textures");
-                for (int i = 0; i < projTex.Length; i++)
-                {
-                    File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])), true);
-                    Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
-                }
-                //update int value
-                tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
-            }
+            //if (tex.Length != projTex.Length)
+            //{
+            //    numLayers = projTex.Length;
+            //    Logger.Info("Reloading default textures");
+            //    for (int i = 0; i < projTex.Length; i++)
+            //    {
+            //        File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])), true);
+            //        Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
+            //    }
+            //    //update int value
+            //    tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
+            //}
             numLayers = tex.Length;
 
             //Create and bind texture array
@@ -70,6 +70,7 @@ namespace Vox.Rendering
                 using var memoryStream = new MemoryStream();
                 FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
+                memoryStream.Position = 0;
                 image = Stbi.LoadFromMemory(memoryStream, 4);
 
                 string filename = stream.Name[(stream.Name.LastIndexOf('\\') + 1)..];
@@ -105,21 +106,21 @@ namespace Vox.Rendering
             GL.BindTexture(TextureTarget.Texture2D, texId);
 
             string[] tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
-            string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
+           // string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
 
             //Copies textures into foler if not present
-            if (tex.Length != projTex.Length)
-            {
-                numLayers = projTex.Length;
-                Logger.Info("Reloading default textures");
-                for (int i = 0; i < projTex.Length; i++)
-                {
-                    File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])), true);
-                    Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
-                }
-                //update int value
-                tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
-            }
+            //if (tex.Length != projTex.Length)
+            //{
+            //    numLayers = projTex.Length;
+            //    Logger.Info("Reloading default textures");
+            //    for (int i = 0; i < projTex.Length; i++)
+            //    {
+            //        File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])), true);
+            //        Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
+            //    }
+            //    //update int value
+            //    tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
+            //}
 
             // Here we open a stream to the file and pass it to StbImageSharp to load.
             using (Stream stream = File.OpenRead(path))

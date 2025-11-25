@@ -1,16 +1,12 @@
-﻿
-using System;
-using System.Collections.Concurrent;
-using System.Reflection.Emit;
-using System.Reflection.Metadata;
+﻿using System.Collections.Concurrent;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using MessagePack;
 using OpenTK.Mathematics;
-using OpenTK.Windowing.Common.Input;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
-using static System.Net.Mime.MediaTypeNames;
 namespace Vox.Genesis
 {
 
@@ -19,11 +15,12 @@ namespace Vox.Genesis
         public static Dictionary<string, Region> VisibleRegions = [];
         private static string worldDir = "";
         public static readonly int CHUNK_HEIGHT = 384;
-        private static int RENDER_DISTANCE = 6;
+        private static int RENDER_DISTANCE = 3;
         public static readonly int REGION_BOUNDS = 512;
         public static readonly int CHUNK_BOUNDS = 32;
         public static long WORLD_SEED;
         private static object chunkLock = new();
+
 
         private static readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
         /**
@@ -43,12 +40,16 @@ namespace Vox.Genesis
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
             WORLD_SEED = BitConverter.ToInt64(buffer, 0);
 
-            Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
+            Directory.CreateDirectory(Path.Combine(worldDir, "regions")); 
 
             ChunkCache.SetBounds(CHUNK_BOUNDS);
             ChunkCache.SetRenderDistance(RENDER_DISTANCE);
         }
 
+        public string GetWorldDirectory()
+        {
+            return worldDir;
+        }
         public static void EnqueueEmissiveLightNode(LightNode node)
         {
             BFSEmissivePropagationQueue.Enqueue(node);
@@ -82,11 +83,11 @@ namespace Vox.Genesis
 
             //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
             // a rougher, raised terrain
-            float var1 = 25;
+            float var1 = 100;
 
             //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
             //more smooth, spread out hills.
-            double var2 = 0.008;
+            double var2 = 0.001;
 
             float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
                     + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
@@ -105,11 +106,10 @@ namespace Vox.Genesis
          **/
         public static Vector3i GetChunkRelativeCoordinates(Vector3 v)
         {
-            int bounds = RegionManager.CHUNK_BOUNDS;
             return new Vector3i(
-                (int)Math.Abs(v.X % bounds),
-                (int)Math.Abs(v.Y % bounds),
-                (int)Math.Abs(v.Z % bounds)
+                (int)Math.Abs(v.X % CHUNK_BOUNDS),
+                (int)Math.Abs(v.Y % CHUNK_BOUNDS),
+                (int)Math.Abs(v.Z % CHUNK_BOUNDS)
             );
         }
 
@@ -373,10 +373,11 @@ namespace Vox.Genesis
                 $"{Math.Floor((float)y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
                 $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
 
-            int[] chunkIdxArray = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
+            int[] chunkIdxArray = [.. playerChunkIdx.Split('|').Select(int.Parse)];
             string playerRegionIdx = Region.GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
             Region r = EnterRegion(playerRegionIdx);
 
+            //If chunk has not yet been generated, generate it
             if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
             {
                 value = new Chunk().Initialize(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
@@ -384,8 +385,12 @@ namespace Vox.Genesis
                 {
                     r.chunks.Add(playerChunkIdx, value);
                 }
+                return value;
+            } else
+            {
+                return r.chunks[$"{chunkIdxArray[0]}|{chunkIdxArray[1]}|{chunkIdxArray[2]}"];
             }
-            return value;
+
         }
         public static Chunk GetAndLoadGlobalChunkFromCoords(Vector3 v)
         {
@@ -414,9 +419,8 @@ namespace Vox.Genesis
          * Given an x,y,z coordinate trio representing a block location,
          * get the chunk that block is supposed to be in and add it to the chunk
          */
-        public static void AddBlockToChunk(Vector3 blockSpace, BlockType type, bool isRemove)
+        public static void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight)
         {
-
 
             //The chunk that is added to
             Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
@@ -426,9 +430,6 @@ namespace Vox.Genesis
 
             //Update block data in chunk 
             actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
-            // actionChunk.voxelVisibility[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = true;
-            Console.WriteLine("=====================================");
-            Console.WriteLine("Adding block to chunk at: " + blockSpace);
 
             /*=============================================
              * Add a single block to the SSBO for rendering
@@ -446,6 +447,7 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
             if (x + 1 >= bounds || actionChunk.blockData[(short)(x + 1), (short)y, (short)z] == 0)
@@ -453,6 +455,7 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing EAST Face");
             }
 
 
@@ -462,6 +465,7 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing WEST Face");
             }
 
             //Negative Y (DOWN)
@@ -472,6 +476,7 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing DOWN Face");
             }
 
             //Positive Z (NORTH)
@@ -480,6 +485,7 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing NORTH Face");
             }
 
             //Negative Z (SOUTH)
@@ -488,21 +494,31 @@ namespace Vox.Genesis
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
                 actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing SOUTH Face");
             }
 
             //Set block emissiveness after addding faces
             if (type == BlockType.LAMP_BLOCK)
             {
-                //Set all bloc faces to the same light levels
-                LightHelper.SetBlockLight(blockSpace, BlockFace.ALL, new ColorVector(14, 5, 14), actionChunk);
-                //LightHelper.SetBlockFaceLight(blockSpace, BlockFace.ALL, new ColorVector(8, 8, 8), actionChunk);
-                PropagateBlockLight(blockSpace, BlockFace.UP);
-                PropagateBlockLight(blockSpace, BlockFace.DOWN);
-                PropagateBlockLight(blockSpace, BlockFace.EAST);
-                PropagateBlockLight(blockSpace, BlockFace.WEST);
-                PropagateBlockLight(blockSpace, BlockFace.NORTH);
-                PropagateBlockLight(blockSpace, BlockFace.SOUTH);
+                //Track emissive lighting for loading and deporpagation
+                if (LightHelper.GetLightTrackingList().ContainsKey(blockSpace))
+                    return;
 
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    ColorVector color = new(3, 15, 15);
+
+                    LightHelper.TrackLighting(blockSpace, color);
+
+                    //Set all block faces to the same light levels
+                    LightHelper.SetBlockLight(blockSpace, color, actionChunk, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.WEST, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, false, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, false, false);
+                }));
             }
         }
 
@@ -513,6 +529,10 @@ namespace Vox.Genesis
          */
         public static void RemoveBlockFromChunk(Vector3 blockSpace)
         {
+            Console.WriteLine("==========================");
+            Console.WriteLine("Remove Block At: " + blockSpace);
+            Console.WriteLine("==========================");
+
             //The chunk that is added to
             Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
 
@@ -520,7 +540,7 @@ namespace Vox.Genesis
             Vector3 blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block data in chunk  
-            actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.AIR;
+         //   actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.AIR;
             //actionChunk.voxelVisibility[(int)blockDataIndex.X, (int)blockDataIndex.Y, (int)blockDataIndex.Z] = false;
 
             /*==================================================
@@ -532,8 +552,81 @@ namespace Vox.Genesis
             int y = (int)blockDataIndex.Y;
             int z = (int)blockDataIndex.Z;
 
-            AddBlockToChunk(blockSpace, BlockType.AIR, true);
 
+            if ((BlockType)actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == BlockType.LAMP_BLOCK)
+            {
+
+                Console.WriteLine("Remove Lamp");
+
+                
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, true, true);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, true, true);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, true, true);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.WEST, true, true);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, true, true);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, true, true);
+
+                LightHelper.SetBlockLight(blockSpace, new ColorVector(0, 0, 0), actionChunk, false, false);
+
+                //Undtrack light source
+                LightHelper.GetLightTrackingList().Remove(blockSpace);
+
+               //foreach (KeyValuePair<Vector3, ColorVector> light in lightingList)
+               //{
+               //    if ((light.Key - blockSpace).Length <= 15)
+               //    {
+               //        PropagateBlockLight(light.Key, BlockFace.UP, false, false);
+               //        PropagateBlockLight(light.Key, BlockFace.DOWN, false, false);
+               //        PropagateBlockLight(light.Key, BlockFace.EAST, false, false);
+               //        PropagateBlockLight(light.Key, BlockFace.WEST, false, false);
+               //        PropagateBlockLight(light.Key, BlockFace.NORTH, false, false);
+               //        PropagateBlockLight(light.Key, BlockFace.SOUTH, false, false);
+               //    }
+               //}
+
+                //Re-propagate surrounding blocks after depropagation
+                //                string path = Window.GetLoadedWorld().GetWorldDirectory() + "/emissiveLighting.txt";
+                // if (File.Exists(path))
+                // {
+                //     string[] lines = File.ReadAllLines(path);
+                //     for (int i = 0; i < lines.Length; i++)
+                //     {
+                //         Regex positionRegex = new(@"Position:\((-?\d+),\s*(-?\d+),\s*(-?\d+)\)");
+                //         Regex colorRegex = new(@"Color:\((-?\d+),\s*(-?\d+),\s*(-?\d+)\)");
+                //         Match posMatch = positionRegex.Match(lines[i]);
+                //         Match colorMatch = colorRegex.Match(lines[i]);
+                //
+                //         Vector3 blockLocation = new(
+                //             int.Parse(posMatch.Groups[1].Value),
+                //             int.Parse(posMatch.Groups[2].Value),
+                //             int.Parse(posMatch.Groups[3].Value)
+                //         );
+                //
+                //         ColorVector color = new(
+                //             int.Parse(colorMatch.Groups[1].Value),
+                //             int.Parse(colorMatch.Groups[2].Value),
+                //             int.Parse(colorMatch.Groups[3].Value)
+                //         );
+                //         
+                //         if (blockLocation != blockSpace)
+                //         { 
+                //             LightHelper.SetBlockLight(blockLocation, color, actionChunk, false);
+                //             //
+                //             PropagateBlockLight(blockLocation, BlockFace.UP, true, false);
+                //             PropagateBlockLight(blockLocation, BlockFace.DOWN, true, false);
+                //             PropagateBlockLight(blockLocation, BlockFace.EAST, true, false);
+                //             PropagateBlockLight(blockLocation, BlockFace.WEST, true, false);
+                //             PropagateBlockLight(blockLocation, BlockFace.NORTH, true, false);
+                //             PropagateBlockLight(blockLocation, BlockFace.SOUTH, true, false);
+                //         }
+                //     }
+                //     File.WriteAllLines(path, lines);
+                // }
+            }
+            //Update block data in chunk  
+            actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.AIR;
+
+            AddBlockToChunk(blockSpace, BlockType.AIR, new(0, 0, 0));
             /*==================================================
             / Check for terrain holes after block removal
             *=================================================*/
@@ -551,11 +644,13 @@ namespace Vox.Genesis
             }
 
             BlockType typeU = (BlockType)up.blockData[(short)blockDataIndexUP.X, (short)(blockDataIndexUP.Y + 1), (short)blockDataIndexUP.Z];
-            bool isVisibleU = true;// up.voxelVisibility[(short)blockDataIndexUP.X, (short)blockDataIndexUP.Y + 1, (short)blockDataIndexUP.Z];
-            //Only add block if it already exists in SSBO
-            if (typeU == GetGlobalBlockType(u) || !isVisibleU)
-                AddBlockToChunk(u, typeU, false);
-
+            //Only add block if its not air
+            Console.WriteLine("Up Block: " + typeU + " at " + u);
+            if (typeU != BlockType.AIR)
+            {
+                Console.WriteLine("Adding UP block");
+                AddBlockToChunk(u, typeU, LightHelper.GetBlockLight(u, BlockFace.UP, up));
+            }
             //==============================Negative Y (DOWN)==============================
             Vector3 d = new(blockSpace.X, (int)blockSpace.Y - 1, (int)blockSpace.Z);
             Vector3 blockDataIndexDOWN = GetChunkRelativeCoordinates(d);
@@ -569,11 +664,13 @@ namespace Vox.Genesis
             }
 
             BlockType typeD = (BlockType)down.blockData[(short)blockDataIndexDOWN.X, (short)(blockDataIndexDOWN.Y - 1), (short)blockDataIndexDOWN.Z];
-            bool isVisibleD = true;//down.voxelVisibility[(short)blockDataIndexDOWN.X, (short)blockDataIndexDOWN.Y - 1, (short)blockDataIndexDOWN.Z];
-            //Only add block if it already exists in SSBO
-            if (typeD == GetGlobalBlockType(d) || !isVisibleD)
-                AddBlockToChunk(d, typeD, false);
-
+            //Only add block if its not air
+            Console.WriteLine("Down Block: " + typeD + " at " + d);
+            if (typeD != BlockType.AIR)
+            {
+                Console.WriteLine("Adding DOWN block");
+                AddBlockToChunk(d, typeD, LightHelper.GetBlockLight(d, BlockFace.DOWN, down));
+            }
             //==============================Positive X (EAST)==============================
             Vector3 e = new(blockSpace.X + 1, (int)blockSpace.Y, (int)blockSpace.Z);
             Vector3 blockDataIndexEAST = GetChunkRelativeCoordinates(e);
@@ -587,11 +684,13 @@ namespace Vox.Genesis
             }
 
             BlockType typeE = (BlockType)east.blockData[(short)(blockDataIndexEAST.X + 1), (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
-            bool isVisibleE = true;//east.voxelVisibility[(short)blockDataIndexEAST.X + 1, (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
-            //Only add block if it already exists in SSBO
-            if (typeE == GetGlobalBlockType(e) || !isVisibleE)
-                AddBlockToChunk(e, typeE, false);
-
+            //Only add block if its not air
+            Console.WriteLine("East Block: " + typeE + " at " + e);
+            if (typeE != BlockType.AIR)
+            {
+                Console.WriteLine("Adding EAST block");
+                AddBlockToChunk(e, typeE, LightHelper.GetBlockLight(e, BlockFace.EAST, east));
+            }
 
             //==============================Negative X (WEST)==============================
             Vector3 w = new(blockSpace.X - 1, (int)blockSpace.Y, (int)blockSpace.Z);
@@ -606,11 +705,13 @@ namespace Vox.Genesis
             }
 
             BlockType typeW = (BlockType)west.blockData[(short)(blockDataIndexWEST.X - 1), (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
-            bool isVisibleW = true;//west.voxelVisibility[(short)blockDataIndexWEST.X - 1, (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
-            //Only add block if it already exists in SSBO
-            if (typeW == GetGlobalBlockType(w) || !isVisibleW)
-                AddBlockToChunk(w, typeW, false);
-
+            //Only add block if its not air
+            Console.WriteLine("West Block: " + typeW + " at " + w);
+            if (typeW != BlockType.AIR)
+            {
+                Console.WriteLine("Adding WEST block");
+                AddBlockToChunk(w, typeW, LightHelper.GetBlockLight(w, BlockFace.WEST, west));
+            }
 
             //==============================Positive Z (NORTH)==============================
             Vector3 n = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z + 1);
@@ -625,11 +726,13 @@ namespace Vox.Genesis
             }
 
             BlockType typeN = (BlockType)north.blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)(blockDataIndexNORTH.Z + 1)];
-            bool isVisibleN = true;//north.voxelVisibility[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)blockDataIndexNORTH.Z + 1];
-            //Only add block if it already exists in SSBO
-            if (typeN == GetGlobalBlockType(n) || !isVisibleN)
-                AddBlockToChunk(n, typeN, false);
-
+            //Only add block if its not air
+            Console.WriteLine("North Block: " + typeN + " at " + n);
+            if (typeN != BlockType.AIR)
+            {
+                Console.WriteLine("Adding NORTH block");
+                AddBlockToChunk(n, typeN, LightHelper.GetBlockLight(n, BlockFace.NORTH, north));
+            }
             //==============================Negative Z (SOUTH)==============================
             Vector3 s = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z - 1);
             Vector3 blockDataIndexSOUTH = GetChunkRelativeCoordinates(s);
@@ -643,168 +746,30 @@ namespace Vox.Genesis
             }
 
             BlockType typeS = (BlockType)south.blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)(blockDataIndexSOUTH.Z - 1)];
-            bool isVisibleS = true;// south.voxelVisibility[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)blockDataIndexSOUTH.Z - 1];
-            //Only add block if it already exists in SSBO
-            if (typeS == GetGlobalBlockType(s) || !isVisibleS)
+
+            //Only add block if its not air
+            Console.WriteLine("South Block: " + typeS + " at " + s);
+            if (typeS != BlockType.AIR)
             {
-                AddBlockToChunk(s, typeS, false);
+                Console.WriteLine("Adding SOUTH block");
+                AddBlockToChunk(s, typeS, LightHelper.GetBlockLight(s, BlockFace.SOUTH, south));
             }
-
-
         }
 
-        public static void PropagateBlockLight(Vector3 location, BlockFace faceDir)
+
+
+
+  
+
+       
+
+
+        public static BlockType GetBlocktypeFromLocation(Vector3 location)
         {
-            int x = (int)location.X;
-            int y = (int)location.Y;
-            int z = (int)location.Z;
-
-            // Check the light level of the current node before propagating          
-            ColorVector originLightLevel = LightHelper.GetBlockLight(location, faceDir, GetAndLoadGlobalChunkFromCoords(location));
-            if (originLightLevel.Red > 0 || originLightLevel.Green > 0 || originLightLevel.Blue > 0)
-            {
-                string index = $"{x}|{y}|{z}";
-
-                EnqueueEmissiveLightNode(new(index, GetAndLoadGlobalChunkFromCoords(location)));
-                
-                while (GetEmissiveQueueCount() > 0)
-                {
-                    // Get a reference to the front node.
-                    LightNode node = DequeueEmissiveLightNode();
-                    ProcessLightNode(faceDir, node);
-                }
-            }
-        }
-
-        /**
-         * Propagates light over a given axis/direction sepecified by the blockface. 
-         * Uses the light source and the light levels of the source to propagate 
-         * the light in a specific direction
-         *
-         * @Param setLightHere The position of the blockface that is having its lighting updated 
-         * @Param faceDir The axis/direction to set the light of
-         * @Param location The location of the light source
-         * @Param i The iterator
-         * @Param originLightLevel The light level of the light source
-         * 
-         */
-        private static void ProcessLightNode(BlockFace faceDir, LightNode node)
-        {
-            Chunk chunk = node.Chunk;
-            string currentIdx = node.Index;
-            int xLight = int.Parse(currentIdx.Split('|')[0]);
-            int yLight = int.Parse(currentIdx.Split('|')[1]);
-            int zLight = int.Parse(currentIdx.Split('|')[2]);
-
-            // Grab the 16 bit light level of the current node
-            // ???? RRRR GGGG BBBB
-            ColorVector lightLevel = LightHelper.GetBlockLight(new(xLight, yLight, zLight), faceDir, chunk);
-
-            //======================================
-            //          NEGATIVE X (WEST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc1 = new(xLight - 1, yLight, zLight);
-            Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
-            if (!chunk.Equals(xMinusOne))
-                chunk = xMinusOne;
-
-            ProcessLightNodeHelper(loc1, faceDir, lightLevel, chunk);
-
-            //======================================
-            //          POSITIVE X (EAST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc2 = new(xLight + 1, yLight, zLight);
-            Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
-            if (!chunk.Equals(xPlusOne))
-                chunk = xPlusOne;
-
-            ProcessLightNodeHelper(loc2, faceDir, lightLevel, chunk);
-
-            //======================================
-            //          NEGATIVE Y (DOWN)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc3 = new(xLight, yLight - 1, zLight);
-            Chunk yMinusOne = GetAndLoadGlobalChunkFromCoords(loc3);
-            if (!chunk.Equals(yMinusOne))
-                chunk = yMinusOne;
-
-            ProcessLightNodeHelper(loc3, faceDir, lightLevel, chunk);
-
-            //======================================
-            //          POSITIVE Y (UP)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc4 = new(xLight, yLight + 1, zLight);
-            Chunk yPlusOne = GetAndLoadGlobalChunkFromCoords(loc4);
-            if (!chunk.Equals(yPlusOne))
-                chunk = yPlusOne;
-
-            ProcessLightNodeHelper(loc4, faceDir, lightLevel, chunk);
-
-            //======================================
-            //          NEGATIVE Z (SOUTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc5 = new(xLight, yLight, zLight - 1);
-            Chunk zMinusOne = GetAndLoadGlobalChunkFromCoords(loc5);
-            if (!chunk.Equals(zMinusOne))
-                chunk = zMinusOne;
-
-            ProcessLightNodeHelper(loc5, faceDir, lightLevel, chunk);
-
-            //======================================
-            //          POSITIVE Z (NORTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc6 = new(xLight, yLight, zLight + 1);
-            Chunk zPlusOne = GetAndLoadGlobalChunkFromCoords(loc6);
-            if (!chunk.Equals(zPlusOne))
-                chunk = zPlusOne;
-            ProcessLightNodeHelper(loc6, faceDir, lightLevel, chunk);
-        }
-
-        private static void ProcessLightNodeHelper(Vector3 location, BlockFace faceDir, ColorVector lightLevel, Chunk chunk)
-        {
-            bool wasUpdated = false;
-            if ((LightHelper.GetRedLight(location, faceDir, chunk) + 2) <= lightLevel.Red)
-            {
-                // Set red light level
-                LightHelper.SetRedLight(location, faceDir, lightLevel.Red - 1, chunk);
-                wasUpdated = true;
-            }
-
-            if ((LightHelper.GetGreenLight(location, faceDir, chunk) + 2) <= lightLevel.Green)
-            {
-                // Set green light level
-                LightHelper.SetGreenLight(location, faceDir, lightLevel.Green - 1, chunk);
-                wasUpdated = true;
-            }
-
-            if ((LightHelper.GetBlueLight(location, faceDir, chunk) + 2) <= lightLevel.Blue)
-            {
-                // Set blue light level
-                LightHelper.SetBlueLight(location, faceDir, lightLevel.Blue - 1, chunk);
-                wasUpdated = true;
-            }
-
-            if (wasUpdated)
-            {
-                // Construct index
-                string idx = $"{location.X}|{location.Y}|{location.Z}";
-
-                // Emplace new node to queue.
-                EnqueueEmissiveLightNode(new(idx, chunk));
-            }
-        }
+            Chunk chunk = GetAndLoadGlobalChunkFromCoords(location);
+            Vector3i idx = GetChunkRelativeCoordinates(location);
+            return (BlockType)chunk.blockData[idx.X, idx.Y, idx.Z];
+        } 
     }
 }
 
