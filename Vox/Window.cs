@@ -621,7 +621,8 @@ namespace Vox
 
                 if (e.Button == MouseButton.Left && !ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
                 {
-                    RegionManager.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), new(0,0,0));
+                    ColorVector color = new(9, 9, 8);
+                    RegionManager.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), color);
 
                 }
                 if (e.Button == MouseButton.Right && !ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)

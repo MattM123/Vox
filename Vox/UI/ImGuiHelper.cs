@@ -206,54 +206,35 @@ namespace Vox.UI
         public static void ShowBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(400, 350));
-            ImGui.Begin($"Color at {blockspace}: Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Z * 15)} Blue: {Math.Round(pickedColor.Y * 15)} ");
+            ImGui.Begin($"Color at {blockspace}: Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)} ");
 
             if (ImGui.ColorPicker3($"Picked Color", ref pickedColor))
             {
                 Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(blockspace);
 
-                ushort packed = (ushort)(
-                    (((int) Math.Round(pickedColor.X * 15) & 0xF) << 8) | 
-                    (((int)Math.Round(pickedColor.Y * 15) & 0xF) << 4) | 
-                    ((int)Math.Round(pickedColor.Z * 15)) & 0xF
-                );
 
-                // RegionManager.AddBlockToChunk(blockspace, BlockType.LAMP_BLOCK, new((int)Math.Round(pickedColor.X * 15), (int)Math.Round(pickedColor.Y * 15), (int)Math.Round(pickedColor.Z * 15)));
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
+                    LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
 
-                LightHelper.SetBlockLight(
-                    blockspace,
-                    packed,
-                    blockChunk
-                );
+                    RegionManager.RemoveBlockFromChunk(blockspace);
 
-                //Update lighting color in file
-                // string path = Window.GetLoadedWorld().GetWorldDirectory() + "/emissiveLighting.txt";
-                //
-                // if (File.Exists(path))
-                // {
-                //     string[] lines = File.ReadAllLines(path);
-                //     for (int i = 0; i < lines.Length; i++)
-                //     {
-                //         if (lines[i].StartsWith($"Position:{blockspace}") &&
-                //             lines[i][(lines[i].IndexOf("Color:") + 6)..] != $"({Math.Round(pickedColor.X * 15)}, {Math.Round(pickedColor.Y * 15)}, {Math.Round(pickedColor.Z * 15)})")
-                //         {
-                //             lines[i] = $"Position:{blockspace} Color:({Math.Round(pickedColor.X * 15)}, {Math.Round(pickedColor.Y * 15)}, {Math.Round(pickedColor.Z * 15)})";
-                //             
-                //         }
-                //     }
-                //     File.WriteAllLines(path, lines);
-                // }
-
-                //  LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, false, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, false, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, false, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, false, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, false, false);
-                LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, false, false);
-                //
-                ColorVector c = LightHelper.GetBlockLight(blockspace, BlockFace.UP, blockChunk);
-                Console.WriteLine(c);
+                    RegionManager.AddBlockToChunk(
+                        blockspace,
+                        BlockType.LAMP_BLOCK,
+                        new ColorVector(
+                            (int)Math.Round(pickedColor.X * 15),
+                            (int)Math.Round(pickedColor.Y * 15),
+                            (int)Math.Round(pickedColor.Z * 15)
+                        ), false
+                    );
+                }));
             }
             ImGui.End();
         }

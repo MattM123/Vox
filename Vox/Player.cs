@@ -31,7 +31,7 @@ namespace Vox
         private bool IsGrounded = false;
         private Vector3 lastDesiredMovement = Vector3.Zero;
         private Vector3 blockedDirection = Vector3.Zero;
-        public readonly float reachDistance = 10;
+        public readonly float reachDistance = 60;
         public TerrainVertex[] viewTarget = [];
         private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
 

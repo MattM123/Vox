@@ -506,12 +506,10 @@ namespace Vox.Genesis
 
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
-                    ColorVector color = new(3, 15, 15);
-
-                    LightHelper.TrackLighting(blockSpace, color);
+                    LightHelper.TrackLighting(blockSpace, blockLight);
 
                     //Set all block faces to the same light levels
-                    LightHelper.SetBlockLight(blockSpace, color, actionChunk, false, false);
+                    LightHelper.SetBlockLight(blockSpace, blockLight, actionChunk, false, false);
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, false, false);
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, false, false);
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, false, false);
@@ -519,6 +517,111 @@ namespace Vox.Genesis
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, false, false);
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, false, false);
                 }));
+
+            }
+        }
+
+        /**
+ * Given an x,y,z coordinate trio representing a block location,
+ * get the chunk that block is supposed to be in and add it to the chunk
+ */
+        public static void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight, bool colorOverride)
+        {
+
+            //The chunk that is added to
+            Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
+
+            //The block data index within that chunk to modify
+            Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
+
+            //Update block data in chunk 
+            actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
+
+            /*=============================================
+             * Add a single block to the SSBO for rendering
+             *=============================================*/
+
+            int bounds = CHUNK_BOUNDS;
+
+            int x = blockDataIndex.X;
+            int y = blockDataIndex.Y;
+            int z = blockDataIndex.Z;
+
+            //Positive Y (UP)
+            if (y + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y + 1), (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                BlockFace faceDir = BlockFace.UP;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing UP Face");
+            }
+            // Positive X (EAST)
+            if (x + 1 >= bounds || actionChunk.blockData[(short)(x + 1), (short)y, (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                BlockFace faceDir = BlockFace.EAST;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing EAST Face");
+            }
+
+
+            //Negative X (WEST)
+            if (x - 1 < 0 || actionChunk.blockData[(short)(x - 1), (short)y, (short)z] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                BlockFace faceDir = BlockFace.WEST;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing WEST Face");
+            }
+
+            //Negative Y (DOWN)
+            if (y - 1 < 0 || actionChunk.blockData[(short)x, (short)(y - 1), (short)z] == 0)
+            //If player is below the blocks Y level, render the bottom face
+            // && Window.GetPlayer().GetPosition().Y < y)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                BlockFace faceDir = BlockFace.DOWN;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing DOWN Face");
+            }
+
+            //Positive Z (NORTH)
+            if (z + 1 >= bounds || actionChunk.blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                BlockFace faceDir = BlockFace.NORTH;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing NORTH Face");
+            }
+
+            //Negative Z (SOUTH)
+            if (z - 1 < 0 || actionChunk.blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
+            {
+                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                BlockFace faceDir = BlockFace.SOUTH;
+                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                Console.WriteLine("Updaing SOUTH Face");
+            }
+
+            //Set block emissiveness after addding faces
+            if (type == BlockType.LAMP_BLOCK)
+            {
+                //Track emissive lighting for loading and deporpagation
+                if (LightHelper.GetLightTrackingList().ContainsKey(blockSpace))
+                    return;
+
+
+                LightHelper.TrackLighting(blockSpace, blockLight);
+
+                //Set all block faces to the same light levels
+                LightHelper.SetBlockLight(blockSpace, blockLight, actionChunk, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.WEST, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, false, colorOverride);
+                LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, false, colorOverride);
+
             }
         }
 
@@ -529,10 +632,6 @@ namespace Vox.Genesis
          */
         public static void RemoveBlockFromChunk(Vector3 blockSpace)
         {
-            Console.WriteLine("==========================");
-            Console.WriteLine("Remove Block At: " + blockSpace);
-            Console.WriteLine("==========================");
-
             //The chunk that is added to
             Chunk actionChunk = GetAndLoadGlobalChunkFromCoords(blockSpace);
 
@@ -556,73 +655,26 @@ namespace Vox.Genesis
             if ((BlockType)actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == BlockType.LAMP_BLOCK)
             {
 
-                Console.WriteLine("Remove Lamp");
+                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                {
+                    Console.WriteLine("Remove Lamp");
 
-                
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, true, true);
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, true, true);
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, true, true);
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.WEST, true, true);
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, true, true);
-                LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, true, true);
+                    LightHelper.SetBlockLight(blockSpace, new ColorVector(0, 0, 0), actionChunk, true, false);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.UP, true, true);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.DOWN, true, true);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.EAST, true, true);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.WEST, true, true);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, true, true);
+                    LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, true, true);
 
-                LightHelper.SetBlockLight(blockSpace, new ColorVector(0, 0, 0), actionChunk, false, false);
 
-                //Undtrack light source
-                LightHelper.GetLightTrackingList().Remove(blockSpace);
 
-               //foreach (KeyValuePair<Vector3, ColorVector> light in lightingList)
-               //{
-               //    if ((light.Key - blockSpace).Length <= 15)
-               //    {
-               //        PropagateBlockLight(light.Key, BlockFace.UP, false, false);
-               //        PropagateBlockLight(light.Key, BlockFace.DOWN, false, false);
-               //        PropagateBlockLight(light.Key, BlockFace.EAST, false, false);
-               //        PropagateBlockLight(light.Key, BlockFace.WEST, false, false);
-               //        PropagateBlockLight(light.Key, BlockFace.NORTH, false, false);
-               //        PropagateBlockLight(light.Key, BlockFace.SOUTH, false, false);
-               //    }
-               //}
+                    //Undtrack light source
+                    LightHelper.GetLightTrackingList().Remove(blockSpace);
+                }));
 
-                //Re-propagate surrounding blocks after depropagation
-                //                string path = Window.GetLoadedWorld().GetWorldDirectory() + "/emissiveLighting.txt";
-                // if (File.Exists(path))
-                // {
-                //     string[] lines = File.ReadAllLines(path);
-                //     for (int i = 0; i < lines.Length; i++)
-                //     {
-                //         Regex positionRegex = new(@"Position:\((-?\d+),\s*(-?\d+),\s*(-?\d+)\)");
-                //         Regex colorRegex = new(@"Color:\((-?\d+),\s*(-?\d+),\s*(-?\d+)\)");
-                //         Match posMatch = positionRegex.Match(lines[i]);
-                //         Match colorMatch = colorRegex.Match(lines[i]);
-                //
-                //         Vector3 blockLocation = new(
-                //             int.Parse(posMatch.Groups[1].Value),
-                //             int.Parse(posMatch.Groups[2].Value),
-                //             int.Parse(posMatch.Groups[3].Value)
-                //         );
-                //
-                //         ColorVector color = new(
-                //             int.Parse(colorMatch.Groups[1].Value),
-                //             int.Parse(colorMatch.Groups[2].Value),
-                //             int.Parse(colorMatch.Groups[3].Value)
-                //         );
-                //         
-                //         if (blockLocation != blockSpace)
-                //         { 
-                //             LightHelper.SetBlockLight(blockLocation, color, actionChunk, false);
-                //             //
-                //             PropagateBlockLight(blockLocation, BlockFace.UP, true, false);
-                //             PropagateBlockLight(blockLocation, BlockFace.DOWN, true, false);
-                //             PropagateBlockLight(blockLocation, BlockFace.EAST, true, false);
-                //             PropagateBlockLight(blockLocation, BlockFace.WEST, true, false);
-                //             PropagateBlockLight(blockLocation, BlockFace.NORTH, true, false);
-                //             PropagateBlockLight(blockLocation, BlockFace.SOUTH, true, false);
-                //         }
-                //     }
-                //     File.WriteAllLines(path, lines);
-                // }
             }
+
             //Update block data in chunk  
             actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.AIR;
 
@@ -645,10 +697,10 @@ namespace Vox.Genesis
 
             BlockType typeU = (BlockType)up.blockData[(short)blockDataIndexUP.X, (short)(blockDataIndexUP.Y + 1), (short)blockDataIndexUP.Z];
             //Only add block if its not air
-            Console.WriteLine("Up Block: " + typeU + " at " + u);
+            //Console.WriteLine("Up Block: " + typeU + " at " + u);
             if (typeU != BlockType.AIR)
             {
-                Console.WriteLine("Adding UP block");
+                //Console.WriteLine("Adding UP block");
                 AddBlockToChunk(u, typeU, LightHelper.GetBlockLight(u, BlockFace.UP, up));
             }
             //==============================Negative Y (DOWN)==============================
@@ -665,10 +717,10 @@ namespace Vox.Genesis
 
             BlockType typeD = (BlockType)down.blockData[(short)blockDataIndexDOWN.X, (short)(blockDataIndexDOWN.Y - 1), (short)blockDataIndexDOWN.Z];
             //Only add block if its not air
-            Console.WriteLine("Down Block: " + typeD + " at " + d);
+            //Console.WriteLine("Down Block: " + typeD + " at " + d);
             if (typeD != BlockType.AIR)
             {
-                Console.WriteLine("Adding DOWN block");
+                //Console.WriteLine("Adding DOWN block");
                 AddBlockToChunk(d, typeD, LightHelper.GetBlockLight(d, BlockFace.DOWN, down));
             }
             //==============================Positive X (EAST)==============================
@@ -685,10 +737,10 @@ namespace Vox.Genesis
 
             BlockType typeE = (BlockType)east.blockData[(short)(blockDataIndexEAST.X + 1), (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
             //Only add block if its not air
-            Console.WriteLine("East Block: " + typeE + " at " + e);
+            //Console.WriteLine("East Block: " + typeE + " at " + e);
             if (typeE != BlockType.AIR)
             {
-                Console.WriteLine("Adding EAST block");
+                //Console.WriteLine("Adding EAST block");
                 AddBlockToChunk(e, typeE, LightHelper.GetBlockLight(e, BlockFace.EAST, east));
             }
 
@@ -706,10 +758,10 @@ namespace Vox.Genesis
 
             BlockType typeW = (BlockType)west.blockData[(short)(blockDataIndexWEST.X - 1), (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
             //Only add block if its not air
-            Console.WriteLine("West Block: " + typeW + " at " + w);
+            //Console.WriteLine("West Block: " + typeW + " at " + w);
             if (typeW != BlockType.AIR)
             {
-                Console.WriteLine("Adding WEST block");
+                //Console.WriteLine("Adding WEST block");
                 AddBlockToChunk(w, typeW, LightHelper.GetBlockLight(w, BlockFace.WEST, west));
             }
 
@@ -727,10 +779,10 @@ namespace Vox.Genesis
 
             BlockType typeN = (BlockType)north.blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)(blockDataIndexNORTH.Z + 1)];
             //Only add block if its not air
-            Console.WriteLine("North Block: " + typeN + " at " + n);
+            //Console.WriteLine("North Block: " + typeN + " at " + n);
             if (typeN != BlockType.AIR)
             {
-                Console.WriteLine("Adding NORTH block");
+                //Console.WriteLine("Adding NORTH block");
                 AddBlockToChunk(n, typeN, LightHelper.GetBlockLight(n, BlockFace.NORTH, north));
             }
             //==============================Negative Z (SOUTH)==============================
@@ -748,21 +800,13 @@ namespace Vox.Genesis
             BlockType typeS = (BlockType)south.blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)(blockDataIndexSOUTH.Z - 1)];
 
             //Only add block if its not air
-            Console.WriteLine("South Block: " + typeS + " at " + s);
+            //Console.WriteLine("South Block: " + typeS + " at " + s);
             if (typeS != BlockType.AIR)
             {
-                Console.WriteLine("Adding SOUTH block");
+                //Console.WriteLine("Adding SOUTH block");
                 AddBlockToChunk(s, typeS, LightHelper.GetBlockLight(s, BlockFace.SOUTH, south));
             }
         }
-
-
-
-
-  
-
-       
-
 
         public static BlockType GetBlocktypeFromLocation(Vector3 location)
         {

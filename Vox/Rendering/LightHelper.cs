@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Collections.Specialized;
 using System.Diagnostics.Metrics;
 using System.Net.NetworkInformation;
 using Newtonsoft.Json.Linq;
@@ -195,8 +196,8 @@ namespace Vox.Rendering
         {
             if (val < 0)
                 val = 0;
-            else if (val > 15)
-                val = 15;
+            else if (val > maxLightValue)
+                val = maxLightValue;
 
             // Apply mask to new value to ensure only relevant bits are set
             int newValue = (val << 4) & 0x00F0;
@@ -320,7 +321,7 @@ namespace Vox.Rendering
             Dictionary<Vector3, ColorVector> lightingArea = [];
             foreach (KeyValuePair<Vector3, ColorVector> light in GetLightTrackingList())
             {
-                if ((light.Key - location).Length <= GetMaxLightSpread() && !lightingArea.ContainsKey(light.Key)) ;
+                if (Utils.GetVectorDistance(light.Key, location) <= GetMaxLightSpread() && !lightingArea.ContainsKey(light.Key))
                 {
                     lightingArea.Add(light.Key, light.Value);
                 }
@@ -357,7 +358,7 @@ namespace Vox.Rendering
                     // ???? RRRR GGGG BBBB
                     ColorVector lightLevel = GetBlockLight(new Vector3(xLight, yLight, zLight), faceDir, node.Chunk);
 
-                    DepropagateLightNode(lightingArea, location, faceDir, node, depropagate, true);
+                    DepropagateLightNode(lightingArea, location, faceDir, node, depropagate, colorOverride);
                 }
             }
             visited.Clear();
@@ -489,22 +490,14 @@ namespace Vox.Rendering
 
             ColorVector lightSourceLevel = lightingArea[sourceLocation];
 
-
             if ((GetRedLight(location, faceDir, chunk) + 1) < lightLevel.Red)
             {
-          
-                // Set red light level
                 SetRedLight(location, faceDir, lightSourceLevel.Red - distFromSource, chunk, colorOverride);
-               // Console.WriteLine("Red: " + GetRedLight(location, faceDir, chunk));
-              //  Console.WriteLine("Setting red to " + (lightSourceLevel.Red - distFromSource));
                 wasUpdated = true;
             }
 
-            //  Console.WriteLine("test: " + lightLevel + "Y: " + location.Y);
             if ((GetGreenLight(location, faceDir, chunk) + 1) < lightLevel.Green)
             {
-                // Set green light level
-                //    Console.WriteLine("Setting light: " + lightLevel + "Y: " + location.Y);
                 SetGreenLight(location, faceDir, lightSourceLevel.Green - distFromSource, chunk, colorOverride);
                 wasUpdated = true;
             }
@@ -520,7 +513,6 @@ namespace Vox.Rendering
             {
                 // Construct index
                 string idx = $"{location.X}|{location.Y}|{location.Z}";
-                // visited.Add(location);
                 // Emplace new node to queue.
 
                 EnqueueEmissiveLightNode(new(idx, chunk));
@@ -631,95 +623,174 @@ namespace Vox.Rendering
             // distance from the depropagation source to this neighbor
             int distFromSource = Utils.GetVectorDistance(location, sourceLocation);
 
-            ColorVector lightSourceLevel = lightingArea[sourceLocation];
-    
-            if (GetBlueLight(location, faceDir, chunk) > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Blue)
+            if (GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location))
             {
-                Dictionary<Vector3, int> contributingBlueLightValues = [];
-                //  int cumulativeLight = 0;
-                foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-                {
-                    int value = Utils.GetVectorDistance(location, light.Key);
-                    if (value <= lightSourceLevel.Blue)
-                    {
-                        //If block face (location) is within the range of any light source, accumulate light
-                        contributingBlueLightValues.Add(light.Key, value);
-                    }
-                }
-
-                //If more than one light source is lighting the area
-                if (contributingBlueLightValues.Count > 1)
-                {
-                    //If blockface isnt within range of any light sources, make sure light is set to 0 on depropagation
-                    // if (cumulativeLight == 0 && !lightingArea.ContainsKey(location))
-                    //    cumulativeLight = lightSourceLevel.Blue;
-
-                    //start with the block being deleted, then delete its neighbors if they have lower light
-                    //if a neighbor has higher light, add it to a list of lights to propagate after the recursive removal is complete
-
-                    //if (cumulativeLight > 0)
-                    //{
-                    //    Console.WriteLine($"Setting to {lightSourceLevel.Blue} - ({cumulativeLight} - {GetBlueLight(location, faceDir, chunk)}) = " +
-                    //        $"{lightSourceLevel.Blue - (cumulativeLight - GetBlueLight(location, faceDir, chunk))}");
-                    //    SetBlueLight(location, faceDir, lightSourceLevel.Blue - (cumulativeLight - GetBlueLight(location, faceDir, chunk)), chunk, depropagate, true);
-                    //}
-
-                    //  Console.WriteLine(cumulativeLight + " " + GetBlueLight(location, faceDir, chunk));
-                    //  if (cumulativeLight >= GetBlueLight(location, faceDir, chunk) && GetBlueLight(location, faceDir, chunk) > 0)
-
-
-                    int cumulativeLight = contributingBlueLightValues.Values.Sum() - contributingBlueLightValues[sourceLocation];
-
-                    //Keep
-                    //The light source being depropagated is brighter than the cumulative light at the location
-                    //Do not depropagate light source block faces
-                    if (lightSourceLevel.Blue > cumulativeLight && !lightingArea.ContainsKey(location))
-                    {
-                        SetBlueLight(location, faceDir, lightSourceLevel.Blue - cumulativeLight, chunk, false);
-              
-                    }
-                    //Keep
-                    //The light source being depropagated less bright than the cumulative light at the location
-                    //Do not depropagate light source block faces
-                    else if (lightSourceLevel.Blue < cumulativeLight && !lightingArea.ContainsKey(location))
-                    {
-                        SetBlueLight(location, faceDir, lightSourceLevel.Blue - (cumulativeLight - lightSourceLevel.Blue), chunk, false);
-
-                    }
-
-                    //Keep
-                    //Light source level is equal to accumulated light and outside the light range so they cancel out
-                    else if (lightSourceLevel.Blue == cumulativeLight && contributingBlueLightValues[sourceLocation] >= lightSourceLevel.Blue)
-                    {
-                        SetBlueLight(location, faceDir, 0, chunk, false);
-                       
-                    }
-
-                    //If there is still more than one contributing light values for the block face, 
-                    //if (contributingBlueLightValues.Count > 1)
-                    //{
-                    //    SetRedLight(location, faceDir, 3, chunk, depropagate, true);
-                    //}
- 
-
-                }
-                else
-                {
-                    SetBlueLight(location, faceDir, 0, chunk, colorOverride);
-                }
-
-                visited.Add(location);
+                SetBlueLight(location, faceDir, 0, chunk, true);
                 wasUpdated = true;
-  
             }
+
+            if (GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location))
+            {
+                SetGreenLight(location, faceDir, 0, chunk, true);
+                wasUpdated = true;
+            }
+
+            if (GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location))
+            {
+                SetRedLight(location, faceDir, 0, chunk, true);
+                wasUpdated = true;
+            }
+
+
+           //// if (GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Blue)
+           // {
+           //     Dictionary<Vector3, int> contributingBlueLightValues = [];
+           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
+           //     {
+           //         int value = Utils.GetVectorDistance(location, light.Key);
+           //         if (value <= lightSourceLevel.Blue)
+           //         {
+           //             //If block face (location) is within the range of any light source, accumulate light
+           //             contributingBlueLightValues.Add(light.Key, value);
+           //         }
+           //     }
+           //
+           //     //If more than one light source is lighting the area
+           //     if (contributingBlueLightValues.Count > 1)
+           //     {
+           //         int cumulativeLight = contributingBlueLightValues.Values.Sum() - contributingBlueLightValues[sourceLocation];
+           //
+           //         //The light source being depropagated is brighter than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         if (lightSourceLevel.Blue > cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - cumulativeLight, chunk, false);
+           //   
+           //         }
+           //         //The light source being depropagated less bright than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         else if (lightSourceLevel.Blue < cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - (cumulativeLight - lightSourceLevel.Blue), chunk, false);
+           //
+           //         }
+           //
+           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
+           //         else if (lightSourceLevel.Blue == cumulativeLight && contributingBlueLightValues[sourceLocation] >= lightSourceLevel.Blue)
+           //         {
+           //             SetBlueLight(location, faceDir, 0, chunk, false);
+           //            
+           //         }
+           //     }
+           //     else
+           //     {
+           //         SetBlueLight(location, faceDir, 0, chunk, colorOverride);
+           //     }
+           //     wasUpdated = true;
+           //
+           // }
+           ////
+           //// if (GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Green)
+           // {
+           //     Dictionary<Vector3, int> contributingGreenLightValues = [];
+           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
+           //     {
+           //         int value = Utils.GetVectorDistance(location, light.Key);
+           //         if (value <= lightSourceLevel.Green)
+           //         {
+           //             //If block face (location) is within the range of any light source, accumulate light
+           //             contributingGreenLightValues.Add(light.Key, value);
+           //         }
+           //     }
+           //
+           //     //If more than one light source is lighting the area
+           //     if (contributingGreenLightValues.Count > 1)
+           //     {
+           //         int cumulativeLight = contributingGreenLightValues.Values.Sum() - contributingGreenLightValues[sourceLocation];
+           //
+           //         //The light source being depropagated is brighter than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         if (lightSourceLevel.Green > cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetGreenLight(location, faceDir, lightSourceLevel.Green - cumulativeLight, chunk, false);
+           //
+           //         }
+           //         //The light source being depropagated less bright than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         else if (lightSourceLevel.Green < cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetGreenLight(location, faceDir, lightSourceLevel.Green - (cumulativeLight - lightSourceLevel.Green), chunk, false);
+           //
+           //         }
+           //
+           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
+           //         else if (lightSourceLevel.Green == cumulativeLight && contributingGreenLightValues[sourceLocation] >= lightSourceLevel.Green)
+           //         {
+           //             SetGreenLight(location, faceDir, 0, chunk, false);
+           //
+           //         }
+           //     }
+           //     else
+           //     {
+           //         SetGreenLight(location, faceDir, 0, chunk, colorOverride);
+           //     }
+           // }
+           //
+           // if (GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Red)
+           // {
+           //     Dictionary<Vector3, int> contributingRedLightValues = [];
+           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
+           //     {
+           //         int value = Utils.GetVectorDistance(location, light.Key);
+           //
+           //         if (value <= lightSourceLevel.Red)
+           //         {
+           //             //If block face (location) is within the range of any light source, accumulate light
+           //             contributingRedLightValues.Add(light.Key, value);
+           //         }
+           //     }
+           //
+           //     //If more than one light source is lighting the area
+           //     if (contributingRedLightValues.Count > 1)
+           //     {
+           //         int cumulativeLight = contributingRedLightValues.Values.Sum() - contributingRedLightValues[sourceLocation];
+           //
+           //         //The light source being depropagated is brighter than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         if (lightSourceLevel.Red > cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetRedLight(location, faceDir, lightSourceLevel.Red - cumulativeLight, chunk, false);
+           //
+           //         }
+           //         //The light source being depropagated less bright than the cumulative light at the location
+           //         //Do not depropagate light source block faces
+           //         else if (lightSourceLevel.Red < cumulativeLight && !lightingArea.ContainsKey(location))
+           //         {
+           //             SetRedLight(location, faceDir, lightSourceLevel.Red - (cumulativeLight - lightSourceLevel.Red), chunk, false);
+           //
+           //         }
+           //
+           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
+           //         else if (lightSourceLevel.Red == cumulativeLight && contributingRedLightValues[sourceLocation] >= lightSourceLevel.Red)
+           //         {
+           //             SetRedLight(location, faceDir, 0, chunk, false);
+           //
+           //         }
+           //     }
+           //     else 
+           //     {
+           //         SetRedLight(location, faceDir, 0, chunk, true);
+           //
+           //     }
+           // }
 
             if (wasUpdated)
             {
+                visited.Add(location);
                 string idx = $"{location.X}|{location.Y}|{location.Z}";
                 EnqueueEmissiveLightNode(new(idx, chunk));
 
-            }
-            
+            }   
         }
     }
 }

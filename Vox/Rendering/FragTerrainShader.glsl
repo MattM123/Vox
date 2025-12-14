@@ -116,7 +116,7 @@ void main()
     vec3 emissiveColor = vec3(red / 15, green / 15, blue / 15);
 
     // Sunlight component (bits 12-15)
-    float sunlight = (fLighting & 0x0F);
+    float sunlight = (fLighting & 0xF);
     
    //========================================
    //Shading data 
