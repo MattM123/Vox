@@ -667,8 +667,6 @@ namespace Vox.Genesis
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.NORTH, true, true);
                     LightHelper.PropagateBlockLight(blockSpace, BlockFace.SOUTH, true, true);
 
-
-
                     //Undtrack light source
                     LightHelper.GetLightTrackingList().Remove(blockSpace);
                 }));

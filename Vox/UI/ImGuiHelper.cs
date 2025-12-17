@@ -212,18 +212,18 @@ namespace Vox.UI
             {
                 Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(blockspace);
 
-
+                CountdownEvent countdown = new(1);
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
-                    LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
-                    LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
-
-                    RegionManager.RemoveBlockFromChunk(blockspace);
+                   
+                      LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
+                      LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
+                      LightHelper.GetLightTrackingList().Remove(blockspace);
 
                     RegionManager.AddBlockToChunk(
                         blockspace,
@@ -234,7 +234,9 @@ namespace Vox.UI
                             (int)Math.Round(pickedColor.Z * 15)
                         ), false
                     );
+                    countdown.Signal();
                 }));
+                countdown.Wait();
             }
             ImGui.End();
         }

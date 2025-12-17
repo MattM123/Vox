@@ -447,14 +447,13 @@ namespace Vox
             terrainShaders?.SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0]);
             terrainShaders?.SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
           
-
-            //material uniforms
-            //terrainShaders?.SetVector3Uniform("material.ambient", new Vector3(1.0f, 0.5f, 0.31f));
-            //terrainShaders?.SetVector3Uniform("material.diffuse", new Vector3(1.5f, 1.5f, 1.5f));
-            //terrainShaders?.SetVector3Uniform("material.specular", new Vector3(0.5f, 0.5f, 0.5f));
-            //terrainShaders?.SetIntFloatUniform("material.shininess", 32.0f);
         }
 
+
+
+        //Track cursor position on color picker open
+        private static float dirX = 0.0f;
+        private static float dirY = 0.0f;
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
             base.OnUpdateFrame(args);
@@ -470,9 +469,10 @@ namespace Vox
                     Player.SetLookDir(MouseState.Y, MouseState.X);
                 }
                 else
+                {
                     CursorState = CursorState.Normal;
-
-                
+                  //  Player.SetLookDir(dirX, dirY);
+                }
             }
 
             /*==================================
@@ -550,7 +550,7 @@ namespace Vox
             if (float.IsNaN(GetPlayer().GetBlockedDirection().X))
                 return;
 
-            if (!IsMenuRendered()) {
+            if (!IsMenuRendered() && !ImGuiHelper.SHOW_BLOCK_COLOR_PICKER) {
                 if (current[Keys.W])// && Math.Sign(GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z))
                     GetPlayer().MoveForward(1);
                 if (current[Keys.S] && Math.Sign(-GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z)) GetPlayer().MoveForward(-1);
@@ -567,6 +567,9 @@ namespace Vox
                     CursorState = CursorState.Normal;
 
                 //Color Picker
+                float dirX = 0.0f;
+                float dirY = 0.0f;
+
                 Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
                 Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(target);
                 Vector3i idx = RegionManager.GetChunkRelativeCoordinates(target);
@@ -576,13 +579,16 @@ namespace Vox
                     {
                         ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = true;
                         CursorState = CursorState.Normal;
-                       // Cursor
+                        dirX = MouseState.X;
+                        dirY = MouseState.Y;
                     }
                     else
                     {
+
                         ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
-                      //  Player.SetLookDir(MouseState.Y, MouseState.X);
-                        //   CursorState = CursorState.Grabbed;
+                        CursorState = CursorState.Grabbed;
+
+                        Player.SetLookDir(dirX, dirY);
                     }
                 }
                 if (current[Keys.C] && (BlockType)actionChunk.blockData[idx.X, idx.Y, idx.Z] != BlockType.LAMP_BLOCK)

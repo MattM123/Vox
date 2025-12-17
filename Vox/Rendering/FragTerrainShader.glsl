@@ -85,12 +85,6 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
     return shadow;
 }  
-float edgeDistance(vec3 p, vec3 minB, vec3 maxB)
-{
-    // Distance from p to inside of box bounds
-    vec3 d = abs((minB + maxB) * 0.5 - p) - (maxB - minB) * 0.5;
-    // Negative values = inside box
-    return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0);
 }
 
 void main()
