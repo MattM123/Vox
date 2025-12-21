@@ -112,7 +112,6 @@ namespace Vox
             //Load textures and models
 
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
-
             ModelLoader.LoadModels();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
@@ -467,19 +466,17 @@ namespace Vox
                 {
                     CursorState = CursorState.Grabbed;
                     Player.SetLookDir(MouseState.Y, MouseState.X);
-                }
-                else
+                } else
                 {
                     CursorState = CursorState.Normal;
-                  //  Player.SetLookDir(dirX, dirY);
                 }
             }
 
-            /*==================================
-             Ambient lighting update
-            ====================================*/
-            //update light color each frame
-            float dayLengthInSeconds = 60.0f;  
+                /*==================================
+                 Ambient lighting update
+                ====================================*/
+                //update light color each frame
+                float dayLengthInSeconds = 60.0f;  
             float timeOfDay = (DateTime.Now.Second + DateTime.Now.Millisecond / 1000f) % dayLengthInSeconds;
             float normalizedTime = timeOfDay / dayLengthInSeconds;  // Normalized time between 0 (start of day) and 1 (end of day)
             float dayCycle = MathF.Sin(normalizedTime * MathF.PI * 2);  // Sine wave oscillates between -1 and 1 over one full cycle
@@ -563,46 +560,29 @@ namespace Vox
                 if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     player.MoveUp(-1);
 
-                if (current[Keys.Escape])
-                    CursorState = CursorState.Normal;
-
-                //Color Picker
-                float dirX = 0.0f;
-                float dirY = 0.0f;
-
-                Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
-                Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(target);
-                Vector3i idx = RegionManager.GetChunkRelativeCoordinates(target);
-                if (current[Keys.C] && (BlockType) actionChunk.blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
-                {
-                    if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
-                    {
-                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = true;
-                        CursorState = CursorState.Normal;
-                        dirX = MouseState.X;
-                        dirY = MouseState.Y;
-                    }
-                    else
-                    {
-
-                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
-                        CursorState = CursorState.Grabbed;
-
-                        Player.SetLookDir(dirX, dirY);
-                    }
-                }
-                if (current[Keys.C] && (BlockType)actionChunk.blockData[idx.X, idx.Y, idx.Z] != BlockType.LAMP_BLOCK)
-                {
-                    if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
-                    {
-                        ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
-                        //  CursorState = CursorState.Grabbed;
-                    //    Player.SetLookDir(MouseState.Y, MouseState.X);
-                    }
-                } 
-
-
             }
+
+            Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
+            Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(target);
+            Vector3i idx = RegionManager.GetChunkRelativeCoordinates(target);
+
+            //If its a lamp block, display the color picker when the key is pressed to display it
+            if (current[Keys.C] && (BlockType)actionChunk.blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+            {
+                if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
+                {
+                    ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = true;
+                    CursorState = CursorState.Normal;
+                    dirX = MouseState.X;
+                    dirY = MouseState.Y;
+                } else
+                {
+                    ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
+                    Console.WriteLine("Set look direction to X: " + dirX + " Y: " + dirY);
+                    Player.SetLookDir(dirX, dirY);
+                }
+            }
+
 
             previousKeyboardState = current;
         }
@@ -619,7 +599,7 @@ namespace Vox
 
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
-            base.OnMouseDown(e);
+            base.OnMouseDown(e); 
 
             if (!IsMenuRendered())
             {
@@ -672,9 +652,20 @@ namespace Vox
             KeyboardState current = KeyboardState.GetSnapshot();
             Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out _);
 
-            if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER) {
-
+            //Cursor state handling
+            if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !IsMenuRendered())
+            {
+                CursorState = CursorState.Normal;
                 ImGuiHelper.ShowBlockColorPicker(target);
+                ImGui.OpenPopup("ColorPicker");
+            }
+            else if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !IsMenuRendered())
+            {
+                ImGui.CloseCurrentPopup();
+                CursorState = CursorState.Grabbed;
+            } else if (IsMenuRendered())
+            {
+                CursorState = CursorState.Normal;
             }
         }
        

@@ -3,6 +3,7 @@ using System.IO;
 using System.Numerics;
 using System.Text;
 using ImGuiNET;
+using OpenTK.Windowing.Common;
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Rendering;
@@ -205,40 +206,43 @@ namespace Vox.UI
 
         public static void ShowBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new Vector2(400, 350));
-            ImGui.Begin($"Color at {blockspace}: Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)} ");
+            ImGui.SetNextWindowSize(new Vector2(400, 270));
 
-            if (ImGui.ColorPicker3($"Picked Color", ref pickedColor))
+            if (ImGui.BeginPopup("ColorPicker"))
             {
-                Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(blockspace);
-
-                CountdownEvent countdown = new(1);
-                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor))
                 {
-                   
-                      LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
-                      LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
-                      LightHelper.GetLightTrackingList().Remove(blockspace);
+                    Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(blockspace);
 
-                    RegionManager.AddBlockToChunk(
-                        blockspace,
-                        BlockType.LAMP_BLOCK,
-                        new ColorVector(
-                            (int)Math.Round(pickedColor.X * 15),
-                            (int)Math.Round(pickedColor.Y * 15),
-                            (int)Math.Round(pickedColor.Z * 15)
-                        ), false
-                    );
-                    countdown.Signal();
-                }));
-                countdown.Wait();
+                    //Syncronously executes in a separate thread so main thread isnt blocked during propagation and depropagation
+                    CountdownEvent countdown = new(1);
+                    ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                    {
+
+                        LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
+                        LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
+                        LightHelper.GetLightTrackingList().Remove(blockspace);
+
+                        RegionManager.AddBlockToChunk(
+                            blockspace,
+                            BlockType.LAMP_BLOCK,
+                            new ColorVector(
+                                (int)Math.Round(pickedColor.X * 15),
+                                (int)Math.Round(pickedColor.Y * 15),
+                                (int)Math.Round(pickedColor.Z * 15)
+                            ), false
+                        );
+                        countdown.Signal();
+                    }));
+                    countdown.Wait();
+                }
+                ImGui.EndPopup();
             }
-            ImGui.End();
         }
     }
 }

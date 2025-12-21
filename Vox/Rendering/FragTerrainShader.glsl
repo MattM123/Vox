@@ -85,7 +85,6 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 
     return shadow;
 }  
-}
 
 void main()
 {          
