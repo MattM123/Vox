@@ -396,7 +396,7 @@ Vox/Rendering/lygia/lighting/material/*
 Vox/Rendering/lygia/lighting/*.*
 
 Vox/Rendering/lygia/math/quat/*
-Vox/Rendering/lygia/math/*.*
+Vox/Rendering/lygia/math/*
 
 Vox/Rendering/lygia/morphological/*
 Vox/Rendering/lygia/sample/*
@@ -436,6 +436,14 @@ Vox/Rendering/lygia/*.*
 
 !Vox/Rendering/lygia/color/space/gamma2linear.glsl
 
+!Vox/Rendering/lygia/generative/snoise.glsl
+
 !Vox/Rendering/lygia/math/saturate.glsl
 !Vox/Rendering/lygia/math/const.glsl
 !Vox/Rendering/lygia/math/pow5.glsl
+!Vox/Rendering/lygia/math/mod289.glsl
+!Vox/Rendering/lygia/math/permute.glsl
+!Vox/Rendering/lygia/math/taylorInvSqrt.glsl
+!Vox/Rendering/lygia/math/grad4.glsl
+
+/.gitignore
