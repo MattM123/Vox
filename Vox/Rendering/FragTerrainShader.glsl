@@ -49,7 +49,6 @@ in vec4 fColor;
 in vec3 fforwardDir;
 out vec4 color;
 
-//Override specular function
 #define SPECULAR_FNC specularBeckmann
 
 //Shader data constructor
@@ -63,6 +62,10 @@ out vec4 color;
 //Diffuse lighting
 #line 1 "diffuse.glsl"
 #include "lygia\\lighting\\diffuse.glsl"
+
+#line 1 "glow.glsl"
+#include "lygia\\color\\blend\\glow.glsl"
+
 
 #line 1 "fragment.glsl"
 float ShadowCalculation(vec4 fragPosLightSpace)
@@ -95,6 +98,8 @@ void main()
     //=========================================
     // Lighting
     //=========================================
+    vec4 texColor = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
+    vec3 texColor3 = vec3(texColor.x, texColor.y, texColor.z);
 
     // Blue component (bits 0-3)           
     float blue = fLighting & 0x000F;
@@ -106,7 +111,13 @@ void main()
     float red = (fLighting & 0x0F00) >> 8;
 
     //Normalize color value
-    vec3 emissiveColor = vec3(red / 15, green / 15, blue / 15);
+    vec3 emissiveColor = vec3(
+        (red / 15), 
+        (green / 15), 
+        (blue / 15));
+
+    // Blend component used to smooth the lighting
+    vec3 blendedColor = blendGlow(texColor3, emissiveColor);
 
     // Sunlight component (bits 12-15)
     float sunlight = (fLighting & 0xF);
@@ -126,7 +137,7 @@ void main()
 
     Material mat = Material(
         vec4(material.diffuse, 1.0),   // albedo (RGBA)
-        emissiveColor,              // emissive
+        blendedColor,              // emissive
         fragPos,                    // position
         norm,                       // normal
         0.0,                        // sdf (for raymarching)
@@ -150,7 +161,7 @@ void main()
     float NdotL = max(dot(shadingData.N, shadingData.L), 0.0);
 
     float specular = specColor;
-    vec3 diffuse = diffuse(shadingData) * light.diffuse * material.diffuse;
+    vec3 diffuse = diffuse(shadingData) * light.ambient * material.diffuse;
       
     // Basic Lambertian diffuse lighting
     float lightAmount = max(dot(norm, lightDir), 0.0);
@@ -171,7 +182,7 @@ void main()
     //If block is emissive, add color to lighting
     if (blue > 0 || red > 0 || green > 0) {
         //Add the emissive color to the blocks lighting value
-        lightColor = lightColor + emissiveColor; 
+        lightColor = lightColor + blendedColor; 
     }
 
     vec3 result = (baseLighting + lightColor);
@@ -194,7 +205,7 @@ void main()
         fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
         fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
     {
-        // If inside the bounding box, combine texture with target texture
+        // If inside the bounding box, combine texture color with target texture color
         vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
         vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, targetTexLayer));
         applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0);  

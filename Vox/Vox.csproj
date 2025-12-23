@@ -18,7 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove=".gitignore" />
     <None Remove="Assets\BlockModels\cube.json" />
     <None Remove="Assets\BlockModels\cube_all.json" />
     <None Remove="Assets\BlockModels\cube_bottom_top.json" />

@@ -426,7 +426,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-            CheckChunkCollision(deltaTime);
+            //CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change

@@ -84,6 +84,7 @@ namespace Vox
         private static IntPtr SSBOPtr;
         private static int _nextFaceIndex;
         private static int SSBOSize;
+        private static bool PAUSE = false;
 
         //used for player and lighting projection matrices
         private static float FAR = 1000.0f;
@@ -462,7 +463,7 @@ namespace Vox
             {
                 GetPlayer().Update((float)args.Time);
 
-                if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
+                if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !PAUSE)
                 {
                     CursorState = CursorState.Grabbed;
                     Player.SetLookDir(MouseState.Y, MouseState.X);
@@ -560,6 +561,9 @@ namespace Vox
                 if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     player.MoveUp(-1);
 
+                if (current[Keys.Escape])
+                    PAUSE = !PAUSE;
+
             }
 
             Vector3 target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
@@ -575,7 +579,7 @@ namespace Vox
                     CursorState = CursorState.Normal;
                     dirX = MouseState.X;
                     dirY = MouseState.Y;
-                } else
+                } else if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER)
                 {
                     ImGuiHelper.SHOW_BLOCK_COLOR_PICKER = false;
                     Console.WriteLine("Set look direction to X: " + dirX + " Y: " + dirY);
@@ -659,11 +663,11 @@ namespace Vox
                 ImGuiHelper.ShowBlockColorPicker(target);
                 ImGui.OpenPopup("ColorPicker");
             }
-            else if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !IsMenuRendered())
+            else if (!ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !IsMenuRendered() && !PAUSE)
             {
                 ImGui.CloseCurrentPopup();
                 CursorState = CursorState.Grabbed;
-            } else if (IsMenuRendered())
+            } else if (IsMenuRendered() || PAUSE)
             {
                 CursorState = CursorState.Normal;
             }
