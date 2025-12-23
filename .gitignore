@@ -435,13 +435,9 @@ Vox/Rendering/lygia/*.*
 !Vox/Rendering/lygia/lighting/diffuse.glsl
 
 !Vox/Rendering/lygia/color/space/gamma2linear.glsl
-
-!Vox/Rendering/lygia/generative/snoise.glsl
+!Vox/Rendering/lygia/color/blend/glow.glsl
+!Vox/Rendering/lygia/color/blend/reflect.glsl
 
 !Vox/Rendering/lygia/math/saturate.glsl
 !Vox/Rendering/lygia/math/const.glsl
 !Vox/Rendering/lygia/math/pow5.glsl
-!Vox/Rendering/lygia/math/mod289.glsl
-!Vox/Rendering/lygia/math/permute.glsl
-!Vox/Rendering/lygia/math/taylorInvSqrt.glsl
-!Vox/Rendering/lygia/math/grad4.glsl

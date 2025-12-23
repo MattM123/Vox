@@ -63,6 +63,7 @@ out vec4 color;
 #line 1 "diffuse.glsl"
 #include "lygia\\lighting\\diffuse.glsl"
 
+//Light color blending/smoothing
 #line 1 "glow.glsl"
 #include "lygia\\color\\blend\\glow.glsl"
 
