@@ -17,6 +17,16 @@ namespace Vox.AssetManagement
             {"target.png", Texture.TARGET }
         };
 
+        public static readonly Dictionary<BlockType, string> BlockTypeToIconFile = new()
+        {
+            {BlockType.DIRT_BLOCK, "dirt.png" },
+            {BlockType.GRASS_BLOCK, "grass_side.png" },
+            {BlockType.LAMP_BLOCK, "lamp.png" },
+            {BlockType.STONE_BLOCK, "stone.png" },
+            {BlockType.TEST_BLOCK, "test.png" },
+            {BlockType.TARGET_BLOCK, "target.png" }
+        };
+
         public static int GetTextureValue(string filename)
         {
             if (FilenameToTexture.TryGetValue(filename, out Texture texture))

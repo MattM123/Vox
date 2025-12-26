@@ -3,9 +3,12 @@ using System.IO;
 using System.Numerics;
 using System.Text;
 using ImGuiNET;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
+using Vox.AssetManagement;
 using Vox.Enums;
 using Vox.Genesis;
+using Vox.Model;
 using Vox.Rendering;
 
 namespace Vox.UI
@@ -13,6 +16,8 @@ namespace Vox.UI
     public static class ImGuiHelper
     {
         public static bool SHOW_BLOCK_COLOR_PICKER = false;
+        public static bool SHOW_PLAYER_INVENTORY = false;
+
         private static Vector3 pickedColor = Vector3.Zero; 
         public static void ShowWorldMenu(ImGuiIOPtr ioptr)
         {
@@ -30,83 +35,82 @@ namespace Vox.UI
             ImGui.Text("Choose a World");
             //  ImGui.PopFont();
 
-            ImGui.BeginChild("World List Pane", new Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
-                ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
+                ImGui.BeginChild("World List Pane", new Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
+                    ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
 
-            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(20f, 2f));
-            ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new Vector2(20f, 2f));
-            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(10f, 10f));
+                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(20f, 2f));
+                ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new Vector2(20f, 2f));
+                ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(10f, 10f));
 
-            //Create UI entries for each world within world list
-            try
-            {
-                IEnumerable<string> worldList = Directory.EnumerateDirectories(Window.GetAppFolder() + "worlds");
-                int dirLen = worldList.Count();
-
-                if (dirLen > 0)
+                //Create UI entries for each world within world list
+                try
                 {
-                    foreach (string folder in worldList)
+                    IEnumerable<string> worldList = Directory.EnumerateDirectories(Window.GetAppFolder() + "worlds");
+                    int dirLen = worldList.Count();
+
+                    if (dirLen > 0)
                     {
-
-                        //World label                  
-                        string label = "";
-                        string folderReverse = new([.. folder.Reverse()]);
-
-                        for (int i = 0; i < folderReverse.Length - 1; i++)
+                        foreach (string folder in worldList)
                         {
-                            if (folderReverse[i] != '\\')
-                                label += folderReverse[i];
-                            else
-                                break;
-                        }
 
-                        ImGui.Text(new(label.Reverse().ToArray()));
-                        ImGui.SameLine();
+                            //World label                  
+                            string label = "";
+                            string folderReverse = new([.. folder.Reverse()]);
 
-                        ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
-                        //Load button
-
-                        ImGui.Button("Load World");
-                        if (ImGui.IsItemClicked())
-                        {
-                            //Reset the menu chunk coordinates so the render in the world.  
-                            foreach (Chunk c in Window.GetMenuChunks())
-                                c.Reset();
-
-
-                            Window.SetMenuRendered(false);
-                            RegionManager rm = new(folder);
-                            Window.SetLoadedWorld(rm);
-                        }
-                        ImGui.SameLine();
-
-                        //Delete button
-                        ImGui.Button("Delete World");
-                        if (ImGui.IsItemClicked())
-                        {
-                            try
+                            for (int i = 0; i < folderReverse.Length - 1; i++)
                             {
-                                Directory.Delete(folder, true);
+                                if (folderReverse[i] != '\\')
+                                    label += folderReverse[i];
+                                else
+                                    break;
                             }
-                            catch (Exception e1)
+
+                            ImGui.Text(new(label.Reverse().ToArray()));
+                            ImGui.SameLine();
+
+                            ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
+                            //Load button
+
+                            ImGui.Button("Load World");
+                            if (ImGui.IsItemClicked())
                             {
-                                Logger.Error(e1);
+                                //Reset the menu chunk coordinates so the render in the world.  
+                                foreach (Chunk c in Window.GetMenuChunks())
+                                    c.Reset();
+
+
+                                Window.SetMenuRendered(false);
+                                RegionManager rm = new(folder);
+                                Window.SetLoadedWorld(rm);
+                            }
+                            ImGui.SameLine();
+
+                            //Delete button
+                            ImGui.Button("Delete World");
+                            if (ImGui.IsItemClicked())
+                            {
+                                try
+                                {
+                                    Directory.Delete(folder, true);
+                                }
+                                catch (Exception e1)
+                                {
+                                    Logger.Error(e1);
+                                }
                             }
                         }
                     }
+                    ImGui.Text("FPS: " + ioptr.Framerate);
                 }
-                ImGui.Text("FPS: " + ioptr.Framerate);
-            }
-            catch (Exception e2)
-            {
-                Logger.Error(e2);
+                catch (Exception e2)
+                {
+                    Logger.Error(e2);
 
-            }
+                }
 
-            ImGui.PopStyleVar();
-            ImGui.PopStyleVar();
-            ImGui.PopStyleColor();
-            ImGui.EndChild();
+                ImGui.PopStyleVar(2);
+                ImGui.PopStyleColor();
+                ImGui.EndChild();
 
             ImGui.PushItemWidth(Window.screenWidth / horizontalMenuScale);
 
@@ -136,10 +140,7 @@ namespace Vox.UI
                 }
             }
 
-            ImGui.PopStyleVar();
-            ImGui.PopStyleVar();
-            ImGui.PopStyleVar();
-            ImGui.PopStyleVar();
+            ImGui.PopStyleVar(4);
             ImGui.PopStyleColor();
             ImGui.End();
         }
@@ -206,7 +207,7 @@ namespace Vox.UI
 
         public static void ShowBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new Vector2(400, 270));
+            ImGui.SetNextWindowSize(new Vector2(410, 270));
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
@@ -243,6 +244,82 @@ namespace Vox.UI
                 }
                 ImGui.EndPopup();
             }
+        }
+
+        public static void ShowPlayerInventory(ImGuiIOPtr ioptr)
+        {
+            //Main window sizing and position
+            Vector2 center = ImGui.GetMainViewport().GetCenter();
+            ImGui.SetNextWindowPos(new(center.X / 2.2f, center.Y / 4f), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new(Window.screenWidth / 1.8f, Window.screenHeight / 1.3f));
+            
+
+            ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
+
+                ImGui.BeginChild("InventoryTop", new Vector2(0, Window.screenHeight / 1.3f / 2.5f));
+                ImGui.Text("test");
+                ImGui.EndChild();
+
+            //Inventory UI Stying
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
+            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0.5f);
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(1, 1));
+            ImGui.PushStyleColor(ImGuiCol.Border, new Vector4(0.05f, 0.05f, 0.05f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.15f, 0.15f, 0.15f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.35f, 0.35f, 0.35f, 1f));
+            //Populate inventory slots
+            List<BlockType> inventorySlots = Window.GetPlayer().GetInventory().GetSlots();
+            for (int i = 0; i < inventorySlots.Count; i++) 
+            {
+                BlockType currentSlot = inventorySlots[i];
+
+                if (currentSlot != BlockType.AIR)
+                {
+                    //Create ImageButtom
+                    ImGui.ImageButton("##" + i,
+                        TextureLoader.LoadSingleTexture(
+                            AssetLookup.BlockTypeToIconFile[currentSlot]
+                        ),
+                    new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64));
+
+                    // Set hover behavior
+                    if (ImGui.IsItemHovered())
+                    {
+
+                    }
+                }
+                else
+                {
+                    //Create ImageButtom
+                    ImGui.ImageButton("##" + i, 0, new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64));
+
+                    // Set hover behavior
+                    if (ImGui.IsItemHovered())
+                    {
+
+                    }
+                }
+
+                //Splits first 36 slots into rows of 9
+                if ((i + 1) % 9 != 0)
+                    ImGui.SameLine();
+
+                //Spacing between hotbar and inventory rows                
+                if (i == 26)
+                    ImGui.Dummy(new(0, 15));
+
+            }
+
+            ImGui.PopStyleVar(3);
+            ImGui.PopStyleColor(4);
+            ImGui.End();
+            
+        }
+
+        public static bool IsAnyMenuActive()
+        {
+            return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY;
         }
     }
 }

@@ -245,13 +245,13 @@ namespace Vox.Genesis
             unsafe
             {
                 int offset = face.index * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)Window.GetSSBOPtr().ToPointer();
+                byte* basePtr = (byte*)Window.ssboManager.GetSSBO("Terrain").Pointer;
 
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
-                if (offset + instanceSize > Window.GetSSBOSize())
+                if (offset + instanceSize > Window.ssboManager.GetSSBO("Terrain").Size)
                     throw new InvalidOperationException("SSBO overflow");
 
                 *instancePtr = face;

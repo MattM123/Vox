@@ -25,9 +25,8 @@ namespace Vox.Rendering
         public static int LoadTextures(int slot)
         {
 
-            string[] tex = Directory.EnumerateFiles(assets + "BlockTextures").ToArray();
-           // string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\BlockTextures").ToArray();
-
+            string[] tex = [.. Directory.EnumerateFiles(assets + "BlockTextures")];
+ 
             width = 16;
             height = 16;
 
@@ -35,19 +34,6 @@ namespace Vox.Rendering
             //Texture Setup
             //========================
 
-            //Copies textures into foler if not present
-            //if (tex.Length != projTex.Length)
-            //{
-            //    numLayers = projTex.Length;
-            //    Logger.Info("Reloading default textures");
-            //    for (int i = 0; i < projTex.Length; i++)
-            //    {
-            //        File.Copy(projTex[i], Path.Combine(assets, "BlockTextures", Path.GetFileName(projTex[i])), true);
-            //        Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
-            //    }
-            //    //update int value
-            //    tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
-            //}
             numLayers = tex.Length;
 
             //Create and bind texture array
@@ -96,7 +82,7 @@ namespace Vox.Rendering
         /*
          * Loads a single texture such as a diffuse or specular map
          */
-        public static int LoadSingleTexture(string path)
+        public static int LoadSingleTexture(string fileBlockName)
         {
             // Generate handle
             int texId = GL.GenTexture();
@@ -105,7 +91,7 @@ namespace Vox.Rendering
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
 
-            string[] tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
+            //string[] tex = [.. Directory.EnumerateFiles(Path.Combine(assets, "BlockTextures", fileBlockName))];
            // string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
 
             //Copies textures into foler if not present
@@ -123,7 +109,7 @@ namespace Vox.Rendering
             //}
 
             // Here we open a stream to the file and pass it to StbImageSharp to load.
-            using (Stream stream = File.OpenRead(path))
+            using (Stream stream = File.OpenRead(Path.Combine(assets, "BlockTextures", fileBlockName)))
             {
                 using var memoryStream = new MemoryStream();
                 stream.CopyTo(memoryStream);

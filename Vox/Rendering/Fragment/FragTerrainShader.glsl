@@ -53,19 +53,19 @@ out vec4 color;
 
 //Shader data constructor
 #line 1 "shadingData_new.glsl"
-#include "lygia\\lighting\\shadingData\\new.glsl"
+#include "..\\lygia\\lighting\\shadingData\\new.glsl"
 
 //Material constructor
 #line 1 "material_new.glsl"
-#include "lygia\\lighting\\material\\new.glsl"
+#include "..\\lygia\\lighting\\material\\new.glsl"
 
 //Diffuse lighting
 #line 1 "diffuse.glsl"
-#include "lygia\\lighting\\diffuse.glsl"
+#include "..\\lygia\\lighting\\diffuse.glsl"
 
 //Light color blending/smoothing
 #line 1 "glow.glsl"
-#include "lygia\\color\\blend\\glow.glsl"
+#include "..\\lygia\\color\\blend\\glow.glsl"
 
 
 #line 1 "fragment.glsl"

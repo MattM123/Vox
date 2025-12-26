@@ -8,12 +8,14 @@ using OpenTK.Mathematics;
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Rendering;
+using Vox.UI;
 using Region = Vox.Genesis.Region;
 
 namespace Vox
 {
     public class Player
     {
+        private static InventoryStore inventory;
         public static Vector3 position = Vector3.Zero;
         private static float yaw = 0f;
         private static float pitch = 0f;
@@ -43,6 +45,9 @@ namespace Vox
          */
         public Player()
         {
+            inventory = new InventoryStore();
+            inventory.SetSlot(0, BlockType.LAMP_BLOCK);
+            inventory.SetSlot(3, BlockType.DIRT_BLOCK);
 
             ChunkCache.SetPlayerChunk(GetChunkWithPlayer());      
             position = new(0, RegionManager.GetGlobalHeightMapValue((int)position.X, (int)position.Z) + 1, 0);
@@ -90,7 +95,6 @@ namespace Vox
             Vector3 rayOrigin = position;
             Vector3 target = Vector3.Zero;
             Vector3 currentPosition = Vector3.Zero;
-            BlockDetail block = new();
             Vector3 previousBlock = Vector3.Zero;
             Vector3 rayDirection = GetForwardDirection();
             for (float distance = 0; distance < maxDistance; distance += stepSize)
@@ -111,7 +115,6 @@ namespace Vox
                 if (actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
                     previousBlock = target;
                     blockSpace = target;
-                   // Console.WriteLine("space1: " + blockSpace);
                     continue;
                 }   
                 //else, render block selection target and break the loop
@@ -119,7 +122,6 @@ namespace Vox
                 {
                     blockSpace = previousBlock;
 
-                   //Console.WriteLine("space: " + blockSpace);
                     //calculate direction player is facing from their view matrix
                     Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
                     if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)
@@ -134,13 +136,10 @@ namespace Vox
 
 
                     Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
-                    Vector3 localHitVector = Vector3.Normalize(blockCenter - currentPosition);
-
 
                     //Create block view matrix to calculate blockface player is looking at
                     Matrix4 blockViewMat = Matrix4.LookAt(blockCenter, currentPosition, new Vector3(0.0f, 1f, 0.0f));
 
-                    //TODO: Slightly off
                     Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
                     Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
 
@@ -160,9 +159,8 @@ namespace Vox
                 }
             }
             //Returns the last block the player was looking at
-            Window.GetShaders().SetVector3Uniform("targetVertex", target);
+            Window.shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
 
-            viewTarget = block.GetVertexData();
             return target;
         }
 
@@ -482,6 +480,11 @@ namespace Vox
         public Vector2 GetRotation()
         {
             return new Vector2(yaw, pitch);
+        }
+
+        public InventoryStore GetInventory()
+        {
+            return inventory;
         }
 
         public void SetPosition(Vector3 pos)

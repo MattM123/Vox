@@ -28,16 +28,16 @@ namespace Vox.Rendering
         {
             return programId;
         }
-        public void CreateVertexShader(string filename, string vertexShaderCode)
+        public ShaderProgram CreateVertexShader(string filename, string vertexShaderCode)
         {
             vertexShaderId = CreateShader(filename, vertexShaderCode, ShaderType.VertexShader);
-
+            return this;
         }
 
-        public void CreateFragmentShader(string filename, string fragmentShaderCode)
+        public ShaderProgram CreateFragmentShader(string filename, string fragmentShaderCode)
         {
             fragmentShaderId = CreateShader(filename, fragmentShaderCode, ShaderType.FragmentShader);
-
+            return this;
         }
 
         public void CreateGeometryShader(string filename, string geoShaderCode)
@@ -50,23 +50,24 @@ namespace Vox.Rendering
          * @param varName Name of texture
          * @param slot Texture unit to use
          */
-        public void UploadAndBindTexture(string varName, int slot, int textureID, TextureTarget target)
+        public ShaderProgram UploadAndBindTexture(string varName, int slot, int textureID, TextureTarget target)
         {
             GL.ActiveTexture(TextureUnit.Texture0 + slot);
             GL.BindTexture(target, textureID);
             int varLocation = GL.GetUniformLocation(GetProgramId(), varName);
             GL.Uniform1(varLocation, slot);
+            return this;
         }
 
 
-        public void CreateUniform(string uniformName)
+        public ShaderProgram CreateUniform(string uniformName)
         {
            
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             if (uniformLocation < 0)
                 uniforms.Add(uniformName, uniformLocation);
-           // else
-             //   Logger.Debug("ShaderProgram.CreateUniform - Uniform already exists: " + uniformName);
+           
+            return this;
         }
 
         public static string LoadShaderFromFile(string filePath)
@@ -81,26 +82,30 @@ namespace Vox.Rendering
             }
             return null;
         }
-        public void SetMatrixUniform(string uniformName, Matrix4 matrix)
+        public ShaderProgram SetMatrixUniform(string uniformName, Matrix4 matrix)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.UniformMatrix4(uniformLocation, true, ref matrix);
+            return this;
         }
-        public void SetIntFloatUniform(string uniformName, int value)
+        public ShaderProgram SetIntFloatUniform(string uniformName, int value)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.Uniform1(uniformLocation, value);
+            return this;
         }
-        public void SetIntFloatUniform(string uniformName, float value)
+        public ShaderProgram SetIntFloatUniform(string uniformName, float value)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.Uniform1(uniformLocation, value);
+            return this;
         }
 
-        public void SetVector3Uniform(string uniformName, Vector3 value)
+        public ShaderProgram SetVector3Uniform(string uniformName, Vector3 value)
         {
             int uniformLocation = GL.GetUniformLocation(programId, uniformName);
             GL.Uniform3(uniformLocation, value);
+            return this;
         }
         public string GetProgramLog()
         {
@@ -258,10 +263,11 @@ namespace Vox.Rendering
             Console.ResetColor();
         }
 
-        public void Bind()
+        public ShaderProgram Bind()
         {
             GL.UseProgram(programId);
             GL.GetInteger((GetPName)All.CurrentProgram, out int currentProgram);
+            return this;
         }
 
         public void Unbind()
