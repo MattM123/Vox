@@ -56,6 +56,7 @@ uniform vec3 localHit;
 #line 1 "VertexUtilityShader.glsl"
 #include "VertexUtilityShader.glsl"
 
+#line 1 "VertexTerrainShader.glsl"
 void main() {
 
     BlockFaceInstance instance = blockFaces[gl_InstanceID];

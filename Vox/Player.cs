@@ -46,8 +46,11 @@ namespace Vox
         public Player()
         {
             inventory = new InventoryStore();
-            inventory.SetSlot(0, BlockType.LAMP_BLOCK);
-            inventory.SetSlot(3, BlockType.DIRT_BLOCK);
+            inventory.SetSlot(0, BlockType.LAMP_BLOCK, 5);
+            inventory.SetSlot(1, BlockType.DIRT_BLOCK, 3);
+            inventory.SetSlot(2, BlockType.GRASS_BLOCK, 16);
+            inventory.SetSlot(3, BlockType.TEST_BLOCK, 55);
+            inventory.SetSlot(4, BlockType.TARGET_BLOCK, 64);
 
             ChunkCache.SetPlayerChunk(GetChunkWithPlayer());      
             position = new(0, RegionManager.GetGlobalHeightMapValue((int)position.X, (int)position.Z) + 1, 0);

@@ -2,6 +2,7 @@
 using System.IO;
 using System.Numerics;
 using System.Text;
+using System.Text.RegularExpressions;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.Common;
@@ -257,7 +258,6 @@ namespace Vox.UI
             ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
 
                 ImGui.BeginChild("InventoryTop", new Vector2(0, Window.screenHeight / 1.3f / 2.5f));
-                ImGui.Text("test");
                 ImGui.EndChild();
 
             //Inventory UI Stying
@@ -268,38 +268,89 @@ namespace Vox.UI
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.15f, 0.15f, 0.15f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(0.3f, 0.3f, 0.3f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(0.35f, 0.35f, 0.35f, 1f));
+
             //Populate inventory slots
-            List<BlockType> inventorySlots = Window.GetPlayer().GetInventory().GetSlots();
+            Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = Window.GetPlayer().GetInventory().GetSlots();
             for (int i = 0; i < inventorySlots.Count; i++) 
             {
-                BlockType currentSlot = inventorySlots[i];
+                ImGui.PushID(i);
+                BlockType currentSlotType = inventorySlots[i].Key;
 
-                if (currentSlot != BlockType.AIR)
+                if (currentSlotType != BlockType.AIR)
                 {
-                    //Create ImageButtom
-                    ImGui.ImageButton("##" + i,
-                        TextureLoader.LoadSingleTexture(
-                            AssetLookup.BlockTypeToIconFile[currentSlot]
-                        ),
-                    new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64));
 
-                    // Set hover behavior
-                    if (ImGui.IsItemHovered())
+                    Vector2 size = new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64);
+
+
+                    // Calculate button position and size before drawing
+                    var cursorPos = ImGui.GetCursorScreenPos();
+                    var buttonRectMin = cursorPos;
+                    var buttonRectMax = new Vector2(cursorPos.X + size.X, cursorPos.Y + size.Y);
+                    var mousePos = ImGui.GetMousePos();
+
+                    // Determine hover state by manual check *before* drawing
+                    bool isHovered = mousePos.X >= buttonRectMin.X && mousePos.X <= buttonRectMax.X &&
+                                     mousePos.Y >= buttonRectMin.Y && mousePos.Y <= buttonRectMax.Y;
+
+                    // Select image based on hover
+                    IntPtr textureToUse = isHovered ? 
+                        Window.inventoryAnim : 
+                        TextureLoader.LoadSingleTexture(AssetLookup.BlockTypeToIconFile[currentSlotType]);
+
+                    // If hovered, populate the SSBO and render the animation frame to the FBO
+                    if (isHovered)
                     {
+                        InventoryStore inventory = Window.GetPlayer().GetInventory();
+                        BlockModel model = ModelLoader.GetModel(currentSlotType);
+                        string modelElements = model.RotateX(10).GetElements().ElementAt(0).ToString();
 
+                        int start = modelElements.IndexOf("from=(") + 6;
+                        int end = modelElements.IndexOf(")", start);
+
+                        string coords = modelElements.Substring(start, end - start);
+                        string[] parts = coords.Split(',');
+
+                        int x = int.Parse(parts[0].Trim());
+                        int y = int.Parse(parts[1].Trim());
+                        int z = int.Parse(parts[2].Trim());
+
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
+                                index = 0,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.NORTH),
+                                faceDirection = (int) BlockFace.NORTH
+                
+                            });
+                            RenderInventoryAnimation();
                     }
+                    ImGui.ImageButton("##" + i, textureToUse, size);
+
+                    // Draw rectangle around the button
+                    Vector2 min = ImGui.GetItemRectMin();
+                    Vector2 max = ImGui.GetItemRectMax();
+
+                    var drawList = ImGui.GetWindowDrawList();
+
+                    uint color = isHovered ? ImGui.GetColorU32(new Vector4(0, 0, 1, 1)) // blue if hovered
+                                         : ImGui.GetColorU32(new Vector4(1, 1, 1, 1)); // white if not hovered
+
+                    drawList.AddRect(min, max, color, rounding: 3.0f, ImDrawFlags.None, thickness: 2.0f);
+
+                    // Show item quantity in top left corner
+                    drawList.AddText(ImGui.GetFont(), 15, min + new Vector2(5, 5), color, 
+                        Window.GetPlayer().GetInventory().GetSlots()[i].Value.ToString());
+
                 }
                 else
                 {
                     //Create ImageButtom
                     ImGui.ImageButton("##" + i, 0, new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64));
 
-                    // Set hover behavior
-                    if (ImGui.IsItemHovered())
-                    {
-
-                    }
                 }
+                ImGui.PopID();
 
                 //Splits first 36 slots into rows of 9
                 if ((i + 1) % 9 != 0)
@@ -309,12 +360,43 @@ namespace Vox.UI
                 if (i == 26)
                     ImGui.Dummy(new(0, 15));
 
+
             }
 
             ImGui.PopStyleVar(3);
             ImGui.PopStyleColor(4);
             ImGui.End();
             
+        }
+
+        public static void RenderInventoryAnimation()
+        {
+            int vaoo = GL.GenVertexArray();
+
+            GL.Viewport(0, 0, 4096, 4096);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, Window.inventoryAnimFBO);
+
+            //Check FBO
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                Console.WriteLine($"Framebuffer error: {status}");
+            }
+            Window.shaderManager.GetShaderProgram("Inventory").Bind();
+            GL.BindVertexArray(vaoo);
+
+            GL.DrawArraysInstanced(
+                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
+                0,                            // Start from the first vertex in the base geometry
+                4,                            // 4 vertices per face (for triangle strip)
+                6                             // Instance count (number of faces to draw)
+            );
+
+
+            //Unbind FBO at the end of frame render
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
         }
 
         public static bool IsAnyMenuActive()

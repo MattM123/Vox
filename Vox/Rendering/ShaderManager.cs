@@ -43,7 +43,7 @@ namespace Vox.Rendering
             {
                 shader.Cleanup();
             }
-           // shaders.Clear();
+            shaders.Clear();
         }
     }
 }

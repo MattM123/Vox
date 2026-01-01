@@ -29,8 +29,6 @@ uniform Matt material;
 //We still need the view position.
 uniform vec3 viewPos;
 
-uniform vec3 playerPos;
-uniform int chunkSize;
 uniform vec3 targetVertex;
 uniform vec3 forwardDir;
 uniform int targetTexLayer;
