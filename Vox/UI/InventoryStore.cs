@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Bson;
+using OpenTK.Mathematics;
 using Vox.AssetManagement;
 using Vox.Enums;
 using Vox.Model;
@@ -49,11 +50,27 @@ namespace Vox.UI
             slots[slot] = new(blocktype, quantity - decrement);
         }
 
-        /**
- * Uploads a single block face to the SSBO for rendering.
- * If the index is already present, updates the face data.
- */
+        public Matrix4 GetIconProjection()
+        {
+            return Matrix4.CreateOrthographic(
+                2.0f,  // width
+                2.0f,  // height
+                0.1f,
+                10.0f
+            );
 
+        }
+        public Matrix4 GetIconView()
+        {
+            return
+                Matrix4.CreateRotationX(MathHelper.DegreesToRadians(-35.264f)) *
+                Matrix4.CreateRotationY(MathHelper.DegreesToRadians(45f)) *
+                Matrix4.CreateTranslation(0, 0, -3f);
+        }
+        /**
+         * Uploads a single block face to the SSBO for rendering.
+         * If the index is already present, updates the face data.
+         */
         public void AddOrUpdateFaceInMemory(BlockFaceInstance face)
         {
             //Write face directly to SSBO

@@ -78,8 +78,6 @@ namespace Vox
         private static int crosshairTex;
         private static int sunlightDepthMapFBO;
         private static int sunlightDepthMap;
-        public static int inventoryAnimFBO;
-        public static int inventoryAnim;
         private static Matrix4 pMatrix;
         private Matrix4 sunlightProjectionMatrix;
         private Matrix4 sunlightViewMatrix;
@@ -203,12 +201,12 @@ namespace Vox
             //-----------------------Lighting shaders---------------------------------
 
             //------------------------Inventory shaders---------------------------------
-            string vertexInventorySource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex\\VertexInventoryShader.glsl");
+            string vertexInventorySource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Vertex\\VertexInventoryShader.glsl");
+            string fragInventorySource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Fragment\\FragInventoryShader.glsl");
             shaderManager.AddShaderProgram("Inventory", new())
                 .CreateVertexShader("VertexInventoryShader", vertexInventorySource)
-                .CreateFragmentShader("FragTerrainShader", fragmentTerrainShaderSource)
+                .CreateFragmentShader("FragInventoryShader", fragInventorySource)
                 .Link();
-            Console.WriteLine(vertexInventorySource);
             //------------------------Inventory shaders---------------------------------
 
             //Sunlight frame buffer for shadow map
@@ -250,46 +248,6 @@ namespace Vox
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
-            //------------------------Inventory FrameBuffer---------------------------------
-            //Inventory animation framebuffer
-            inventoryAnimFBO = GL.GenFramebuffer();
-            inventoryAnim = GL.GenTexture();
-
-            GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, inventoryAnim);
-            GL.TexImage2D(
-                TextureTarget.Texture2D, 
-                0, 
-                PixelInternalFormat.Rgba8,
-                 4096, 4096, 
-                 0, 
-                 PixelFormat.Rgba, 
-                 PixelType.UnsignedByte, 
-                 IntPtr.Zero
-            );
-            GL.Viewport(0, 0, 4096, 4096);
-
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-            //Attach depth texture to frame buffer         
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, inventoryAnimFBO);
-            GL.FramebufferTexture2D(
-                FramebufferTarget.Framebuffer,
-                FramebufferAttachment.ColorAttachment0, 
-                TextureTarget.Texture2D, 
-                inventoryAnim, 
-                0
-            );
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-
-
             //========================
             //Matrix unifrom setup
             //========================
@@ -301,16 +259,12 @@ namespace Vox
             float dist = RegionManager.CHUNK_BOUNDS * RegionManager.GetRenderDistance();
             sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist, dist, -dist, dist, 1f, dist * 2);
 
-            shaderManager.GetShaderProgram("Lighting").Bind();
-
-            shaderManager.GetShaderProgram("Lighting")
+            shaderManager.GetShaderProgram("Lighting").Bind()
                 .CreateUniform("lightModel")
                 .CreateUniform("lightViewMatrix")
                 .CreateUniform("lightProjMatrix");
 
-            shaderManager.GetShaderProgram("Terrain").Bind();
-
-            shaderManager.GetShaderProgram("Terrain")
+            shaderManager.GetShaderProgram("Terrain").Bind()
                 .CreateUniform("texture_sampler")
                 .CreateUniform("sunlightDepth_sampler")
                 .CreateUniform("chunkSize")
@@ -328,17 +282,17 @@ namespace Vox
                 .CreateUniform("modelMatrix")
                 .CreateUniform("viewMatrix")
                 .CreateUniform("chunkModelMatrix")
-                .CreateUniform("isMenuRendered");
+                .CreateUniform("isMenuRendered")
 
-            shaderManager.GetShaderProgram("Terrain")
                 .UploadAndBindTexture("texture_sampler", 0, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
                 .UploadAndBindTexture("sunlightDepth_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
-                .UploadAndBindTexture("inventory_texture_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
-
+              //  .UploadAndBindTexture("inventory_texture_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
                 .SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS)               
                 .SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
-            shaderManager.GetShaderProgram("Inventory")
+            shaderManager.GetShaderProgram("Inventory").Bind()
+                .UploadAndBindTexture("sunlightDepth_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
+                .UploadAndBindTexture("animationTexture", 2, _UIController._inventoryIconTexture, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
                 .CreateUniform("viewMatrix")
                 .CreateUniform("modelMatrix")
                 .CreateUniform("projectionMatrix")
@@ -350,6 +304,8 @@ namespace Vox
                 .CreateUniform("forwardDir")
                 .CreateUniform("playerMin")
                 .CreateUniform("playerMax");
+            
+                
 
 
             // This is where we change the lights color over time using the sin function
@@ -417,8 +373,7 @@ namespace Vox
                 angle += 0.1f * (float) e.Time;
                 renderMenu = true;
 
-                shaderManager.GetShaderProgram("Terrain")
-                    .Bind()
+                shaderManager.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("isMenuRendered", 1);
 
                 RenderMenu();
@@ -428,8 +383,7 @@ namespace Vox
                 
                 renderMenu = false;
 
-                shaderManager.GetShaderProgram("Terrain")
-                    .Bind()
+                shaderManager.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("isMenuRendered", 0);
 
                 RenderWorld();
@@ -464,8 +418,7 @@ namespace Vox
 
         private static void SetTerrainShaderUniforms()
         {
-            shaderManager.GetShaderProgram("Terrain")
-                .Bind()
+            shaderManager.GetShaderProgram("Terrain").Bind()
                 .SetMatrixUniform("projectionMatrix", pMatrix)
                 .SetMatrixUniform("modelMatrix", modelMatricRotate);
 
@@ -484,30 +437,26 @@ namespace Vox
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1])
-                    .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix())
-                    .SetVector3Uniform("playerMin", Player.playerMin)
-                    .SetVector3Uniform("playerMax", Player.playerMax);
+                    .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
 
-                shaderManager.GetShaderProgram("Inventory")
-                    .SetMatrixUniform("projectionMatrix", pMatrix)
+
+                shaderManager.GetShaderProgram("Inventory").Bind()
+                    .SetMatrixUniform("projectionMatrix", GetPlayer().GetInventory().GetIconProjection())
                     .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix())
                     .SetMatrixUniform("modelMatrix", modelMatricRotate)
-                    .SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix())
-                    .SetVector3Uniform("playerMin", Player.playerMin)
-                    .SetVector3Uniform("playerMax", Player.playerMax);
+                    .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
+                    .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
 
             }
 
-            shaderManager.GetShaderProgram("Terrain")
+            shaderManager.GetShaderProgram("Terrain").Bind()
                 .SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection())
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition())
                 .SetIntFloatUniform("renderDistance", RegionManager.GetRenderDistance())
                 .SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix())
                 .SetIntFloatUniform("isMenuRendered", 1);
-              // .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
-               // .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);    
-            
-            shaderManager.GetShaderProgram("Inventory")
+
+            shaderManager.GetShaderProgram("Inventory").Bind()
                 .SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection())
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition());
         }
@@ -549,8 +498,7 @@ namespace Vox
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
 
-            shaderManager.GetShaderProgram("Terrain")
-                .Bind()
+            shaderManager.GetShaderProgram("Terrain").Bind()
                 .SetVector3Uniform("light.position", _lightPos)
                 .SetVector3Uniform("light.ambient", ambientColor)
                 .SetVector3Uniform("light.diffuse", diffuseColor)
@@ -573,8 +521,7 @@ namespace Vox
 
             SetTerrainShaderUniforms();
 
-            shaderManager.GetShaderProgram("Lighting")
-                .Bind()
+            shaderManager.GetShaderProgram("Lighting").Bind()
                 .SetVector3Uniform("light.position", _lightPos);
 
             if (!IsMenuRendered())
@@ -588,18 +535,17 @@ namespace Vox
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
 
-            shaderManager.GetShaderProgram("Lighting")
+            shaderManager.GetShaderProgram("Lighting").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
-            shaderManager.GetShaderProgram("Terrain")
-
+            shaderManager.GetShaderProgram("Terrain").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
-            shaderManager.GetShaderProgram("Inventory")
+            shaderManager.GetShaderProgram("Inventory").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
@@ -737,7 +683,7 @@ namespace Vox
             if (ImGuiHelper.SHOW_PLAYER_INVENTORY && !IsMenuRendered())
             {
                 CursorState = CursorState.Normal;
-                ImGuiHelper.ShowPlayerInventory(ioptr);
+                ImGuiHelper.ShowPlayerInventory(_UIController);
             }
             else if (ImGuiHelper.SHOW_BLOCK_COLOR_PICKER && !IsMenuRendered())
             {
@@ -967,7 +913,6 @@ namespace Vox
             shaderManager.GetShaderProgram("Terrain").Bind();
 
 
-
             /*==================================
             Render and Draw Terrain
             ====================================*/
@@ -1012,7 +957,7 @@ namespace Vox
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
             Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)e.Width / e.Height, NEAR, FAR);
-            shaderManager.GetShaderProgram("Terrain").SetMatrixUniform("projectionMatrix", pMatrix);
+            shaderManager.GetShaderProgram("Terrain").Bind().SetMatrixUniform("projectionMatrix", pMatrix);
 
             // Tell ImGui of the new size
             _UIController.WindowResized(ClientSize.X, ClientSize.Y);
@@ -1048,31 +993,20 @@ namespace Vox
 
                 if (line.Trim().StartsWith("#include"))
                 {
-                    Console.WriteLine("Processing include: " + line);
                     var match = GLSLIncludeRegex().Match(line);
-                    Console.WriteLine("IsMatch: " + match.Success);
+
                     if (match.Success)
                     {
                         string includePath = match.Groups[1].Value;
                         string resolvedPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(fullPath)!, includePath));
-                        Console.WriteLine("IncludePath: " + includePath);
-                        Console.WriteLine("ResolvedPath: " + resolvedPath);
-                        Console.WriteLine();
                         sb.AppendLine(ProcessShaderIncludes(resolvedPath));
                         
                     }
-                    else
-                    {
-                        throw new Exception($"Invalid include directive: {line}");
-                    }
-                    
+                    else 
+                        throw new Exception($"Invalid include directive: {line}"); 
                 }
                 else
-                {
-
                     sb.AppendLine(line);
-                    Console.WriteLine("Appended line: " + line);
-                }
             }
 
             return sb.ToString();

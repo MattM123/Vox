@@ -1,7 +1,10 @@
 ﻿
+using System.Xml.Linq;
+using OpenTK.Compute.OpenCL;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using Vox.Exceptions;
+using Vox.UI;
 using TextureTarget = OpenTK.Graphics.OpenGL.TextureTarget;
 namespace Vox.Rendering
 {
@@ -31,12 +34,14 @@ namespace Vox.Rendering
         public ShaderProgram CreateVertexShader(string filename, string vertexShaderCode)
         {
             vertexShaderId = CreateShader(filename, vertexShaderCode, ShaderType.VertexShader);
+            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, vertexShaderId, $"Shader: {filename}");
             return this;
         }
 
         public ShaderProgram CreateFragmentShader(string filename, string fragmentShaderCode)
         {
             fragmentShaderId = CreateShader(filename, fragmentShaderCode, ShaderType.FragmentShader);
+            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, fragmentShaderId, $"Shader: {filename}");
             return this;
         }
 

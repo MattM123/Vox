@@ -18,28 +18,21 @@ layout(std430, binding = 1) buffer BlockFaceData
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
-uniform mat4 chunkModelMatrix;
-
 
 uniform mat4 lightProjMatrix;
 uniform mat4 lightModel;
 uniform mat4 lightViewMatrix;
 
-
 uniform vec3 playerPos;
-
 uniform vec3 forwardDir;
-
 uniform vec3 playerMin;
 uniform vec3 playerMax;
 
 out vec3 fPlayerMin;
 out vec3 fPlayerMax;
-
 out vec4 fragPosLightSpace;
 out vec4 fColor;
 out vec2 ftexCoords;
-
 out vec3 fragPos;
 out vec3 fnormal;
 flat out float fTexLayer;

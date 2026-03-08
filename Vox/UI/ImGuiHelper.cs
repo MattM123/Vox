@@ -247,7 +247,7 @@ namespace Vox.UI
             }
         }
 
-        public static void ShowPlayerInventory(ImGuiIOPtr ioptr)
+        public static void ShowPlayerInventory(ImGuiController controller)
         {
             //Main window sizing and position
             Vector2 center = ImGui.GetMainViewport().GetCenter();
@@ -294,7 +294,7 @@ namespace Vox.UI
 
                     // Select image based on hover
                     IntPtr textureToUse = isHovered ? 
-                        Window.inventoryAnim : 
+                        controller._inventoryIconTexture : 
                         TextureLoader.LoadSingleTexture(AssetLookup.BlockTypeToIconFile[currentSlotType]);
 
                     // If hovered, populate the SSBO and render the animation frame to the FBO
@@ -304,27 +304,78 @@ namespace Vox.UI
                         BlockModel model = ModelLoader.GetModel(currentSlotType);
                         string modelElements = model.RotateX(10).GetElements().ElementAt(0).ToString();
 
+                        Console.WriteLine(model.RotateX(10).GetElements().ElementAt(0));
+
                         int start = modelElements.IndexOf("from=(") + 6;
                         int end = modelElements.IndexOf(")", start);
 
-                        string coords = modelElements.Substring(start, end - start);
+                        string coords = modelElements[start..end];
                         string[] parts = coords.Split(',');
+
+                        Console.WriteLine($"Extracted coordinates string: '{coords}'");
 
                         int x = int.Parse(parts[0].Trim());
                         int y = int.Parse(parts[1].Trim());
                         int z = int.Parse(parts[2].Trim());
 
+                        Console.WriteLine($"Parsed coordinates: x={x}, y={y}, z={z}");
+
                         inventory.AddOrUpdateFaceInMemory(
                             new BlockFaceInstance
                             {
-                                facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
+                                facePosition = new OpenTK.Mathematics.Vector3(x, y, z + 1),
                                 index = 0,
                                 lighting = 0,
                                 textureLayer = (int)model.GetTexture(BlockFace.NORTH),
-                                faceDirection = (int) BlockFace.NORTH
-                
+                                faceDirection = (int) BlockFace.NORTH              
                             });
-                            RenderInventoryAnimation();
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x, y, z - 1),
+                                index = 1,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.SOUTH),
+                                faceDirection = (int)BlockFace.SOUTH
+                            });
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x + 1, y, z),
+                                index = 2,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.EAST),
+                                faceDirection = (int)BlockFace.EAST
+                            });
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x - 1, y, z),
+                                index = 3,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.WEST),
+                                faceDirection = (int)BlockFace.WEST
+                            });
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x, y + 1, z),
+                                index = 3,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.UP),
+                                faceDirection = (int)BlockFace.UP
+                            });
+                        inventory.AddOrUpdateFaceInMemory(
+                            new BlockFaceInstance
+                            {
+                                facePosition = new OpenTK.Mathematics.Vector3(x, y - 1, z),
+                                index = 3,
+                                lighting = 0,
+                                textureLayer = (int)model.GetTexture(BlockFace.DOWN),
+                                faceDirection = (int)BlockFace.DOWN
+                            });
+
+                        controller.RenderInventoryAnimation();
                     }
                     ImGui.ImageButton("##" + i, textureToUse, size);
 
@@ -367,36 +418,6 @@ namespace Vox.UI
             ImGui.PopStyleColor(4);
             ImGui.End();
             
-        }
-
-        public static void RenderInventoryAnimation()
-        {
-            int vaoo = GL.GenVertexArray();
-
-            GL.Viewport(0, 0, 4096, 4096);
-
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, Window.inventoryAnimFBO);
-
-            //Check FBO
-            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            if (status != FramebufferErrorCode.FramebufferComplete)
-            {
-                Console.WriteLine($"Framebuffer error: {status}");
-            }
-            Window.shaderManager.GetShaderProgram("Inventory").Bind();
-            GL.BindVertexArray(vaoo);
-
-            GL.DrawArraysInstanced(
-                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
-                0,                            // Start from the first vertex in the base geometry
-                4,                            // 4 vertices per face (for triangle strip)
-                6                             // Instance count (number of faces to draw)
-            );
-
-
-            //Unbind FBO at the end of frame render
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
         }
 
         public static bool IsAnyMenuActive()

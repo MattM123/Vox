@@ -6,12 +6,16 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 using Vox.Exceptions;
+using Vox.Rendering;
 
 namespace Vox.UI
 {
     public class ImGuiController : IDisposable
     {
         private bool _frameBegun;
+
+        private int _inventoryIconFBO;
+        public int _inventoryIconTexture;
 
         private int _vertexArray;
         private int _vertexBuffer;
@@ -104,7 +108,7 @@ namespace Vox.UI
 
             RecreateFontDeviceTexture();
 
-            string VertexSource = @"#version 410 core
+            string VertexSource = @"#version 430 core
 
                 uniform mat4 projection_matrix;
 
@@ -121,7 +125,7 @@ namespace Vox.UI
                     color = in_color;
                     texCoord = in_texCoord;
                 }";
-            string FragmentSource = @"#version 410 core
+            string FragmentSource = @"#version 430 core
 
                 uniform sampler2D in_fontTexture;
 
@@ -136,6 +140,7 @@ namespace Vox.UI
                 }";
 
             _shader = CreateProgram("ImGui", VertexSource, FragmentSource);
+
             _shaderProjectionMatrixLocation = GL.GetUniformLocation(_shader, "projection_matrix");
             _shaderFontTextureLocation = GL.GetUniformLocation(_shader, "in_fontTexture");
 
@@ -150,6 +155,44 @@ namespace Vox.UI
 
             GL.BindVertexArray(prevVAO);
             GL.BindBuffer(BufferTarget.ArrayBuffer, prevArrayBuffer);
+
+            //------------------------Inventory FrameBuffer---------------------------------
+            //Inventory animation framebuffer
+            _inventoryIconFBO = GL.GenFramebuffer();
+            _inventoryIconTexture = GL.GenTexture();
+
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2D, _inventoryIconTexture);
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                PixelInternalFormat.Rgba8,
+                 64, 64,
+                 0,
+                 PixelFormat.Rgba,
+                 PixelType.UnsignedByte,
+                 IntPtr.Zero
+            );
+           // GL.Viewport(0, 0, 4096, 4096);
+
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+            //Attach depth texture to frame buffer         
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconFBO);
+            GL.FramebufferTexture2D(
+                FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0,
+                TextureTarget.Texture2D,
+                _inventoryIconTexture,
+                0
+            );
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
             CheckGLError("End of ImGui setup");
         }
@@ -548,6 +591,39 @@ namespace Vox.UI
             }
 
             return shader;
+        }
+
+        public void RenderInventoryAnimation()
+        {
+            //Shader and VAO setup
+            Window.shaderManager.GetShaderProgram("Inventory").Bind();
+            
+            GL.BindVertexArray(GL.GenVertexArray());
+
+            //Viewport setup
+            GL.Viewport(0, 0, 4096, 4096);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            //FBO setup
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconFBO);
+
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                Console.WriteLine($"Framebuffer error: {status}");
+            }
+
+            //Drawing
+            GL.DrawArraysInstanced(
+                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
+                0,                            // Start from the first vertex in the base geometry
+                4,                            // 4 vertices per face (for triangle strip)
+                6                             // Instance count (number of faces to draw)
+            );
+
+            //Unbind FBO at the end of frame render
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
         }
 
         public static void CheckGLError(string title)

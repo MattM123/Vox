@@ -1,6 +1,6 @@
-#version 430 core
+﻿#version 430 core
 
-uniform sampler2DArray texture_sampler;
+uniform sampler2D animationTexture;
 uniform sampler2DShadow sunlightDepth_sampler;
 
 //The material is a collection of some values that we talked about in the last tutorial,
@@ -94,7 +94,7 @@ void main()
     //=========================================
     // Lighting
     //=========================================
-    vec4 texColor = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
+    vec4 texColor = texture(animationTexture, vec2(ftexCoords.xy));
     vec3 texColor3 = vec3(texColor.x, texColor.y, texColor.z);
 
     // Blue component (bits 0-3)           
@@ -183,33 +183,16 @@ void main()
 
     vec3 result = (baseLighting + lightColor);
 
+   // applyTex = texture(animationTexture, vec2(ftexCoords.xy)) * vec4(result, 1.0); 
 
-
-    //=========================================
-    // Render block target
-    //=========================================
-
-    //target bounds checking
-    vec3 minBound = fTargetVertex.xyz;
-    vec3 maxBound = minBound + vec3(1.0,1.0,1.0);
-    vec4 applyTex;
-    float gamma = 1.0 / 2.2; 
-
-
-    // Check if the fragment's position is inside the bounding box
-    if ((fragPos.x >= minBound.x && fragPos.x <= maxBound.x &&
-        fragPos.y >= minBound.y && fragPos.y <= maxBound.y &&
-        fragPos.z >= minBound.z && fragPos.z <= maxBound.z))
-    {
-        // If inside the bounding box, combine texture color with target texture color
-        vec4 baseTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
-        vec4 targetOverlay = texture(texture_sampler, vec3(ftexCoords.xy, targetTexLayer));
-        applyTex = mix(baseTex, targetOverlay, targetOverlay.a) * vec4(result, 1.0);  
-    }
- 
-    else 
-        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0); 
-
-     color = pow(applyTex, vec4(gamma));
+   // color = pow(applyTex, vec4(gamma));
+   // color = texture(animationTexture, vec2(ftexCoords.xy));
+   color = vec4(1,0,0,1);
 
  }
+
+
+ //Impl notes:
+ //Render block mesh to FBO
+ //Sample texture array to assign correct texture
+ //Flow: vertex shader renders mesh shape -> frag shader colors the fragments -> result is written to the FBO

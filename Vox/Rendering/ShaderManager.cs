@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Vox.Exceptions;
+using Vox.UI;
 
 namespace Vox.Rendering
 {
@@ -28,6 +29,7 @@ namespace Vox.Rendering
 
         public ShaderProgram AddShaderProgram(string name, ShaderProgram shader)
         {
+            ImGuiController.LabelObject(OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier.Program, shader.GetProgramId(), $"Program: {name}");
             if (!shaders.ContainsKey(name))
             {
                 shaders[name] = shader;
