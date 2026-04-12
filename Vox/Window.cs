@@ -98,7 +98,7 @@ namespace Vox
         {
             base.OnLoad();
 
-            int texArray = TextureLoader.LoadTextures(0);
+            int texArray = TextureLoader.LoadTextures(4);
 
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
@@ -248,6 +248,46 @@ namespace Vox
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
+
+            //------------------------Inventory FrameBuffer---------------------------------
+            //Inventory animation framebuffer
+            ImGuiHelper._inventoryIconFBO = GL.GenFramebuffer();
+            ImGuiHelper._inventoryIconTexture = GL.GenTexture();
+
+            GL.ActiveTexture(TextureUnit.Texture2);
+            GL.BindTexture(TextureTarget.Texture2D, ImGuiHelper._inventoryIconTexture);
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                PixelInternalFormat.Rgba,
+                256, 256,
+                0,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                IntPtr.Zero
+            );
+            GL.Viewport(0, 0, 256, 256);
+
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+            //Attach color texture to frame buffer         
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, ImGuiHelper._inventoryIconFBO);
+            GL.FramebufferTexture2D(
+                FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0,
+                TextureTarget.Texture2D,
+                ImGuiHelper._inventoryIconTexture,
+                0
+            );
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+
             //========================
             //Matrix unifrom setup
             //========================
@@ -284,15 +324,14 @@ namespace Vox
                 .CreateUniform("chunkModelMatrix")
                 .CreateUniform("isMenuRendered")
 
-                .UploadAndBindTexture("texture_sampler", 0, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
+                .UploadAndBindTexture("texture_sampler", 3, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
                 .UploadAndBindTexture("sunlightDepth_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
               //  .UploadAndBindTexture("inventory_texture_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
                 .SetIntFloatUniform("chunkSize", RegionManager.CHUNK_BOUNDS)               
                 .SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
 
             shaderManager.GetShaderProgram("Inventory").Bind()
-                .UploadAndBindTexture("sunlightDepth_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
-                .UploadAndBindTexture("animationTexture", 2, _UIController._inventoryIconTexture, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
+                .UploadAndBindTexture("texture_sampler", 3, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
                 .CreateUniform("viewMatrix")
                 .CreateUniform("modelMatrix")
                 .CreateUniform("projectionMatrix")
@@ -361,7 +400,7 @@ namespace Vox
             _UIController.Update(this, (float)e.Time);
 
 
-            GL.ClearColor(0.5f, 0.8f, 1.0f, 0.0f);
+            GL.ClearColor(1.5f, 0.8f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
@@ -401,7 +440,6 @@ namespace Vox
                 shaderManager.GetShaderProgram("Inventory").Bind();
                // terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
 
-                //RenderInventoryAnimation();
             }
 
             ImGuiController.CheckGLError("End of frame");
@@ -416,7 +454,7 @@ namespace Vox
 
         }
 
-        private static void SetTerrainShaderUniforms()
+        public static void SetTerrainShaderUniforms()
         {
             shaderManager.GetShaderProgram("Terrain").Bind()
                 .SetMatrixUniform("projectionMatrix", pMatrix)
@@ -441,8 +479,8 @@ namespace Vox
 
 
                 shaderManager.GetShaderProgram("Inventory").Bind()
-                    .SetMatrixUniform("projectionMatrix", GetPlayer().GetInventory().GetIconProjection())
-                    .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix())
+                    .SetMatrixUniform("projectionMatrix", InventoryStore.GetIconProjection())
+                    .SetMatrixUniform("viewMatrix", InventoryStore.GetIconViewMatrix())
                     .SetMatrixUniform("modelMatrix", modelMatricRotate)
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
@@ -891,6 +929,9 @@ namespace Vox
             shaderManager.GetShaderProgram("Lighting").Bind();
             GL.BindVertexArray(vaoo);
 
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssboManager.GetSSBO("Terrain").Handle);
+            GL.BindBufferBase(OpenTK.Graphics.OpenGL4.BufferRangeTarget.ShaderStorageBuffer, 0, ssboManager.GetSSBO("Terrain").Handle);
+
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,  // Drawing a triangle strip
                 0,                            // Start from the first vertex in the base geometry
@@ -1016,6 +1057,14 @@ namespace Vox
         public static int GetAndIncrementNextFaceIndex()
         {
             return Interlocked.Increment(ref _nextFaceIndex) - 1;
+        }
+
+        public static float GetAngle() { 
+            return angle;
+        }
+
+        public static void IncrementAngle(float inc) { 
+            angle += inc;
         }
         static void Main()
         {

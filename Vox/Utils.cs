@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using Vox.Genesis;
 
@@ -114,7 +115,6 @@ namespace Vox
         public static long GetTotalVRamUsage() => TotalVramUsageCounters.Value.Select(x => x()).Sum();
         public static long GetTotalVramCommitted() => TotalCommittedVram.Value.Select(x => x()).Sum();
 
-        //Get Manhattan distance for speedy distance calculations
         public static int GetVectorDistance(Vector3 a, Vector3 b)
         {
             //======================
@@ -147,6 +147,5 @@ namespace Vox
             return (int)(max + SQRT2_MINUS_1 * mid + SQRT3_MINUS_SQRT2 * min);
 
         }
-
     }
 }

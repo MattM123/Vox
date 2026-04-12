@@ -1,4 +1,5 @@
 #version 430 core
+#extension GL_NV_gpu_shader5 : enable
 
 uniform sampler2DArray texture_sampler;
 uniform sampler2DShadow sunlightDepth_sampler;

@@ -229,13 +229,13 @@ namespace Vox.Rendering
                 // Free shader objects after successful link
                 if (vertexShaderId != 0)
                 {
-                    GL.DetachShader(programId, vertexShaderId);
-                    GL.DeleteShader(vertexShaderId);
+                   // GL.DetachShader(programId, vertexShaderId);
+                   // GL.DeleteShader(vertexShaderId);
                 }
                 if (fragmentShaderId != 0)
                 {
-                    GL.DetachShader(programId, fragmentShaderId);
-                    GL.DeleteShader(fragmentShaderId);
+                   // GL.DetachShader(programId, fragmentShaderId);
+                   // GL.DeleteShader(fragmentShaderId);
                 }
 
 

@@ -1,4 +1,5 @@
 #version 430 core
+#extension GL_NV_gpu_shader5 : enable
 
 struct BlockFaceInstance
 {
@@ -6,8 +7,9 @@ struct BlockFaceInstance
     int faceDirection;   
     int textureLayer;       
     int index; 
-    int lighting;
-    int _pad1;
+    uint16_t lighting;      // 4 bytes (contains 2-byte C# ushort lighting + 2-byte C# ushort _pad1)
+    uint16_t _pad1;         // 2 bytes
+    uint _pad2;             // 4 bytes
 };
 
 layout(std430, binding = 0) buffer BlockFaceData
@@ -89,7 +91,7 @@ void main() {
 
         //passthrough
         fTexLayer = instance.textureLayer;
-        fLighting = instance.lighting;
+        fLighting = int(instance.lighting & 0xFFFFu);  // Extract lower 16 bits (the actual ushort lighting value)
         fPlayerMin = playerMin;
         fPlayerMax = playerMax;
 

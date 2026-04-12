@@ -10,6 +10,7 @@ using Vox.AssetManagement;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
+using static OpenTK.Audio.OpenAL.AL;
 
 namespace Vox.UI
 {
@@ -50,23 +51,39 @@ namespace Vox.UI
             slots[slot] = new(blocktype, quantity - decrement);
         }
 
-        public Matrix4 GetIconProjection()
+        public static Matrix4 GetIconProjection()
         {
-            return Matrix4.CreateOrthographic(
-                2.0f,  // width
-                2.0f,  // height
-                0.1f,
-                10.0f
+            //return Matrix4.CreateOrthographic(
+            //    20.0f,  // width
+            //    20.0f,  // height
+            //    0.1f,
+            //    16.0f
+            //);
+            return Matrix4.CreatePerspectiveOffCenter(
+                -30f, 30f,  // left, right
+                -30f, 30f,  // bottom, top
+                0.1f,  // near plane
+                100.0f  // extended far plane
             );
+        }
 
-        }
-        public Matrix4 GetIconView()
+        public static Matrix4 GetIconViewMatrix() 
         {
-            return
-                Matrix4.CreateRotationX(MathHelper.DegreesToRadians(-35.264f)) *
-                Matrix4.CreateRotationY(MathHelper.DegreesToRadians(45f)) *
-                Matrix4.CreateTranslation(0, 0, -3f);
+            //return Matrix4.LookAt(new(0, 0, -10), new(0, 0, 0), Vector3.UnitY);
+            // Position camera at 45-degree angle for isometric view
+            float distance = 15f;
+            float angle = MathHelper.DegreesToRadians(45f);
+            return Matrix4.LookAt(
+                new Vector3(
+                    distance * (float)Math.Sin(angle),    // X: 45-degree horizontal angle
+                    0,//distance * (float)Math.Sin(angle),    // Y: 45-degree elevation
+                    -distance * (float)Math.Cos(angle)    // Z: looking toward origin
+                ),
+                new Vector3(0, 0, 0),                     // look at center of block space (0-16 range)
+                Vector3.UnitY                             // up direction
+            );
         }
+
         /**
          * Uploads a single block face to the SSBO for rendering.
          * If the index is already present, updates the face data.

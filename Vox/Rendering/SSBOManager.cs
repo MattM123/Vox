@@ -4,6 +4,7 @@ using System.Drawing.Printing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using OpenTK.Graphics.OpenGL4;
 
 namespace Vox.Rendering
@@ -15,16 +16,20 @@ namespace Vox.Rendering
         public SSBOManager() { }
         public StorageBufferObject AddSSBO(int size, int bindingIndex, string name)
         {
+
             //Override existing SSBO
             if (ssboList.TryGetValue(name, out StorageBufferObject? value))
             {
                 ssboList[name] = new StorageBufferObject(size, bindingIndex, value.Handle);
+
+                GL.ObjectLabel(ObjectLabelIdentifier.Buffer, ssboList[name].Handle, name.Length, "SSBO: " + name);
                 return ssboList[name];
             }
             // Else create new SSBO
             else
             {
                 ssboList.Add(name, new StorageBufferObject(size, bindingIndex, GL.GenBuffer()));
+                GL.ObjectLabel(ObjectLabelIdentifier.Buffer, ssboList[name].Handle, name.Length, "SSBO: " + name);
                 return ssboList[name];
             }
         }

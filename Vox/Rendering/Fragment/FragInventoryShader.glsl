@@ -1,6 +1,7 @@
 ﻿#version 430 core
 
 uniform sampler2D animationTexture;
+uniform sampler2DArray texture_sampler;
 uniform sampler2DShadow sunlightDepth_sampler;
 
 //The material is a collection of some values that we talked about in the last tutorial,
@@ -88,13 +89,13 @@ float ShadowCalculation(vec4 fragPosLightSpace)
 void main()
 {          
     //If air block, discard fragment
-    if (fTexLayer == 0)
-        discard;
+   // if (fTexLayer == 0)
+   //     discard;
 
     //=========================================
     // Lighting
     //=========================================
-    vec4 texColor = texture(animationTexture, vec2(ftexCoords.xy));
+    vec4 texColor = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
     vec3 texColor3 = vec3(texColor.x, texColor.y, texColor.z);
 
     // Blue component (bits 0-3)           
@@ -185,10 +186,11 @@ void main()
 
    // applyTex = texture(animationTexture, vec2(ftexCoords.xy)) * vec4(result, 1.0); 
 
-   // color = pow(applyTex, vec4(gamma));
-   // color = texture(animationTexture, vec2(ftexCoords.xy));
-   color = vec4(1,0,0,1);
-
+    // color = pow(applyTex, vec4(gamma));
+    float gamma = 1.0 / 2.5; 
+    vec4 applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0);
+    
+    color = pow(applyTex, vec4(gamma));
  }
 
 
