@@ -60,7 +60,7 @@ namespace Vox.UI
             float distance = 1.5f;
             return Matrix4.LookAt(
                 new Vector3(distance, -distance, distance),
-                new Vector3(0f, 0.3f, 0f),
+                new Vector3(0f, 0f, 0f),
                 Vector3.UnitY
             );
         }
