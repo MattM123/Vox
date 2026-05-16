@@ -1,4 +1,4 @@
-#version 430 core
+#version 460 core
 #extension GL_NV_gpu_shader5 : enable
 
 uniform sampler2DArray texture_sampler;
@@ -113,7 +113,7 @@ void main()
         (green / 15), 
         (blue / 15));
 
-    // Blend component used to smooth the lighting
+    // LYGIA Blend function used to smooth the lighting
     vec3 blendedColor = blendGlow(texColor3, emissiveColor);
 
     // Sunlight component (bits 12-15)

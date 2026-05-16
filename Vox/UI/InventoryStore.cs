@@ -1,16 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Bson;
 using OpenTK.Mathematics;
 using Vox.AssetManagement;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
-using static OpenTK.Audio.OpenAL.AL;
 
 namespace Vox.UI
 {
@@ -53,35 +47,31 @@ namespace Vox.UI
 
         public static Matrix4 GetIconProjection()
         {
-            //return Matrix4.CreateOrthographic(
-            //    20.0f,  // width
-            //    20.0f,  // height
-            //    0.1f,
-            //    16.0f
-            //);
-            return Matrix4.CreatePerspectiveOffCenter(
-                -30f, 30f,  // left, right
-                -30f, 30f,  // bottom, top
-                0.1f,  // near plane
-                100.0f  // extended far plane
+            return Matrix4.CreatePerspectiveFieldOfView(
+                MathHelper.DegreesToRadians(45f),
+                1.0f,   // square aspect ratio matches the 256x256 FBO
+                0.1f,
+                100.0f
             );
         }
 
-        public static Matrix4 GetIconViewMatrix() 
+        public static Matrix4 GetIconViewMatrix()
         {
-            //return Matrix4.LookAt(new(0, 0, -10), new(0, 0, 0), Vector3.UnitY);
-            // Position camera at 45-degree angle for isometric view
-            float distance = 15f;
-            float angle = MathHelper.DegreesToRadians(45f);
+            float distance = 1.5f;
             return Matrix4.LookAt(
-                new Vector3(
-                    distance * (float)Math.Sin(angle),    // X: 45-degree horizontal angle
-                    0,//distance * (float)Math.Sin(angle),    // Y: 45-degree elevation
-                    -distance * (float)Math.Cos(angle)    // Z: looking toward origin
-                ),
-                new Vector3(0, 0, 0),                     // look at center of block space (0-16 range)
-                Vector3.UnitY                             // up direction
+                new Vector3(distance, -distance, distance),
+                new Vector3(0f, 0.3f, 0f),
+                Vector3.UnitY
             );
+        }
+
+        public static Matrix4 GetIconModelMatrix()
+        {
+            return 
+                Matrix4.Identity *                                                                                  // Standard Identity
+                Matrix4.CreateTranslation(-0.5f, -0.5f, -0.5f) *                                                    // Position block model center on the origin
+                Matrix4.CreateFromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(Window.GetAngle() * 150)) *  // Rotated model around Y Axis
+                Matrix4.CreateRotationX(MathHelper.DegreesToRadians(180));                                          // Make block model right side up instead of up side down
         }
 
         /**

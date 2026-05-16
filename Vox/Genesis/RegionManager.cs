@@ -446,7 +446,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
@@ -454,7 +454,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing EAST Face");
             }
 
@@ -464,7 +464,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing WEST Face");
             }
 
@@ -475,7 +475,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
@@ -484,7 +484,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
@@ -493,7 +493,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 
@@ -552,7 +552,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
@@ -560,7 +560,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing EAST Face");
             }
 
@@ -570,7 +570,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing WEST Face");
             }
 
@@ -581,7 +581,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
@@ -590,7 +590,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
@@ -599,7 +599,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
-                actionChunk.AddUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 

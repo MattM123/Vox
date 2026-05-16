@@ -291,59 +291,57 @@ namespace Vox.UI
                 int y = int.Parse(parts[1].Trim());
                 int z = int.Parse(parts[2].Trim());
 
-//                   Console.WriteLine($"Parsed coordinates: x={x}, y={y}, z={z}");
-                
+                inventory.AddOrUpdateFaceInMemory(
+                new BlockFaceInstance
+                {
+                    facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
+                    index = 0,
+                    lighting = 0,
+                    textureLayer = (int)model.GetTexture(BlockFace.NORTH),
+                    faceDirection = (int)BlockFace.NORTH
+                });
                 inventory.AddOrUpdateFaceInMemory(
                     new BlockFaceInstance
                     {
-                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z + 1),
-                        index = 0,
-                        lighting = 0,
-                        textureLayer = (int)model.GetTexture(BlockFace.NORTH),
-                        faceDirection = (int)BlockFace.NORTH
-                    });
-                inventory.AddOrUpdateFaceInMemory(
-                    new BlockFaceInstance
-                    {
-                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z - 1),
+                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 1,
-                        lighting = 0,
+                        lighting = 56149,
                         textureLayer = (int)model.GetTexture(BlockFace.SOUTH),
                         faceDirection = (int)BlockFace.SOUTH
                     });
                 inventory.AddOrUpdateFaceInMemory(
                     new BlockFaceInstance
                     {
-                        facePosition = new OpenTK.Mathematics.Vector3(x + 1, y, z),
+                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 2,
-                        lighting = 0,
+                        lighting = 56149,
                         textureLayer = (int)model.GetTexture(BlockFace.EAST),
                         faceDirection = (int)BlockFace.EAST
                     });
                 inventory.AddOrUpdateFaceInMemory(
                     new BlockFaceInstance
                     {
-                        facePosition = new OpenTK.Mathematics.Vector3(x - 1, y, z),
+                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 3,
-                        lighting = 0,
+                        lighting = 56149,
                         textureLayer = (int)model.GetTexture(BlockFace.WEST),
                         faceDirection = (int)BlockFace.WEST
                     });
                 inventory.AddOrUpdateFaceInMemory(
                     new BlockFaceInstance
                     {
-                        facePosition = new OpenTK.Mathematics.Vector3(x, y + 1, z),
+                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 4,
-                        lighting = 0,
+                        lighting = 56149,
                         textureLayer = (int)model.GetTexture(BlockFace.UP),
                         faceDirection = (int)BlockFace.UP
                     });
                 inventory.AddOrUpdateFaceInMemory(
                     new BlockFaceInstance
                     {
-                        facePosition = new OpenTK.Mathematics.Vector3(x, y - 1, z),
+                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 5,
-                        lighting = 0,
+                        lighting = 56149,
                         textureLayer = (int)model.GetTexture(BlockFace.DOWN),
                         faceDirection = (int)BlockFace.DOWN
                     });
@@ -363,7 +361,7 @@ namespace Vox.UI
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(1, 1));
             ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(0.05f, 0.05f, 0.05f, 1f));
             ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.3f, 0.3f, 0.3f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 0f, 0f));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new System.Numerics.Vector4(0.35f, 0.35f, 0.35f, 1f));
 
 
@@ -397,10 +395,12 @@ namespace Vox.UI
                     {
                         selectedBlock = inventorySlots[i].Key;
                         ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
+                        ImGui.ImageButton("##" + i, _inventoryIconTexture, size); 
+
+                    } else {
+
+                        ImGui.ImageButton("##" + i, textureToUse, size);
                     }
-
-                    ImGui.ImageButton("##" + i, textureToUse, size);
-
                     // Draw rectangle around the button
                     System.Numerics.Vector2 min = ImGui.GetItemRectMin();
                     System.Numerics.Vector2 max = ImGui.GetItemRectMax();
@@ -446,7 +446,7 @@ namespace Vox.UI
             return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY;
         }
 
-        private static int _inventoryVAO = GL.GenVertexArray();
+        private static readonly int _inventoryVAO = GL.GenVertexArray();
         private static void RenderInventoryAnimation(int sizeX, int sizeY)
         {
             Window.SetTerrainShaderUniforms();
@@ -455,7 +455,6 @@ namespace Vox.UI
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
             int prevVAO = GL.GetInteger(GetPName.VertexArrayBinding);
-
             int[] prevViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, prevViewport);
 
@@ -469,9 +468,6 @@ namespace Vox.UI
                 return;
             }
 
-            // Setup shader and viewport
-            Window.shaderManager.GetShaderProgram("Inventory").Bind();
-
             GL.BindVertexArray(_inventoryVAO);  // Bind the VAO with dummy VBO
             GL.Viewport(0, 0, sizeX, sizeY);
 
@@ -480,6 +476,8 @@ namespace Vox.UI
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, inventorySsbo.Handle);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, inventorySsbo.BindingIndex, inventorySsbo.Handle);
 
+            GL.ClearColor(0, 0, 0, 0);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             //Drawing
             GL.DrawArraysInstanced(
@@ -489,15 +487,13 @@ namespace Vox.UI
                 6                             // Instance count (number of faces to draw)
             );
 
-            GL.ClearColor(0, 0, 0, 0);
-            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
 
             //Restore state
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFBO);
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVAO);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
-
 
         }
     }

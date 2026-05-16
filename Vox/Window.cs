@@ -40,6 +40,8 @@ using PixelInternalFormat = OpenTK.Graphics.OpenGL4.PixelInternalFormat;
 using PixelType = OpenTK.Graphics.OpenGL4.PixelType;
 using PrimitiveType = OpenTK.Graphics.OpenGL4.PrimitiveType;
 using ReadBufferMode = OpenTK.Graphics.OpenGL4.ReadBufferMode;
+using RenderbufferStorage = OpenTK.Graphics.OpenGL4.RenderbufferStorage;
+using RenderbufferTarget = OpenTK.Graphics.OpenGL4.RenderbufferTarget;
 using StringName = OpenTK.Graphics.OpenGL4.StringName;
 using TextureCompareMode = OpenTK.Graphics.OpenGL4.TextureCompareMode;
 using TextureMagFilter = OpenTK.Graphics.OpenGL4.TextureMagFilter;
@@ -273,7 +275,7 @@ namespace Vox
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
-            //Attach color texture to frame buffer         
+            //Attach color texture to frame buffer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, ImGuiHelper._inventoryIconFBO);
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer,
@@ -282,6 +284,14 @@ namespace Vox
                 ImGuiHelper._inventoryIconTexture,
                 0
             );
+
+            // Depth renderbuffer for the 3D inventory FBO
+            int inventoryDepthRBO = GL.GenRenderbuffer();
+            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, inventoryDepthRBO);
+            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.DepthComponent24, 256, 256);
+            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, inventoryDepthRBO);
+            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.BindTexture(TextureTarget.Texture2D, 0);
@@ -377,15 +387,11 @@ namespace Vox
             ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, "Inventory");
 
             menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 176, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 192, 0));
-            menuChunks.Add(RegionManager.GetAndLoadGlobalChunkFromCoords(0, 208, 0));
 
             foreach (Chunk c in menuChunks)
             {
                 c.GenerateRenderData();
             }
-
-
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -409,7 +415,7 @@ namespace Vox
                 if (angle > 360)
                     angle = 0.0f;
 
-                angle += 0.1f * (float) e.Time;
+                angle += 0.12f * (float) e.Time;
                 renderMenu = true;
 
                 shaderManager.GetShaderProgram("Terrain").Bind()
@@ -436,10 +442,7 @@ namespace Vox
                     angle = 0.0f;
 
                 angle += 0.1f * (float)e.Time;
-                // renderMenu = true;
                 shaderManager.GetShaderProgram("Inventory").Bind();
-               // terrainShaders?.SetIntFloatUniform("isMenuRendered", 1);
-
             }
 
             ImGuiController.CheckGLError("End of frame");
@@ -464,13 +467,13 @@ namespace Vox
             {
                 modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
                 Matrix4 menuMatrix = modelMatricRotate;
-                shaderManager.GetShaderProgram("Terrain")
+                shaderManager.GetShaderProgram("Terrain").Bind()
                     .SetMatrixUniform("modelMatrix", menuMatrix)
                     .SetMatrixUniform("viewMatrix", viewMatrix);
             }
             else
             {
-                shaderManager.GetShaderProgram("Terrain")
+                shaderManager.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("targetTexLayer", AssetLookup.GetTextureValue("target.png"))
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
@@ -481,7 +484,7 @@ namespace Vox
                 shaderManager.GetShaderProgram("Inventory").Bind()
                     .SetMatrixUniform("projectionMatrix", InventoryStore.GetIconProjection())
                     .SetMatrixUniform("viewMatrix", InventoryStore.GetIconViewMatrix())
-                    .SetMatrixUniform("modelMatrix", modelMatricRotate)
+                    .SetMatrixUniform("modelMatrix", InventoryStore.GetIconModelMatrix())
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
 
@@ -1075,7 +1078,7 @@ namespace Vox
                 Profile = ContextProfile.Core,
                 Flags = ContextFlags.ForwardCompatible | ContextFlags.Debug,
                 ClientSize = new Vector2i(screenWidth, screenHeight),
-                APIVersion = new Version(4, 3), 
+                APIVersion = new Version(4, 6), 
             });
 
 

@@ -363,6 +363,12 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # ==========================
+# Claude Code
+# ==========================
+CLAUDE.md
+SKILL.md
+
+# ==========================
 # Lygia Shaders
 # ===========================
 

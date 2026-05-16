@@ -156,14 +156,14 @@ namespace Vox.Genesis
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
                                     BlockFace faceDir = BlockFace.UP;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                                 // Positive X (EAST)
                                 if (x + 1 >= bounds || blockData[x + 1, y, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
                                     BlockFace faceDir = BlockFace.EAST;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
 
@@ -172,7 +172,7 @@ namespace Vox.Genesis
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
                                     BlockFace faceDir = BlockFace.WEST;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
                                 //Negative Y (DOWN)
@@ -180,7 +180,7 @@ namespace Vox.Genesis
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                                     BlockFace faceDir = BlockFace.DOWN;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
                                 //Positive Z (NORTH)
@@ -188,7 +188,7 @@ namespace Vox.Genesis
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
                                     BlockFace faceDir = BlockFace.NORTH;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
 
                                 //Negative Z (SOUTH)
@@ -196,7 +196,7 @@ namespace Vox.Genesis
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
                                     BlockFace faceDir = BlockFace.SOUTH;
-                                    AddUpdateBlockFace(facePos, texLayer, faceDir);
+                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                             }
                         }
@@ -210,7 +210,7 @@ namespace Vox.Genesis
          * Adds a blockface to the chunk in memory to cache for any necessary updating
          * and also uploads it to the SSBO for rendering.
          */
-        public void AddUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir)
+        public void AddOrUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir)
         {
 
             Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);

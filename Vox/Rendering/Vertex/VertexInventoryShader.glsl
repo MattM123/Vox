@@ -1,4 +1,4 @@
-﻿#version 430 core
+﻿#version 460 core
 #extension GL_NV_gpu_shader5 : enable
 
 struct BlockFaceInstance
@@ -49,12 +49,13 @@ void main() {
 
     BlockFaceInstance instance = blockFaces[gl_InstanceID];
 
+
     vec3 offset = GetCornerOffset(gl_VertexID, instance.faceDirection);
     vec3 worldPos = instance.facePosition + offset;
 
 
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(worldPos, 1.0);
-    fragPos = vec3(modelMatrix * vec4(worldPos, 1.0));
+    gl_Position = vec4(worldPos, 1.0) * modelMatrix * viewMatrix * projectionMatrix;
+    fragPos = vec3(vec4(worldPos, 1.0) * modelMatrix);
 
 
     //Render partial mesh if chunk is on the edge of render distance by

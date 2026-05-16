@@ -1,4 +1,4 @@
-﻿#version 430 core
+﻿#version 460 core
 
 uniform sampler2D animationTexture;
 uniform sampler2DArray texture_sampler;
@@ -192,9 +192,3 @@ void main()
     
     color = pow(applyTex, vec4(gamma));
  }
-
-
- //Impl notes:
- //Render block mesh to FBO
- //Sample texture array to assign correct texture
- //Flow: vertex shader renders mesh shape -> frag shader colors the fragments -> result is written to the FBO
