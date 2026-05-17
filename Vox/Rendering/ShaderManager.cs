@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OpenTK.Graphics.OpenGL4;
 using Vox.Exceptions;
 using Vox.UI;
 
@@ -10,7 +11,7 @@ namespace Vox.Rendering
 {
     public class ShaderManager
     {
-        private readonly Dictionary<string, ShaderProgram> shaders = [];
+        private readonly Dictionary<string, ShaderProgram> _shaders = [];
 
         public ShaderManager()
         {
@@ -18,34 +19,32 @@ namespace Vox.Rendering
 
         public ShaderProgram GetShaderProgram(string name)
         {
-            if (shaders.TryGetValue(name, out var shader))
+            if (!_shaders.TryGetValue(name, out var shader))
             {
-                return shader;
+                throw new ShaderException($"Shader '{name}' not found. Ensure it was registered via AddShaderProgram.");
             }
-            shader = shaders[name];
-            shaders[name] = shader;
             return shader;
         }
 
         public ShaderProgram AddShaderProgram(string name, ShaderProgram shader)
         {
-            ImGuiController.LabelObject(OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier.Program, shader.GetProgramId(), $"Program: {name}");
-            if (!shaders.ContainsKey(name))
+            ImGuiController.LabelObject(ObjectLabelIdentifier.Program, shader.GetProgramId(), $"Program: {name}");
+
+            if (_shaders.TryAdd(name, shader))
             {
-                shaders[name] = shader;
                 return shader;
             }
-            else
-                throw new ShaderException("Shader with the same name already exists: " + name);    
+
+            throw new ShaderException($"Shader with the same name already exists: {name}");
         }
 
         public void CleanupShaders()
         {
-            foreach (var shader in shaders.Values)
+            foreach (var shader in _shaders.Values)
             {
                 shader.Cleanup();
             }
-            shaders.Clear();
+            _shaders.Clear();
         }
     }
 }

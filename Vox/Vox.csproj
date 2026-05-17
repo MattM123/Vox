@@ -18,14 +18,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="Assets\BlockModels\cube.json" />
-    <None Remove="Assets\BlockModels\cube_all.json" />
-    <None Remove="Assets\BlockModels\cube_bottom_top.json" />
-    <None Remove="Assets\BlockModels\grass.json" />
+    <None Remove="Assets\Models\BlockModels\cube.json" />
+    <None Remove="Assets\Models\BlockModels\cube_all.json" />
+    <None Remove="Assets\Models\BlockModels\cube_bottom_top.json" />
+    <None Remove="Assets\Models\BlockModels\grass.json" />
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\BlockModels\cube_bottom_top.json" />
+    <Resource Include="Assets\Models\BlockModels\cube_bottom_top.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,9 +39,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\BlockModels\cube.json" />
-    <Resource Include="Assets\BlockModels\cube_all.json" />
-    <Resource Include="Assets\BlockModels\grass.json" />
+    <Resource Include="Assets\Models\BlockModels\cube.json" />
+    <Resource Include="Assets\Models\BlockModels\cube_all.json" />
+    <Resource Include="Assets\Models\BlockModels\grass.json" />
   </ItemGroup>
 
   <ItemGroup>

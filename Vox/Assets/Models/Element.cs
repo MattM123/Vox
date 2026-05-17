@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using Newtonsoft.Json.Linq;
 using OpenTK.Mathematics;
 
-namespace Vox.Model
+namespace Vox.Assets.Models
 {
     public class Element
     {

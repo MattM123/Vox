@@ -1,6 +1,6 @@
 ﻿
 using OpenTK.Mathematics;
-using Vox.Rendering;
+using Vox.Model;
 
 /**
  * Block object for storing more detailed block information on an as-needed basis

@@ -7,36 +7,36 @@ using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.Enums;
 using Vox.Genesis;
+using Vox.Model;
 
 namespace Vox.Rendering
 {
-    public static class LightHelper
+    public class LightHelper : ILightHelper
     {
-
-        private static readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(RegionManager.CHUNK_BOUNDS, 3)));
         private static Dictionary<Vector3, ColorVector> lightingList = [];
-        private static List<Vector3> visited = [];
+
         private static int maxLightValue = 15;
         private static int maxLightSpread = 15;
 
-        public static int GetMaxLightSpread()
+        public LightHelper() { }
+        public int GetMaxLightSpread()
         {
             return maxLightSpread;
         }
-        public static ColorVector GetBlockLight(Vector3 location, BlockFace faceDir, Chunk chunk)
+        public ColorVector GetBlockLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
             return new(GetRedLight(location, faceDir, chunk), GetGreenLight(location, faceDir, chunk), GetBlueLight(location, faceDir, chunk));
 
         }
 
-        public static void SetBlockLight(Vector3 location, ColorVector color, Chunk chunk, bool depropagate, bool colorOverride)
+        public void SetBlockLight(Vector3 location, ColorVector color, Chunk chunk, bool depropagate, bool colorOverride)
         {
             SetRedLight(location, BlockFace.ALL, color.Red, chunk, colorOverride);
             SetGreenLight(location, BlockFace.ALL, color.Green, chunk, colorOverride);
             SetBlueLight(location, BlockFace.ALL, color.Blue, chunk, colorOverride);
         }
 
-        public static void SetBlockLight(Vector3 location, int packedColor, Chunk chunk)
+        public void SetBlockLight(Vector3 location, int packedColor, Chunk chunk)
         {
             UpdateEmissiveLighting(location, BlockFace.ALL, (ushort)packedColor, chunk);
         }
@@ -48,7 +48,7 @@ namespace Vox.Rendering
          * If two light emitting blocks are placed next to eachother, 
          * combines the light values together on overlapping faces.
          */
-        public static void CombineLightValues(Vector3 location, BlockFace faceDir, ushort currentLightLevels, ushort toCombine, Chunk chunk)
+        private void CombineLightValues(Vector3 location, BlockFace faceDir, ushort currentLightLevels, ushort toCombine, Chunk chunk)
         {
             // Extract components
             int r = (currentLightLevels >> 8) & 0xF;
@@ -78,7 +78,7 @@ namespace Vox.Rendering
         * new SSBO data.
         * 
         */
-        public static void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
+        private void UpdateEmissiveLighting(Vector3 facePos, BlockFace faceDir, ushort lighting, Chunk chunk)
         {
             Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
             if(faceDir == BlockFace.ALL)
@@ -124,7 +124,7 @@ namespace Vox.Rendering
          */
 
         // ================ Blue component (bits 0-7) =================
-        public static int GetBlueLight(Vector3 location, BlockFace faceDir, Chunk chunk)
+        public int GetBlueLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
             if (chunk.SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
             {
@@ -134,7 +134,7 @@ namespace Vox.Rendering
             else
                 return 0;
         }
-        public static void SetBlueLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
+        public void SetBlueLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
         {
             if (val < 0)
                 val = 0;
@@ -182,7 +182,7 @@ namespace Vox.Rendering
 
         // ===========================================================
         // ================ Green component (bits 8-15) ================
-        public static int GetGreenLight(Vector3 location, BlockFace faceDir, Chunk chunk)
+        public int GetGreenLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
             if (chunk.SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
             {
@@ -192,7 +192,7 @@ namespace Vox.Rendering
             else
                 return 0;
         }
-        public static void SetGreenLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
+        public void SetGreenLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
         {
             if (val < 0)
                 val = 0;
@@ -238,7 +238,7 @@ namespace Vox.Rendering
         }
         // ===========================================================
         // ================ Red component (bits 16-23) ================
-        public static int GetRedLight(Vector3 location, BlockFace faceDir, Chunk chunk)
+        public int GetRedLight(Vector3 location, BlockFace faceDir, Chunk chunk)
         {
 
             if (chunk.SSBOdata.ContainsKey(new(location.X, location.Y, location.Z, (int)faceDir)))
@@ -250,7 +250,7 @@ namespace Vox.Rendering
                 return 0;
 
         }
-        public static void SetRedLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
+        public void SetRedLight(Vector3 location, BlockFace faceDir, int val, Chunk chunk, bool colorOverride)
         {
 
             if (val < 0)
@@ -297,500 +297,14 @@ namespace Vox.Rendering
         }
         // ============================================================
 
-
-        public static void TrackLighting(Vector3 location, ColorVector color)
+        public void TrackLighting(Vector3 location, ColorVector color)
         {
             lightingList.Add(location, color);
         }
 
-        public static Dictionary<Vector3, ColorVector> GetLightTrackingList()
+        public Dictionary<Vector3, ColorVector> GetLightTrackingList()
         {
             return lightingList;
-        }
-
-        //================================================================================================
-        //============================= Light Propagation and Depropagation ==============================
-        //================================================================================================
-        public static void PropagateBlockLight(Vector3 location, BlockFace faceDir, bool depropagate, bool colorOverride)
-        {
-            int x = (int)location.X;
-            int y = (int)location.Y;
-            int z = (int)location.Z;
-
-            //Get all light sources within the vicinity of the source we are propagating/depropagating
-            Dictionary<Vector3, ColorVector> lightingArea = [];
-            foreach (KeyValuePair<Vector3, ColorVector> light in GetLightTrackingList())
-            {
-                if (Utils.GetVectorDistance(light.Key, location) <= GetMaxLightSpread() && !lightingArea.ContainsKey(light.Key))
-                {
-                    lightingArea.Add(light.Key, light.Value);
-                }
-            }
-
-            // Check the light level of the current node before propagating          
-            ColorVector originLightLevel = GetBlockLight(location, faceDir, RegionManager.GetAndLoadGlobalChunkFromCoords(location));
-            if ((originLightLevel.Red > 0 || originLightLevel.Green > 0 || originLightLevel.Blue > 0) && !depropagate)
-            {
-                string index = $"{x}|{y}|{z}";
-                EnqueueEmissiveLightNode(new(index, RegionManager.GetAndLoadGlobalChunkFromCoords(location)));
-                while (GetEmissiveQueueCount() > 0)
-                {
-                    // Get a reference to the front node.
-                    LightNode node = DequeueEmissiveLightNode();
-                    PropagateLightNode(lightingArea, location, faceDir, node, depropagate, colorOverride);
-                }
-            }
-
-            else if (depropagate)
-            {
-                string index = $"{x}|{y}|{z}";
-
-                EnqueueEmissiveLightNode(new(index, RegionManager.GetAndLoadGlobalChunkFromCoords(location)));
-                while (GetEmissiveQueueCount() > 0)
-                {
-                    LightNode node = DequeueEmissiveLightNode();
-                    string currentIdx = node.Index;
-                    int xLight = int.Parse(currentIdx.Split('|')[0]);
-                    int yLight = int.Parse(currentIdx.Split('|')[1]);
-                    int zLight = int.Parse(currentIdx.Split('|')[2]);
-
-                    // Grab the 16 bit light level of the current node
-                    // ???? RRRR GGGG BBBB
-                    ColorVector lightLevel = GetBlockLight(new Vector3(xLight, yLight, zLight), faceDir, node.Chunk);
-
-                    DepropagateLightNode(lightingArea, location, faceDir, node, depropagate, colorOverride);
-                }
-            }
-            visited.Clear();
-        }
-
-        //======================================================================================
-        //============================= Light Propagation Functions ============================
-        //======================================================================================
-        public static int GetEmissiveQueueCount()
-        {
-            return BFSEmissivePropagationQueue.Count;
-        }
-        public static void EnqueueEmissiveLightNode(LightNode node)
-        {
-            BFSEmissivePropagationQueue.Enqueue(node);
-        }
-
-        /**
-         * Propagates light using Breadth First Search.
-         *
-         * @Param faceDir The block face to apply the light to
-         * @Param node The current light node being processed
-         * @Param colorOverride Whether to combine the color with the existing light or override it
-         * 
-         */
-        /**
-       * Propagates light using Breadth First Search.
-       *
-       * @Param faceDir The block face to apply the light to
-       * @Param node The current light node being processed
-       * @Param colorOverride Whether to combine the color with the existing light or override it
-       * 
-       */
-        public static void PropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
-        {
-            Chunk chunk = node.Chunk;
-            string currentIdx = node.Index;
-            int xLight = int.Parse(currentIdx.Split('|')[0]);
-            int yLight = int.Parse(currentIdx.Split('|')[1]);
-            int zLight = int.Parse(currentIdx.Split('|')[2]);
-
-            // Grab the 16 bit light level of the current node
-            // ???? RRRR GGGG BBBB
-            Vector3 baseLoc = new(xLight, yLight, zLight);
-            ColorVector lightLevel = GetBlockLight(baseLoc, faceDir, chunk);
-
-            //======================================
-            //          NEGATIVE X (WEST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc1 = new(xLight - 1, yLight, zLight);
-            Chunk xMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc1);
-            if (!chunk.Equals(xMinusOne))
-                chunk = xMinusOne;
-
-
-            PropagateLightNodeHelper(lightingArea, loc1, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE X (EAST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc2 = new(xLight + 1, yLight, zLight);
-            Chunk xPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc2);
-            if (!chunk.Equals(xPlusOne))
-                chunk = xPlusOne;
-
-            PropagateLightNodeHelper(lightingArea, loc2, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          NEGATIVE Y (DOWN)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc3 = new(xLight, yLight - 1, zLight);
-            Chunk yMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc3);
-            if (!chunk.Equals(yMinusOne))
-                chunk = yMinusOne;
-
-
-            PropagateLightNodeHelper(lightingArea, loc3, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE Y (UP)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc4 = new(xLight, yLight + 1, zLight);
-            Chunk yPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc4);
-            if (!chunk.Equals(yPlusOne))
-                chunk = yPlusOne;
-
-            PropagateLightNodeHelper(lightingArea, loc4, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          NEGATIVE Z (SOUTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc5 = new(xLight, yLight, zLight - 1);
-            Chunk zMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc5);
-            if (!chunk.Equals(zMinusOne))
-                chunk = zMinusOne;
-
-            PropagateLightNodeHelper(lightingArea, loc5, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE Z (NORTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc6 = new(xLight, yLight, zLight + 1);
-            Chunk zPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc6);
-            if (!chunk.Equals(zPlusOne))
-                chunk = zPlusOne;
-
-            PropagateLightNodeHelper(lightingArea, loc6, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-        }
-
-        public static void PropagateLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 location, Vector3 sourceLocation, BlockFace faceDir, ColorVector lightLevel, Chunk chunk, bool depropagate, bool colorOverride)
-        {
-            bool wasUpdated = false;
-
-
-            // distance from the propagation source to this neighbor   
-            int distFromSource = Utils.GetVectorDistance(location, sourceLocation);
-
-            ColorVector lightSourceLevel = lightingArea[sourceLocation];
-
-            if ((GetRedLight(location, faceDir, chunk) + 1) < lightLevel.Red)
-            {
-                SetRedLight(location, faceDir, lightSourceLevel.Red - distFromSource, chunk, colorOverride);
-                wasUpdated = true;
-            }
-
-            if ((GetGreenLight(location, faceDir, chunk) + 1) < lightLevel.Green)
-            {
-                SetGreenLight(location, faceDir, lightSourceLevel.Green - distFromSource, chunk, colorOverride);
-                wasUpdated = true;
-            }
-
-            if ((GetBlueLight(location, faceDir, chunk) + 1) < lightLevel.Blue)
-            {
-                // Set blue light level
-                SetBlueLight(location, faceDir, lightSourceLevel.Blue - distFromSource, chunk, colorOverride);
-                wasUpdated = true;
-            }
-
-            if (wasUpdated)
-            {
-                // Construct index
-                string idx = $"{location.X}|{location.Y}|{location.Z}";
-                // Emplace new node to queue.
-
-                EnqueueEmissiveLightNode(new(idx, chunk));
-
-            }
-        }
-
-        //========================================================================================
-        //============================= Light Depropagation Functions ============================
-        //========================================================================================
-        public static LightNode DequeueEmissiveLightNode()
-        {
-            if (BFSEmissivePropagationQueue.TryDequeue(out LightNode node))
-                return node;
-            else
-                return new LightNode("", null);
-        }
-
-        private static void DepropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
-        {
-            Chunk chunk = node.Chunk;
-            string currentIdx = node.Index;
-            int xLight = int.Parse(currentIdx.Split('|')[0]);
-            int yLight = int.Parse(currentIdx.Split('|')[1]);
-            int zLight = int.Parse(currentIdx.Split('|')[2]);
-
-            // Grab the 16 bit light level of the current node
-            // ???? RRRR GGGG BBBB
-            ColorVector nodeLightLevel = GetBlockLight(new(xLight, yLight, zLight), faceDir, chunk);
-
-            //======================================
-            //          NEGATIVE X (WEST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc1 = new(xLight - 1, yLight, zLight);
-            Chunk xMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc1);
-            if (!chunk.Equals(xMinusOne))
-                chunk = xMinusOne;
-
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc1, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE X (EAST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc2 = new(xLight + 1, yLight, zLight);
-            Chunk xPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc2);
-            if (!chunk.Equals(xPlusOne))
-                chunk = xPlusOne;
-
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc2, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          NEGATIVE Y (DOWN)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc3 = new(xLight, yLight - 1, zLight);
-            Chunk yMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc3);
-            if (!chunk.Equals(yMinusOne))
-                chunk = yMinusOne;
-
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc3, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE Y (UP)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc4 = new(xLight, yLight + 1, zLight);
-            Chunk yPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc4);
-            if (!chunk.Equals(yPlusOne))
-                chunk = yPlusOne;
-
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc4, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          NEGATIVE Z (SOUTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc5 = new(xLight, yLight, zLight - 1);
-            Chunk zMinusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc5);
-            if (!chunk.Equals(zMinusOne))
-                chunk = zMinusOne;
-
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc5, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE Z (NORTH)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc6 = new(xLight, yLight, zLight + 1);
-            Chunk zPlusOne = RegionManager.GetAndLoadGlobalChunkFromCoords(loc6);
-            if (!chunk.Equals(zPlusOne))
-                chunk = zPlusOne;
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc6, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
-        }
-
-        private static void DepropagationLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, Vector3 location, BlockFace faceDir,
-            ColorVector nodeLightLevel, Chunk chunk, bool depropagate, bool colorOverride)
-        {
-            bool wasUpdated = false;
-
-            // distance from the depropagation source to this neighbor
-            int distFromSource = Utils.GetVectorDistance(location, sourceLocation);
-
-            if (GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location))
-            {
-                SetBlueLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-            if (GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location))
-            {
-                SetGreenLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-            if (GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location))
-            {
-                SetRedLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-
-           //// if (GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Blue)
-           // {
-           //     Dictionary<Vector3, int> contributingBlueLightValues = [];
-           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-           //     {
-           //         int value = Utils.GetVectorDistance(location, light.Key);
-           //         if (value <= lightSourceLevel.Blue)
-           //         {
-           //             //If block face (location) is within the range of any light source, accumulate light
-           //             contributingBlueLightValues.Add(light.Key, value);
-           //         }
-           //     }
-           //
-           //     //If more than one light source is lighting the area
-           //     if (contributingBlueLightValues.Count > 1)
-           //     {
-           //         int cumulativeLight = contributingBlueLightValues.Values.Sum() - contributingBlueLightValues[sourceLocation];
-           //
-           //         //The light source being depropagated is brighter than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         if (lightSourceLevel.Blue > cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - cumulativeLight, chunk, false);
-           //   
-           //         }
-           //         //The light source being depropagated less bright than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         else if (lightSourceLevel.Blue < cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - (cumulativeLight - lightSourceLevel.Blue), chunk, false);
-           //
-           //         }
-           //
-           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-           //         else if (lightSourceLevel.Blue == cumulativeLight && contributingBlueLightValues[sourceLocation] >= lightSourceLevel.Blue)
-           //         {
-           //             SetBlueLight(location, faceDir, 0, chunk, false);
-           //            
-           //         }
-           //     }
-           //     else
-           //     {
-           //         SetBlueLight(location, faceDir, 0, chunk, colorOverride);
-           //     }
-           //     wasUpdated = true;
-           //
-           // }
-           ////
-           //// if (GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Green)
-           // {
-           //     Dictionary<Vector3, int> contributingGreenLightValues = [];
-           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-           //     {
-           //         int value = Utils.GetVectorDistance(location, light.Key);
-           //         if (value <= lightSourceLevel.Green)
-           //         {
-           //             //If block face (location) is within the range of any light source, accumulate light
-           //             contributingGreenLightValues.Add(light.Key, value);
-           //         }
-           //     }
-           //
-           //     //If more than one light source is lighting the area
-           //     if (contributingGreenLightValues.Count > 1)
-           //     {
-           //         int cumulativeLight = contributingGreenLightValues.Values.Sum() - contributingGreenLightValues[sourceLocation];
-           //
-           //         //The light source being depropagated is brighter than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         if (lightSourceLevel.Green > cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetGreenLight(location, faceDir, lightSourceLevel.Green - cumulativeLight, chunk, false);
-           //
-           //         }
-           //         //The light source being depropagated less bright than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         else if (lightSourceLevel.Green < cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetGreenLight(location, faceDir, lightSourceLevel.Green - (cumulativeLight - lightSourceLevel.Green), chunk, false);
-           //
-           //         }
-           //
-           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-           //         else if (lightSourceLevel.Green == cumulativeLight && contributingGreenLightValues[sourceLocation] >= lightSourceLevel.Green)
-           //         {
-           //             SetGreenLight(location, faceDir, 0, chunk, false);
-           //
-           //         }
-           //     }
-           //     else
-           //     {
-           //         SetGreenLight(location, faceDir, 0, chunk, colorOverride);
-           //     }
-           // }
-           //
-           // if (GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Red)
-           // {
-           //     Dictionary<Vector3, int> contributingRedLightValues = [];
-           //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-           //     {
-           //         int value = Utils.GetVectorDistance(location, light.Key);
-           //
-           //         if (value <= lightSourceLevel.Red)
-           //         {
-           //             //If block face (location) is within the range of any light source, accumulate light
-           //             contributingRedLightValues.Add(light.Key, value);
-           //         }
-           //     }
-           //
-           //     //If more than one light source is lighting the area
-           //     if (contributingRedLightValues.Count > 1)
-           //     {
-           //         int cumulativeLight = contributingRedLightValues.Values.Sum() - contributingRedLightValues[sourceLocation];
-           //
-           //         //The light source being depropagated is brighter than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         if (lightSourceLevel.Red > cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetRedLight(location, faceDir, lightSourceLevel.Red - cumulativeLight, chunk, false);
-           //
-           //         }
-           //         //The light source being depropagated less bright than the cumulative light at the location
-           //         //Do not depropagate light source block faces
-           //         else if (lightSourceLevel.Red < cumulativeLight && !lightingArea.ContainsKey(location))
-           //         {
-           //             SetRedLight(location, faceDir, lightSourceLevel.Red - (cumulativeLight - lightSourceLevel.Red), chunk, false);
-           //
-           //         }
-           //
-           //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-           //         else if (lightSourceLevel.Red == cumulativeLight && contributingRedLightValues[sourceLocation] >= lightSourceLevel.Red)
-           //         {
-           //             SetRedLight(location, faceDir, 0, chunk, false);
-           //
-           //         }
-           //     }
-           //     else 
-           //     {
-           //         SetRedLight(location, faceDir, 0, chunk, true);
-           //
-           //     }
-           // }
-
-            if (wasUpdated)
-            {
-                visited.Add(location);
-                string idx = $"{location.X}|{location.Y}|{location.Z}";
-                EnqueueEmissiveLightNode(new(idx, chunk));
-
-            }   
         }
     }
 }

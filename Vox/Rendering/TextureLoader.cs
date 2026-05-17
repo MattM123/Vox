@@ -2,39 +2,38 @@
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
-using Vox.AssetManagement;
+using Vox.Assets;
+using Vox.Exceptions;
 namespace Vox.Rendering
 {
-    public class TextureLoader
+    public class TextureLoader : ITextureLoader
     {
+        private readonly string? _assetsPath;
+        private readonly IAssetLookup? _assetLookup;
 
-        private static int texId = 0;
-        private static StbiImage image;
-        private static int width;
-        private static int height;
-        private static readonly string assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
-        private static int numLayers;
-
-        static TextureLoader()
+        public TextureLoader(string assetsPath, IAssetLookup assetLookup)
         {
 
-            Directory.CreateDirectory(assets + "Textures");
-            Directory.CreateDirectory(assets + "BlockTextures");
+            _assetsPath = assetsPath ?? throw new ShaderException(nameof(assetsPath) + " is null in TextureLoader");
+            _assetLookup = assetLookup ?? throw new ShaderException(nameof(assetLookup) + " is null in TextureLoader" );
+
+            Directory.CreateDirectory(_assetsPath + "Textures");
+            Directory.CreateDirectory(_assetsPath + "BlockTextures");
         }
 
-        public static int LoadTextures(int slot)
+        public int LoadTextures(int slot)
         {
 
-            string[] tex = [.. Directory.EnumerateFiles(assets + "BlockTextures")];
+            string[] tex = [.. Directory.EnumerateFiles(_assetsPath + "BlockTextures")];
  
-            width = 16;
-            height = 16;
+            int width = 16;
+            int height = 16;
 
             //========================
             //Texture Setup
             //========================
 
-            numLayers = tex.Length;
+            int numLayers = tex.Length;
 
             //Create and bind texture array
             int texId = GL.GenTexture();
@@ -57,21 +56,22 @@ namespace Vox.Rendering
                 FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
                 memoryStream.Position = 0;
-                image = Stbi.LoadFromMemory(memoryStream, 4);
+                using var image = Stbi.LoadFromMemory(memoryStream, 4);
 
                 string filename = stream.Name[(stream.Name.LastIndexOf('\\') + 1)..];
 
                 byte[] subimageData = image.Data.ToArray();
+                
                 // Use TexSubImage3D to upload the image data to the specific layer
                 GL.TexSubImage3D(
-                    TextureTarget.Texture2DArray,               //Target
-                    0,                                          //Level
-                    0, 0,                                       //XY Offset
-                    AssetLookup.GetTextureValue(filename),      //Z offset
-                    width, height, 1,                           //Width, height, depth
-                    PixelFormat.Rgba,                           //Pixel Format
-                    PixelType.UnsignedByte,                     //Pixel Type
-                    subimageData);                              //Image data
+                    TextureTarget.Texture2DArray,                           //Target
+                    0,                                                      //Level
+                    0, 0,                                                   //XY Offset
+                    _assetLookup!.GetTextureValueFromFilename(filename),    //Z offset
+                    width, height, 1,                                       //Width, height, depth
+                    PixelFormat.Rgba,                                       //Pixel Format
+                    PixelType.UnsignedByte,                                 //Pixel Type
+                    subimageData);                                          //Image data
                 image.Dispose();
             }
 
@@ -82,7 +82,7 @@ namespace Vox.Rendering
         /*
          * Loads a single texture such as a diffuse or specular map
          */
-        public static int LoadSingleTexture(string fileBlockName)
+        public int LoadSingleTexture(string fileBlockName)
         {
             // Generate handle
             int texId = GL.GenTexture();
@@ -109,11 +109,11 @@ namespace Vox.Rendering
             //}
 
             // Here we open a stream to the file and pass it to StbImageSharp to load.
-            using (Stream stream = File.OpenRead(Path.Combine(assets, "BlockTextures", fileBlockName)))
+            using (Stream stream = File.OpenRead(Path.Combine(_assetsPath!, "BlockTextures", fileBlockName)))
             {
                 using var memoryStream = new MemoryStream();
                 stream.CopyTo(memoryStream);
-                image = Stbi.LoadFromMemory(memoryStream, 4);
+                using var image = Stbi.LoadFromMemory(memoryStream, 4);
 
                 GL.TexImage2D(
                     TextureTarget.Texture2D, 
@@ -146,13 +146,13 @@ namespace Vox.Rendering
 
             return texId;
         }
-        public static void Unbind()
-        {
-            GL.BindTexture(TextureTarget.Texture2DArray, 0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GL.DeleteTexture(texId);
-
-        }
+        //public static void Unbind()
+        //{
+        //    GL.BindTexture(TextureTarget.Texture2DArray, 0);
+        //    GL.BindTexture(TextureTarget.Texture2D, 0);
+        //    GL.DeleteTexture(texId);
+        //
+        //}
     }
 }
 

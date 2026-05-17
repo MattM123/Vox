@@ -6,7 +6,6 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 using Vox.Exceptions;
-using Vox.Rendering;
 
 namespace Vox.UI
 {

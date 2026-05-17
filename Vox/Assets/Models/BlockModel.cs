@@ -1,13 +1,8 @@
 ﻿
-
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Newtonsoft.Json.Schema;
-using OpenTK.Windowing.GraphicsLibraryFramework;
-using Vox.AssetManagement;
 using Vox.Enums;
 
-namespace Vox.Model
+namespace Vox.Assets.Models
 {
     public class BlockModel
     {
@@ -30,8 +25,9 @@ namespace Vox.Model
 
             if (parent?.ToString().Length > 0)
             {
-                string parentPath = parent.ToString();
-                JObject parentObj = AssetManager.GetInstance().GetJson(new AssetPath(Path.Combine(Window.assets, "BlockModels\\" + parent)));
+                string parentPath = Path.Combine(Window.GetAssetPath(), "BlockModels", parent.ToString());
+                string jsonContent = File.ReadAllText(parentPath + ".json");
+                JObject parentObj = JObject.Parse(jsonContent);
                 parentModel = new BlockModel(parentObj, type);
             }
             else

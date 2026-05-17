@@ -1,7 +1,7 @@
 ﻿using MessagePack;
 using Vox.Genesis;
 
-namespace Vox.Rendering
+namespace Vox.Model
 {
     /**
     * Light node used with BFS (Breadth-First Search) algorithm

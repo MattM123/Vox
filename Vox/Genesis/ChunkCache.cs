@@ -1,16 +1,19 @@
 ﻿
 using OpenTK.Mathematics;
+using Vox.Exceptions;
+using Vox.Rendering;
 
 namespace Vox.Genesis
 {
-    public class ChunkCache
+    public class ChunkCache : IChunkCache
     {
-        private static int renderDistance = RegionManager.GetRenderDistance();
-        private static int bounds;
-        private static Chunk? playerChunk;        
-        private static Dictionary<string, Chunk> chunks = [];
-        private static Dictionary<string, Region> regions = [];
-        private static object chunkLock = new();
+        private readonly IRegionManager _regionManager;
+
+        private static int renderDistance;
+        private static Chunk? _playerChunk;        
+        private static readonly Dictionary<string, Chunk> chunks = [];
+        private static readonly Dictionary<string, Region> regions = [];
+        private static readonly object chunkLock = new();
 
         /**
          *
@@ -19,23 +22,21 @@ namespace Vox.Genesis
          * @param bounds The length, width, and height of the cubic chunk.
          * @param playerChunk The chunk a player inhabits.
          */
-        public ChunkCache(int bounds, Chunk playerChunk)
+        public ChunkCache(Chunk? playerChunk, IRegionManager regionManager)
         {
-            ChunkCache.bounds = bounds;
-            ChunkCache.playerChunk = playerChunk;
+            _regionManager = regionManager ?? throw new ShaderException(nameof(regionManager) + " is null in ChunkCache");
+
+            renderDistance = _regionManager!.GetRenderDistance();
+            _playerChunk = playerChunk;
 
         }
-        public static void SetBounds(int bounds)
-        {
-            ChunkCache.bounds = bounds;
-        }
-        public static void SetRenderDistance(int renderDistance)
+        public void SetRenderDistance(int renderDistance)
         {
             ChunkCache.renderDistance = renderDistance;
         }
-        public static void SetPlayerChunk(Chunk c)
+        public void SetPlayerChunk(Chunk c)
         {
-            playerChunk = c;
+            _playerChunk = c;
         }
 
         /**
@@ -43,18 +44,18 @@ namespace Vox.Genesis
          * and updates chunks that surround a player in a world space
          * @return The list of chunks that should be rendered.
          */
-        public static void GetRadialChunks()
+        public void GetRadialChunks()
         {
-            int bounds = RegionManager.CHUNK_BOUNDS;
+            int bounds = _regionManager.GetChunkBounds();
 
             //Check each radius layer
-            if (!chunks.ContainsKey($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}"))
-                chunks.Add($"{playerChunk.xLoc}|{playerChunk.yLoc}|{playerChunk.zLoc}", playerChunk);
+            if (!chunks.ContainsKey($"{_playerChunk!.xLoc}|{_playerChunk.yLoc}|{_playerChunk.zLoc}"))
+                chunks.Add($"{_playerChunk.xLoc}|{_playerChunk.yLoc}|{_playerChunk.zLoc}", _playerChunk);
 
             for (int radius = 1; radius <= renderDistance; radius++)
             {
-                Vector3 negativeCorner = new(playerChunk.xLoc - (bounds * radius), playerChunk.yLoc - (bounds * radius), playerChunk.zLoc - (bounds * radius));
-                Vector3 positiveCorner = new(playerChunk.xLoc + (bounds * radius), playerChunk.yLoc + (bounds * radius), playerChunk.zLoc + (bounds * radius));
+                Vector3 negativeCorner = new(_playerChunk.xLoc - (bounds * radius), _playerChunk.yLoc - (bounds * radius), _playerChunk.zLoc - (bounds * radius));
+                Vector3 positiveCorner = new(_playerChunk.xLoc + (bounds * radius), _playerChunk.yLoc + (bounds * radius), _playerChunk.zLoc + (bounds * radius));
 
                 //Iterates from the farthest -X point to the farthest +X
 
@@ -66,67 +67,39 @@ namespace Vox.Genesis
                         //Iterates from the farthest -Z point to the farthest +Z
                         for (int z = (int)negativeCorner.Z; z <= positiveCorner.Z; z += bounds)
                         {
-                            //If the chunk is surrounded by surrounded by ungenerated chunks, dont cache it
-                            //if (!RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x + bounds}|{y}|{z}") ||
-                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y + bounds}|{z}") ||
-                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y}|{z + bounds}") ||
-                            //    
-                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x - bounds}|{y}|{z}") ||
-                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y - bounds}|{z}") ||
-                            //    !RegionManager.GetGlobalRegionFromChunkCoords(x, z).chunks.ContainsKey($"{x}|{y}|{z - bounds}"))
-                            //{
-                                CacheHelper(x, y, z);
-                           // }
+                            CacheHelper(x, y, z);
                         }
                     }
                 }
             }
         }
-        /**
-         * Clears CPU SSBO storage for chunk and regenerates chunks in cache and update.
-         * Used only if a block is removed and has to account for buffer data removal/update.
-         */
-        public static void RegenerateCache()
-        {
-
-            CountdownEvent countdown = new(chunks.Count);
-            foreach (KeyValuePair<string, Chunk> c in chunks)
-            {
-                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
-                {
-                    c.Value.Reset();
-                    countdown.Signal();
-                }));
-            }
-            countdown.Wait();
-        }
 
         /**
          * Clears and resets cache without repopulating it
          */
-        public static void ClearChunkCache()
+        public void ClearChunkCache()
         {
             chunks.Clear();
             regions.Clear();
         }
-        private static void CacheHelper(int x, int y, int z)
+        private void CacheHelper(int x, int y, int z)
         {
 
-            string regionIdx = Region.GetRegionIndex(x, z);
+            string regionIdx = _regionManager.GetRegionIndex(x, z);
 
             //Look for region in loaded regions
-            RegionManager.VisibleRegions.TryGetValue(regionIdx, out Region? chunkRegion);
+            _regionManager.GetVisibleRegions().TryGetValue(regionIdx, out Region? chunkRegion);
 
             //if region is still null, try get from file system
             if (chunkRegion == null)
             {
-                chunkRegion = RegionManager.TryGetRegionFromFile(regionIdx);
-                RegionManager.EnterRegion(regionIdx); //cache region in memory for future additions to chunk list
+                chunkRegion = _regionManager.TryGetRegionFromFile(regionIdx);
+                _regionManager.EnterRegion(regionIdx); //cache region in memory for future additions to chunk list
             }
 
             lock (chunkLock)
             {
-                Chunk c = RegionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
+                Chunk c = _regionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
                 
                 if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
                     chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
@@ -134,8 +107,8 @@ namespace Vox.Genesis
                 if (!chunks.ContainsKey($"{x}|{y}|{z}"))
                     chunks.Add($"{x}|{y}|{z}", c);
             }
-            if (!regions.ContainsKey(Region.GetRegionIndex(x, z))) 
-                regions.Add(Region.GetRegionIndex(x, z), chunkRegion);
+            if (!regions.ContainsKey(_regionManager.GetRegionIndex(x, z))) 
+                regions.Add(_regionManager.GetRegionIndex(x, z), chunkRegion);
         }
 
         /**
@@ -143,16 +116,53 @@ namespace Vox.Genesis
          * and updates chunks that surround a player in a global scope.
          * @return The list of chunks that should be rendered.
          */
-        public static Dictionary<string, Chunk> UpdateChunkCache()
+        public Dictionary<string, Chunk> UpdateChunkCache()
         {
             GetRadialChunks();
             return chunks;
-   }
+        }
 
-        public static Dictionary<string, Region> GetRegions()
+        public Dictionary<string, Region> GetRegions()
         {
             return regions;
         }
+
+        /**
+         * The ChunkCache will update the regions in memory, storing them as potentially blank objects
+         * if the region was not already in memory. This method is responsible for reading region data
+         * into these blank region objects when in memory and writing data to the file
+         * system for future use when the player no longer inhabits them.
+         *
+         */
+        public void UpdateVisibleRegions()
+        {
+            //Updates regions within render distance
+            UpdateChunkCache();
+            Dictionary<string, Region> updatedRegions = GetRegions();
+
+            if (_regionManager.GetVisibleRegions().Count > 0)
+            {
+
+                //Retrieves from file or generates any region that is visible
+                for (int i = 0; i < updatedRegions.Count; i++)
+                {
+                    //Enter region if not found in visible regions
+                    if (!_regionManager.GetVisibleRegions().ContainsKey(updatedRegions.Keys.ElementAt(i)))
+                        _regionManager.EnterRegion(updatedRegions.Keys.ElementAt(i));
+                }
+
+                //Write to file and de-render any regions that are no longer visible
+                for (int i = 0; i < _regionManager.GetVisibleRegions().Count; i++)
+                {
+                    if (!updatedRegions.ContainsKey(_regionManager.GetVisibleRegions().Keys.ElementAt(i)))
+                    {
+                        Console.WriteLine($"Unloaded Region: {_regionManager.GetVisibleRegions().Keys.ElementAt(i)}");
+                        _regionManager.LeaveRegion(_regionManager.GetVisibleRegions().Keys.ElementAt(i));
+                    }
+                }
+            }
+        }
+
 
     }
 

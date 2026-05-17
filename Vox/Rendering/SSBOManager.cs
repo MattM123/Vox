@@ -1,76 +1,44 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing.Printing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
+﻿
+using MessagePack.Resolvers;
 using OpenTK.Graphics.OpenGL4;
+using Vox.Enums;
+using Vox.Exceptions;
+using Vox.Model;
 
 namespace Vox.Rendering
 {
-    public class SSBOManager
+    public class SSBOManager : ISSBOManager
     {
-        private static Dictionary<string, StorageBufferObject> ssboList = [];
-
+        private readonly Dictionary<string, StorageBufferObject> _ssboList = new();
         public SSBOManager() { }
-        public StorageBufferObject AddSSBO(int size, int bindingIndex, string name)
+
+        public StorageBufferObject AddSSBO(int size, int bindingIndex, SSBO type)
         {
+            string name = type.ToString();
 
-            //Override existing SSBO
-            if (ssboList.TryGetValue(name, out StorageBufferObject? value))
+            // Override existing SSBO
+            if (_ssboList.TryGetValue(name, out StorageBufferObject? value))
             {
-                ssboList[name] = new StorageBufferObject(size, bindingIndex, value.Handle);
-
-                GL.ObjectLabel(ObjectLabelIdentifier.Buffer, ssboList[name].Handle, name.Length, "SSBO: " + name);
-                return ssboList[name];
+                Console.WriteLine("Updating existing SSBO: " + type);
+                _ssboList[name] = new StorageBufferObject(size, bindingIndex, value.Handle);
+                GL.ObjectLabel(ObjectLabelIdentifier.Buffer, _ssboList[name].Handle, name.Length, "SSBO: " + name);
+                return _ssboList[name];
             }
+            Console.WriteLine($"Creating new SSBO: {name}");
             // Else create new SSBO
-            else
+            var newBuffer = new StorageBufferObject(size, bindingIndex, GL.GenBuffer());
+            _ssboList.Add(name, newBuffer);
+            GL.ObjectLabel(ObjectLabelIdentifier.Buffer, newBuffer.Handle, name.Length, "SSBO: " + name);
+            return newBuffer;
+        }
+
+        public StorageBufferObject GetSSBO(SSBO type)
+        {
+            if (!_ssboList.TryGetValue(type.ToString(), out StorageBufferObject? ssbo))
             {
-                ssboList.Add(name, new StorageBufferObject(size, bindingIndex, GL.GenBuffer()));
-                GL.ObjectLabel(ObjectLabelIdentifier.Buffer, ssboList[name].Handle, name.Length, "SSBO: " + name);
-                return ssboList[name];
+                throw new ShaderException($"SSBO '{type}' not found. Did you add it?");
             }
-        }
-        public StorageBufferObject GetSSBO(string name)
-        {
-            return ssboList[name];
-        }
-    }
-
-    public class StorageBufferObject
-    {
-        public readonly IntPtr Pointer;
-        public readonly int Size;
-        public readonly int Handle;
-        public readonly int BindingIndex;
-
-        public StorageBufferObject(int sizeInBytes, int bindingIndex, int ssboHandle)
-        {
-            Size = sizeInBytes;
-            Handle = ssboHandle;
-            BindingIndex = bindingIndex;
-            Handle = ssboHandle;
-
-            //Bind buffer handle
-            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssboHandle);
-
-            //Creates ssbo buffer
-            GL.BufferStorage(BufferTarget.ShaderStorageBuffer, sizeInBytes, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
-
-            //Map binding for shader to use
-            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, ssboHandle);
-
-            //Creates pointer to SSBO buffer
-            Pointer = GL.MapBufferRange(
-                BufferTarget.ShaderStorageBuffer,
-                IntPtr.Zero,
-                sizeInBytes,
-                BufferAccessMask.MapWriteBit |
-                BufferAccessMask.MapPersistentBit |
-                BufferAccessMask.MapCoherentBit
-            );
+            return ssbo;
         }
     }
 }

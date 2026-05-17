@@ -1,12 +1,9 @@
 ﻿using System.Diagnostics;
-using System.Numerics;
 using System.Text;
-using System.Text.RegularExpressions;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
-using OpenTK.Mathematics;
-using OpenTK.Windowing.Common;
-using Vox.AssetManagement;
+using Vox.Assets;
+using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
@@ -14,18 +11,36 @@ using Vox.Rendering;
 
 namespace Vox.UI
 {
-    public static class ImGuiHelper
+    public class ImGuiHelper(
+        IAssetLookup assetLookup,
+        ITextureLoader textureLoader, 
+        ISSBOManager ssboManager, 
+        IPlayer player, 
+        IRegionManager regionManager,
+        ILightHelper lightHeler,
+        IChunkCache chunkCache) : IImGuiHelper
     {
         private static int rotationAngle = 0;
-        public static bool SHOW_BLOCK_COLOR_PICKER = false;
-        public static bool SHOW_PLAYER_INVENTORY = false;
+        private bool SHOW_BLOCK_COLOR_PICKER = false;
+        private bool SHOW_PLAYER_INVENTORY = false;
 
         public static int _inventoryIconFBO;
         public static int _inventoryIconTexture;
 
-        private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero; 
-        public static void ShowWorldMenu(ImGuiIOPtr ioptr)
+        private readonly ITextureLoader? _textureLoader = textureLoader ?? throw new Exception(nameof(textureLoader) + " is null in ImGuiHelper");
+        private readonly IAssetLookup? _assetLookup = assetLookup ?? throw new Exception(nameof(assetLookup) + " is null in ImGuiHelper");
+        private readonly ISSBOManager? _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in ImGuiHelper");
+        private readonly IPlayer? _player = player ?? throw new Exception(nameof(player) + " is null in ImGuiHelper");
+        private readonly IRegionManager? _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in ImGuiHelper");
+        private readonly ILightHelper? _lightHelper = lightHeler ?? throw new Exception(nameof(lightHeler) + " is null in ImGuiHelper");
+        private readonly IChunkCache? _chunkCache = chunkCache ?? throw new Exception(nameof(chunkCache) + " is null in ImGuiHelper");
+
+        private BlockType selectedBlock = BlockType.AIR;
+        private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
+
+        public void ShowWorldMenu(ImGuiIOPtr ioptr)
         {
+
             float horizontalMenuScale = 3.5f;
             ImGui.Begin("World List", ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
 
@@ -85,8 +100,7 @@ namespace Vox.UI
 
 
                                 Window.SetMenuRendered(false);
-                                RegionManager rm = new(folder);
-                                Window.SetLoadedWorld(rm);
+                                _regionManager?.SetWorldDir(folder);
                             }
                             ImGui.SameLine();
 
@@ -150,7 +164,7 @@ namespace Vox.UI
             ImGui.End();
         }
 
-        public static void ShowDebugMenu(ImGuiIOPtr ioptr)
+        public void ShowDebugMenu(ImGuiIOPtr ioptr)
         {
             /*=====================================
              Debug Display
@@ -164,14 +178,14 @@ namespace Vox.UI
             ImGui.Text("Player");
             ImGui.PopStyleColor();
 
-            ImGui.Text($"Position: X:{Window.GetPlayer().GetPosition().X} Y:{Window.GetPlayer().GetPosition().Y} Z:{Window.GetPlayer().GetPosition().Z}");
-            ImGui.Text($"Rotation: X:{Window.GetPlayer().GetRotation().X}, Y:{Window.GetPlayer().GetRotation().Y}");
-            ImGui.Text("IsGrounded: " + Window.GetPlayer().IsPlayerGrounded());
+            ImGui.Text($"Position: X:{_player!.GetPosition().X} Y:{_player.GetPosition().Y} Z:{_player.GetPosition().Z}");
+            ImGui.Text($"Rotation: X:{_player.GetRotation().X}, Y:{_player.GetRotation().Y}");
+            ImGui.Text("IsGrounded: " + _player.IsPlayerGrounded());
 
             BlockFace f = BlockFace.ALL;
-            OpenTK.Mathematics.Vector3 block = Window.GetPlayer().UpdateViewTarget(out f, out _, out OpenTK.Mathematics.Vector3 blockSpace);
-            Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(block);
-            OpenTK.Mathematics.Vector3i idx = RegionManager.GetChunkRelativeCoordinates(block);
+            OpenTK.Mathematics.Vector3 block = _player.UpdateViewTarget(out f, out _, out OpenTK.Mathematics.Vector3 blockSpace);
+            Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(block);
+            OpenTK.Mathematics.Vector3i idx = _regionManager.GetChunkRelativeCoordinates(block);
             BlockType type = (BlockType) blockChunk.blockData[idx.X, idx.Y, idx.Z];
             ImGui.Text($"Looking At: {blockSpace} ({type})");
             ImGui.Text("");
@@ -180,14 +194,14 @@ namespace Vox.UI
             ImGui.Text("World");
             ImGui.PopStyleColor();
 
-            ImGui.Text("Region: " + Window.GetPlayer().GetRegionWithPlayer().ToString());
-            ImGui.Text(Window.GetPlayer().GetChunkWithPlayer().ToString());
-            ImGui.Text("Chunks Surrounding Player: " + ChunkCache.UpdateChunkCache().Count);
+            ImGui.Text("Region: " + _player.GetRegionWithPlayer().ToString());
+            ImGui.Text(_player.GetChunkWithPlayer().ToString());
+            ImGui.Text("Chunks Surrounding Player: " + _chunkCache.UpdateChunkCache().Count);
 
             ImGui.Text("");
-            ImGui.Text("Chunks In Memory: " + RegionManager.PollChunkMemory());
+            ImGui.Text("Chunks In Memory: " + _regionManager.PollChunkMemory());
             string str = "Regions In Memory:\n";
-            foreach (KeyValuePair<string, Region> r in ChunkCache.GetRegions())
+            foreach (KeyValuePair<string, Region> r in _chunkCache.GetRegions())
                 str += $"[{r.Key}] {r.Value}\n";
 
             ImGui.Text(str);
@@ -206,11 +220,11 @@ namespace Vox.UI
             ImGui.Text("Player Matrix");
             ImGui.PopStyleColor();
 
-            ImGui.Text(Window.GetPlayer().GetViewMatrix().ToString());
+            ImGui.Text(_player.GetViewMatrix().ToString());
             ImGui.End();
         }
 
-        public static void ShowBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
+        public void CreateBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(410, 270));
 
@@ -218,23 +232,23 @@ namespace Vox.UI
             {
                 if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor))
                 {
-                    Chunk blockChunk = RegionManager.GetAndLoadGlobalChunkFromCoords(blockspace);
+                    Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(blockspace);
 
                     //Syncronously executes in a separate thread so main thread isnt blocked during propagation and depropagation
                     CountdownEvent countdown = new(1);
                     ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                     {
 
-                        LightHelper.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
-                        LightHelper.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
-                        LightHelper.GetLightTrackingList().Remove(blockspace);
+                        _lightHelper!.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
+                        _lightHelper.GetLightTrackingList().Remove(blockspace);
 
-                        RegionManager.AddBlockToChunk(
+                        _regionManager.AddBlockToChunk(
                             blockspace,
                             BlockType.LAMP_BLOCK,
                             new ColorVector(
@@ -251,9 +265,7 @@ namespace Vox.UI
             }
         }
 
-
-        private static BlockType selectedBlock = BlockType.AIR;
-        public static void ShowPlayerInventory(ImGuiController controller)
+        public void CreatePlayerInventory(ImGuiController controller)
         {
             rotationAngle += 1;
             if (rotationAngle > 360)
@@ -276,7 +288,7 @@ namespace Vox.UI
             if (selectedBlock != BlockType.AIR)
             {
                 // Render block model for current slot
-                InventoryStore inventory = Window.GetPlayer().GetInventory();
+                InventoryStore inventory = _player!.GetInventory();
                 BlockModel model = ModelLoader.GetModel(selectedBlock);
                 string modelElements = model.GetElements().ElementAt(0).ToString();
 
@@ -366,7 +378,7 @@ namespace Vox.UI
 
 
             //Populate inventory slots
-            Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = Window.GetPlayer().GetInventory().GetSlots();
+            Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = _player!.GetInventory().GetSlots();
             for (int i = 0; i < inventorySlots.Count; i++)
             {
                 ImGui.PushID(i);
@@ -389,7 +401,7 @@ namespace Vox.UI
                                      mousePos.Y >= buttonRectMin.Y && mousePos.Y <= buttonRectMax.Y;
 
                     // Select texture image for slot
-                    IntPtr textureToUse = TextureLoader.LoadSingleTexture(AssetLookup.BlockTypeToIconFile[currentSlotType]);
+                    IntPtr textureToUse = _textureLoader!.LoadSingleTexture(_assetLookup!.GetFileFromBlockType(currentSlotType));
 
                     if (isHovered)
                     {
@@ -414,7 +426,7 @@ namespace Vox.UI
 
                     // Show item quantity in top left corner
                     drawList.AddText(ImGui.GetFont(), 15, min + new System.Numerics.Vector2(5, 5), color,
-                        Window.GetPlayer().GetInventory().GetSlots()[i].Value.ToString());
+                        _player.GetInventory().GetSlots()[i].Value.ToString());
 
                 }
                 else
@@ -441,16 +453,31 @@ namespace Vox.UI
             ImGui.End();
         }
 
-        public static bool IsAnyMenuActive()
+        public bool IsAnyMenuActive()
         {
             return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY;
         }
 
-        private static readonly int _inventoryVAO = GL.GenVertexArray();
-        private static void RenderInventoryAnimation(int sizeX, int sizeY)
+        public bool ShowBlockColorPicker()
         {
-            Window.SetTerrainShaderUniforms();
+            return SHOW_BLOCK_COLOR_PICKER;
+        }
 
+        public bool ShowPlayerInventory()
+        {
+            return SHOW_PLAYER_INVENTORY;
+        }
+        public void SetShowPlayerInventory(bool show)
+        {
+            SHOW_PLAYER_INVENTORY = show;
+        }
+        public void SetShowBlockColorPicker(bool show)
+        {
+            SHOW_BLOCK_COLOR_PICKER = show;
+        }
+        private static readonly int _inventoryVAO = GL.GenVertexArray();
+        private void RenderInventoryAnimation(int sizeX, int sizeY)
+        {
             //Save current state
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
@@ -468,11 +495,11 @@ namespace Vox.UI
                 return;
             }
 
-            GL.BindVertexArray(_inventoryVAO);  // Bind the VAO with dummy VBO
+            GL.BindVertexArray(_inventoryVAO);
             GL.Viewport(0, 0, sizeX, sizeY);
 
             // Bind SSBO for vertex data
-            var inventorySsbo = Window.ssboManager.GetSSBO("Inventory");
+            var inventorySsbo = _ssboManager!.GetSSBO(SSBO.Inventory);
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, inventorySsbo.Handle);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, inventorySsbo.BindingIndex, inventorySsbo.Handle);
 

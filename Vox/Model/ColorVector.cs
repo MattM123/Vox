@@ -1,7 +1,7 @@
 ﻿
 using System.Diagnostics.CodeAnalysis;
 
-namespace Vox.Rendering
+namespace Vox.Model
 {
     public struct ColorVector(int red, int green, int blue)
     {
@@ -20,6 +20,10 @@ namespace Vox.Rendering
                 return Red == other.Red && Green == other.Green && Blue == other.Blue;
             else
                 return false;
+        }
+        public override readonly int GetHashCode()
+        {
+            return base.GetHashCode();
         }
     }
 }

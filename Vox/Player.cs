@@ -7,15 +7,20 @@ using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using Vox.Enums;
 using Vox.Genesis;
+using Vox.Model;
 using Vox.Rendering;
 using Vox.UI;
 using Region = Vox.Genesis.Region;
 
 namespace Vox
 {
-    public class Player
+    public class Player : IPlayer
     {
-        private static InventoryStore inventory;
+        private readonly IInventoryStore? _inventoryStore;
+        private readonly ISSBOManager? _ssboManager;
+        private readonly IRegionManager? _regionManager;
+        private readonly IChunkCache? _chunkCache;
+
         public static Vector3 position = Vector3.Zero;
         private static float yaw = 0f;
         private static float pitch = 0f;
@@ -43,17 +48,23 @@ namespace Vox
          * Default player object is initialized at a position of 0,0,0 within
          * Region 0,0.
          */
-        public Player()
+        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache)
         {
-            inventory = new InventoryStore();
-            inventory.SetSlot(0, BlockType.LAMP_BLOCK, 5);
-            inventory.SetSlot(1, BlockType.DIRT_BLOCK, 3);
-            inventory.SetSlot(2, BlockType.GRASS_BLOCK, 16);
-            inventory.SetSlot(3, BlockType.TEST_BLOCK, 55);
-            inventory.SetSlot(4, BlockType.TARGET_BLOCK, 64);
+            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Player");
+            _inventoryStore = inventoryStore ?? throw new Exception(nameof(inventoryStore) + " is null in Player");
+            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Player");
+            _chunkCache = chunkCache ?? throw new Exception(nameof(chunkCache) + " is null in Player");
 
-            ChunkCache.SetPlayerChunk(GetChunkWithPlayer());      
-            position = new(0, RegionManager.GetGlobalHeightMapValue((int)position.X, (int)position.Z) + 1, 0);
+
+            // Test / debug values for inventory, can be removed later
+            _inventoryStore.SetSlot(0, BlockType.LAMP_BLOCK, 5);
+            _inventoryStore.SetSlot(1, BlockType.DIRT_BLOCK, 3);
+            _inventoryStore.SetSlot(2, BlockType.GRASS_BLOCK, 16);
+            _inventoryStore.SetSlot(3, BlockType.TEST_BLOCK, 55);
+            _inventoryStore.SetSlot(4, BlockType.TARGET_BLOCK, 64);
+
+            _chunkCache.SetPlayerChunk(GetChunkWithPlayer());      
+            position = new(0, _regionManager.GetGlobalHeightMapValue((int)position.X, (int)position.Z) + 1, 0);
             prevPos = position;
             // playerMin = new Vector3(position.X, position.Y, position.Z);
             //playerMax = new Vector3(position.X + 1, position.Y + 2, position.Z + 1);
@@ -74,19 +85,23 @@ namespace Vox
             return viewTarget;
         }
 
-        /*
-         * Updates the outline on the block the player is looking at.
-         * Returns the Vector3 that the block mesh is created from.
-         * 
-         * out bool: True if their is already a bloc kat the view target,
-         * false otherwise
-         * 
-         * out playerFaceing: The direction the player is facing
-         * out blockface: the blockface the player is looking at
-         * out blockSpace: the empty block space immediately preceding the ray terrain intersection,
-         * used to get where a block will appear if a player places a block
-         * 
-         */
+        
+
+        /// <summary>
+        /// Updates the outline on the block the player is currently looking at and determines relevant block
+        /// interaction information.
+        /// </summary>
+        /// <remarks>This method performs a raycast from the player's position in the direction they are
+        /// facing, up to the maximum reach distance, to identify the targeted block and related interaction data. The
+        /// output parameters provide additional context for block placement and interaction logic.</remarks>
+        /// <param name="playerFacing">When this method returns, contains the direction the player is facing, as a value of the BlockFace
+        /// enumeration.</param>
+        /// <param name="blockFace">When this method returns, contains the block face the player is looking at, represented as a Vector3.</param>
+        /// <param name="blockSpace">When this method returns, contains the coordinates of the empty block space immediately preceding the
+        /// intersection with terrain, indicating where a block would be placed if the player initiates a placement
+        /// action.</param>
+        /// <returns>A <see cref="Vector3"/> representing the coordinates of the block mesh that the player is targeting. If no block is
+        /// targeted, the returned vector may be zero.</returns>
         public Vector3 UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace)
         {
             playerFacing = BlockFace.ALL;
@@ -113,8 +128,8 @@ namespace Vox
                 );
 
                 //If the ray steps into an air block, continue to the next step iteration
-                Chunk actionChunk = RegionManager.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
-                Vector3 blockDataIndex = RegionManager.GetChunkRelativeCoordinates(target);
+                Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
+                Vector3 blockDataIndex = _regionManager.GetChunkRelativeCoordinates(target);
                 if (actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
                     previousBlock = target;
                     blockSpace = target;
@@ -162,7 +177,7 @@ namespace Vox
                 }
             }
             //Returns the last block the player was looking at
-            Window.shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
+            Window._shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
 
             return target;
         }
@@ -194,10 +209,10 @@ namespace Vox
          * A collection of vertices that form a voxel mesh surrounding the player,
          * used for collision detection with the world
          */
-        public static List<Vector3> GetPlayerCollisionMesh()
+        public List<Vector3> GetPlayerCollisionMesh()
         {
             Vector3 playerPos = new((float)Math.Floor(position.X),
-                RegionManager.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
+                _regionManager!.GetGlobalHeightMapValue((int)Math.Floor(position.X), (int)Math.Floor(position.Z)),
                 (float)Math.Floor(position.Z));
 
             List<Vector3> collisionMesh = [];
@@ -232,7 +247,6 @@ namespace Vox
             return collisionMesh;
 
         }
-
 
         private void CheckChunkCollision(float deltaTime)
         {
@@ -349,7 +363,6 @@ namespace Vox
             }
             //  blockedDirection = Vector3.Zero;
         }
-
 
         /**
         * Returns a normal representing the block face that the player collides into.
@@ -487,7 +500,7 @@ namespace Vox
 
         public InventoryStore GetInventory()
         {
-            return inventory;
+            return (InventoryStore) _inventoryStore!;
         }
 
         public void SetPosition(Vector3 pos)
@@ -540,10 +553,10 @@ namespace Vox
         public Region GetRegionWithPlayer()
         {
 
-            string playerChunkIdx = $"{Math.Floor(position.X / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Y / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}|{Math.Floor(position.Z / RegionManager.CHUNK_BOUNDS) * RegionManager.CHUNK_BOUNDS}";
+            string playerChunkIdx = $"{Math.Floor(position.X / _regionManager!.GetChunkBounds()) * _regionManager.GetChunkBounds()}|{Math.Floor(position.Y / _regionManager.GetChunkBounds()) * _regionManager.GetChunkBounds()}|{Math.Floor(position.Z / _regionManager.GetChunkBounds()) * _regionManager.GetChunkBounds()}";
             int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = Region.GetRegionIndex(index[0], index[2]);
-            return RegionManager.TryGetRegionFromFile(playerRegionIdx);
+            string playerRegionIdx = _regionManager.GetRegionIndex(index[0], index[2]);
+            return _regionManager.TryGetRegionFromFile(playerRegionIdx);
         }
 
 
@@ -556,10 +569,10 @@ namespace Vox
          */
         public Chunk GetChunkWithPlayer()
         {
-            return RegionManager.GetAndLoadGlobalChunkFromCoords((int)position.X, (int)position.Y, (int)position.Z);
+            return _regionManager!.GetAndLoadGlobalChunkFromCoords((int)position.X, (int)position.Y, (int)position.Z);
         }
 
-        public static void SetLookDir(float x, float y)
+        public void SetLookDir(float x, float y)
         {
             yaw = -x;
             pitch = -y;
@@ -579,7 +592,7 @@ namespace Vox
             return Vector3.Normalize(viewMatrix.Column0.Xyz);
         }
 
-        public static void UpdateBoundingBox()
+        public void UpdateBoundingBox()
         {
             //playerMin = new Vector3(position.X, position.Y, position.Z);
             //playerMax = new Vector3(position.X + 1, position.Y + 2, position.Z + 1);

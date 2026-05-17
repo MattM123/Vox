@@ -5,7 +5,7 @@ using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Enums;
 
-namespace Vox.Rendering
+namespace Vox.Model
 {
     [MessagePackObject]
     [StructLayout(LayoutKind.Sequential)]

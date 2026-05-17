@@ -2,7 +2,7 @@
 using OpenTK.Mathematics;
 using Vox.Enums;
 
-namespace Vox.Rendering
+namespace Vox.Model
 {
     [StructLayout(LayoutKind.Explicit, Size = 32)]
     public struct BlockFaceInstance(Vector3 facePosition, BlockFace faceDirection, int textureLayer, int index, ushort lighting)

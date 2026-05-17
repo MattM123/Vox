@@ -1,9 +1,8 @@
 ﻿using Vox.Enums;
-using Vox.Model;
 
-namespace Vox.AssetManagement
+namespace Vox.Assets
 {
-    internal static class AssetLookup
+    internal class AssetLookup : IAssetLookup
     {
         public static readonly Dictionary<string, Texture> FilenameToTexture = new()
         {
@@ -27,11 +26,20 @@ namespace Vox.AssetManagement
             {BlockType.TARGET_BLOCK, "target.png" }
         };
 
-        public static int GetTextureValue(string filename)
+        public AssetLookup() { }
+
+        public int GetTextureValueFromFilename(string filename)
         {
             if (FilenameToTexture.TryGetValue(filename, out Texture texture))
                 return (int)texture;
             return (int)Texture.AIR;
+        }
+
+        public string GetFileFromBlockType(BlockType blockType)
+        {
+            if (BlockTypeToIconFile.TryGetValue(blockType, out string filename))
+                return filename;
+            return "";
         }
 
     }

@@ -3,10 +3,10 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
+using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
-
 
 namespace Vox.Genesis
 {
@@ -14,6 +14,34 @@ namespace Vox.Genesis
     [MessagePackObject]
     public class Chunk
     {
+        [IgnoreMember]
+        private readonly ISSBOManager _ssboManager;
+
+        [IgnoreMember]
+        private readonly IRegionManager _regionManager;
+
+        //Vector4 (x, y, z, faceDir)
+        [IgnoreMember]
+        public ConcurrentDictionary<Vector4, BlockFaceInstance> SSBOdata = [];
+
+        [IgnoreMember]
+        public bool IsEmpty = true;
+
+        [IgnoreMember]
+        private static readonly object chunkLock = new();
+
+        [IgnoreMember]
+        private Vector3 location;
+
+        [IgnoreMember]
+        private static Matrix4 modelMatrix = new();
+
+        [IgnoreMember]
+        bool isGenerated = false;
+
+        [IgnoreMember]
+        public int blockFacesInChunk = 0;
+
         [Key(0)]
         public float xLoc;
  
@@ -22,44 +50,26 @@ namespace Vox.Genesis
  
         [Key(2)]
         public float yLoc;
- 
+
         [Key(3)]
-        public readonly short[,] heightMap = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+        public readonly short[,] heightMap; 
  
         [Key(4)]
         public bool IsInitialized = false;
- 
+
         [Key(5)]
-        public short [,,] blockData = new short[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
+        public short[,,] blockData; 
 
+   
 
-        //Vector4 (x, y, z, faceDir)
-        [IgnoreMember]
-        public ConcurrentDictionary<Vector4, BlockFaceInstance> SSBOdata = [];
+        public Chunk(ISSBOManager ssboManager, IRegionManager regionManager)
+        {
+            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Chunk");
+            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
 
-        //Track the visibility of each voxel in the chunk, used for rendering and mesh updates
-       // [IgnoreMember]
-       // public bool[,,] voxelVisibility = new bool[RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS, RegionManager.CHUNK_BOUNDS];
-
-        [IgnoreMember]
-        public bool IsEmpty = true;
- 
-        [IgnoreMember]
-        private static readonly object chunkLock = new();
- 
-        [IgnoreMember]
-        private Vector3 location;
-
-        [IgnoreMember]
-        private static Matrix4 modelMatrix = new();
-
-        [IgnoreMember] 
-        bool isGenerated = false;
-
-        [IgnoreMember]
-        public int blockFacesInChunk = 0;
-
-        public Chunk() { }
+            heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+        }
 
         /**
          * Initializes a chunk at a given point and populates it's heightmap using Simplex noise
@@ -88,36 +98,36 @@ namespace Vox.Genesis
                 int xCount = 0;
                 int zCount = 0;
 
-                for (int x1 = (int)x; x1 < x + RegionManager.CHUNK_BOUNDS; x1++)
+                for (int x1 = (int)x; x1 < x + _regionManager.GetChunkBounds(); x1++)
                 {
-                    for (int z1 = (int)z; z1 < z + RegionManager.CHUNK_BOUNDS; z1++)
+                    for (int z1 = (int)z; z1 < z + _regionManager.GetChunkBounds(); z1++)
                     {
-                        short elevation = RegionManager.GetGlobalHeightMapValue(x1, z1);
+                        short elevation = _regionManager.GetGlobalHeightMapValue(x1, z1);
 
 
                         heightMap[zCount, xCount] = elevation;
 
                         zCount++;
-                        if (zCount > RegionManager.CHUNK_BOUNDS - 1)
+                        if (zCount > _regionManager.GetChunkBounds() - 1)
                             zCount = 0;
 
                     }
                     xCount++;
-                    if (xCount > RegionManager.CHUNK_BOUNDS - 1)
+                    if (xCount > _regionManager.GetChunkBounds() - 1)
                         xCount = 0;
                 }
-                for (int x1 = 0; x1 < RegionManager.CHUNK_BOUNDS; x1++)
+                for (int x1 = 0; x1 < _regionManager.GetChunkBounds(); x1++)
                 {
-                    for (int z1 = 0; z1 < RegionManager.CHUNK_BOUNDS; z1++)
+                    for (int z1 = 0; z1 < _regionManager.GetChunkBounds(); z1++)
                     {
-                        for (int y1 = 0; y1 < RegionManager.CHUNK_BOUNDS; y1++)
+                        for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
                         {
                             int elevation = heightMap[z1, x1];
 
                             //Set block data to AIR and visibility to false if its not visible
                             if (y1 + yLoc <= elevation && elevation >= yLoc)
                             {
-                                blockData[x1, y1, z1] = (short)RegionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
+                                blockData[x1, y1, z1] = (short)_regionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
                             }
                             else
                             {
@@ -136,7 +146,7 @@ namespace Vox.Genesis
 
         public void GenerateRenderData()
         {
-            int bounds = RegionManager.CHUNK_BOUNDS;
+            int bounds = _regionManager.GetChunkBounds();
 
             if (!isGenerated)
             {
@@ -245,13 +255,13 @@ namespace Vox.Genesis
             unsafe
             {
                 int offset = face.index * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)Window.ssboManager.GetSSBO("Terrain").Pointer;
+                byte* basePtr = (byte*)_ssboManager!.GetSSBO(SSBO.Terrain).Pointer;
 
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
-                if (offset + instanceSize > Window.ssboManager.GetSSBO("Terrain").Size)
+                if (offset + instanceSize > _ssboManager!.GetSSBO(SSBO.Terrain).Size)
                     throw new InvalidOperationException("SSBO overflow");
 
                 *instancePtr = face;
@@ -295,7 +305,7 @@ namespace Vox.Genesis
 
         public override bool Equals(object obj)
         {
-            Vector3 chunk1 = new Vector3(xLoc, yLoc, zLoc);
+            Vector3 chunk1 = new(xLoc, yLoc, zLoc);
 
             if (obj is Chunk other)
             {
