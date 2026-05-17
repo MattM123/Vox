@@ -12,16 +12,16 @@ namespace Vox.Genesis
     public class Region
     {
         [IgnoreMember]
-        public readonly Rectangle regionBounds;
+        public Rectangle _regionBounds;
 
         [IgnoreMember]
-        private IRegionManager _regionManager;
+        private IRegionManager? _regionManager;
 
         [Key(0)]
-        public int x;
+        public int _xPos;
 
         [Key(1)]
-        public int z;
+        public int _zPos;
 
         [Key(2)]
         public bool didChange = false;
@@ -29,16 +29,27 @@ namespace Vox.Genesis
         [Key(3)]
         public Dictionary<string, Chunk> chunks = [];
 
-
-
         [SerializationConstructor]
-        public Region(IRegionManager regionManager, int x, int z) {
+        public Region() { }
+
+        public Region(IRegionManager regionManager, int xPos, int zPos)
+        {
             _regionManager = regionManager ?? throw new ShaderException(nameof(regionManager) + " is null in RegionManager");
 
-            this.x = x;
-            this.z = z;
-            regionBounds = new(x, z, RegionManager.REGION_BOUNDS, RegionManager.REGION_BOUNDS);
+            this._xPos = xPos;
+            this._zPos = zPos;
+            _regionBounds = new(xPos, zPos, _regionManager.GetRegionBounds(), _regionManager.GetRegionBounds());
+        }
 
+        /// <summary>
+        /// Re-Initializes the region with the given region manager. 
+        /// This is used when deserializing a region from file, as the region manager is not serialized with the region.
+        /// </summary>
+        /// <param name="regionManager"></param>
+        public void Initialize(IRegionManager regionManager)
+        {
+            _regionManager = regionManager ?? throw new ShaderException(nameof(regionManager) + " is null in RegionManager");
+            _regionBounds = new(_xPos, _zPos, _regionManager!.GetChunkBounds(), _regionManager.GetChunkBounds());
         }
 
         //public bool IsChunkLoaded(Vector3 chunkLocation)
@@ -64,7 +75,7 @@ namespace Vox.Genesis
 
         public Rectangle GetBounds()
         {
-            return regionBounds;
+            return _regionBounds;
         }
         public override bool Equals(object? o)
         {
@@ -73,8 +84,8 @@ namespace Vox.Genesis
 
             if (o.GetType() == typeof(Region))
             {
-                return regionBounds.X.Equals(((Region)o).regionBounds.X)
-                        && regionBounds.Y.Equals(((Region)o).regionBounds.Y);
+                return _regionBounds.X.Equals(((Region)o)._regionBounds.X)
+                        && _regionBounds.Y.Equals(((Region)o)._regionBounds.Y);
             }
             return false;
         }
@@ -83,10 +94,10 @@ namespace Vox.Genesis
         {
 
             if (chunks.Count() > 0)
-                return "(" + chunks.Count() + " Chunks) Region[" + regionBounds.X
-                        + ", " + regionBounds.Y + "]";
+                return "(" + chunks.Count() + " Chunks) Region[" + _regionBounds.X
+                        + ", " + _regionBounds.Y + "]";
            else
-                return "(Empty) Region[" + regionBounds.X + ", " + regionBounds.Y + "]";
+                return "(Empty) Region[" + _regionBounds.X + ", " + _regionBounds.Y + "]";
         }
 
         //Gets the region index given chunk coordinates

@@ -15,10 +15,10 @@ namespace Vox.Genesis
     public class Chunk
     {
         [IgnoreMember]
-        private readonly ISSBOManager _ssboManager;
+        private ISSBOManager? _ssboManager;
 
         [IgnoreMember]
-        private readonly IRegionManager _regionManager;
+        private IRegionManager? _regionManager;
 
         //Vector4 (x, y, z, faceDir)
         [IgnoreMember]
@@ -42,6 +42,12 @@ namespace Vox.Genesis
         [IgnoreMember]
         public int blockFacesInChunk = 0;
 
+        [IgnoreMember]
+        public int _chunkBounds;
+
+        [IgnoreMember]
+        public bool IsInitialized = false;
+
         [Key(0)]
         public float xLoc;
  
@@ -52,23 +58,21 @@ namespace Vox.Genesis
         public float yLoc;
 
         [Key(3)]
-        public readonly short[,] heightMap; 
- 
+        public short[,]? _heightMap;
+
         [Key(4)]
-        public bool IsInitialized = false;
+        public short[,,]? _blockData;
 
-        [Key(5)]
-        public short[,,] blockData; 
-
-   
-
+        [SerializationConstructor]
+        public Chunk() { }
         public Chunk(ISSBOManager ssboManager, IRegionManager regionManager)
         {
             _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Chunk");
             _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
+            _chunkBounds = _regionManager.GetChunkBounds();
 
-            heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
-            blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            _blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
         }
 
         /**
@@ -78,7 +82,7 @@ namespace Vox.Genesis
          * @param z coordinate of top left chunk corner
          * @return the chunk
          */
-        public Chunk Initialize(float x, float y, float z)
+        public Chunk PopulateHeightmap(float x, float y, float z)
         {
             xLoc = x;
             zLoc = z;
@@ -98,14 +102,14 @@ namespace Vox.Genesis
                 int xCount = 0;
                 int zCount = 0;
 
-                for (int x1 = (int)x; x1 < x + _regionManager.GetChunkBounds(); x1++)
+                for (int x1 = (int)x; x1 < x + _regionManager?.GetChunkBounds(); x1++)
                 {
-                    for (int z1 = (int)z; z1 < z + _regionManager.GetChunkBounds(); z1++)
+                    for (int z1 = (int)z; z1 < z + _regionManager?.GetChunkBounds(); z1++)
                     {
-                        short elevation = _regionManager.GetGlobalHeightMapValue(x1, z1);
+                        short elevation = _regionManager!.GetGlobalHeightMapValue(x1, z1);
 
 
-                        heightMap[zCount, xCount] = elevation;
+                        _heightMap![zCount, xCount] = elevation;
 
                         zCount++;
                         if (zCount > _regionManager.GetChunkBounds() - 1)
@@ -113,25 +117,25 @@ namespace Vox.Genesis
 
                     }
                     xCount++;
-                    if (xCount > _regionManager.GetChunkBounds() - 1)
+                    if (xCount > _regionManager?.GetChunkBounds() - 1)
                         xCount = 0;
                 }
-                for (int x1 = 0; x1 < _regionManager.GetChunkBounds(); x1++)
+                for (int x1 = 0; x1 < _regionManager?.GetChunkBounds(); x1++)
                 {
                     for (int z1 = 0; z1 < _regionManager.GetChunkBounds(); z1++)
                     {
                         for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
                         {
-                            int elevation = heightMap[z1, x1];
+                            int elevation = _heightMap![z1, x1];
 
                             //Set block data to AIR and visibility to false if its not visible
                             if (y1 + yLoc <= elevation && elevation >= yLoc)
                             {
-                                blockData[x1, y1, z1] = (short)_regionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
+                                _blockData![x1, y1, z1] = (short)_regionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
                             }
                             else
                             {
-                                blockData[x1, y1, z1] = 0;
+                                _blockData![x1, y1, z1] = 0;
                             }
                         }
                     }
@@ -144,9 +148,34 @@ namespace Vox.Genesis
             return this;
         }
 
+
+        /// <summary>
+        /// Re-Initializes the chunk with the given SSBO manager and region manager. 
+        /// This is used when deserializing a region from file, as the region manager and SSBO manager
+        /// is not serialized with the region.
+        /// </summary>
+        /// <param name="ssboManager"></param>
+        /// <exception cref="Exception"></exception>
+        public void Initialize(ISSBOManager ssboManager, IRegionManager regionManager, float x, float y, float z)
+        {
+            xLoc = x;
+            zLoc = z;
+            yLoc = y;
+            location = new Vector3(xLoc, yLoc, zLoc);
+
+            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Chunk");
+            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
+            _chunkBounds = _regionManager.GetChunkBounds();
+
+            _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            _blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+
+            PopulateHeightmap(x, y, z);
+
+        }
         public void GenerateRenderData()
         {
-            int bounds = _regionManager.GetChunkBounds();
+            int bounds = _chunkBounds;
 
             if (!isGenerated)
             {
@@ -157,19 +186,19 @@ namespace Vox.Genesis
                         for (int z = 0; z < bounds; z++)
                         {
                             Vector3 facePos = new(x + xLoc, y + yLoc, z + zLoc);
-                            if (blockData[x, y, z] > 0)
+                            if (_blockData![x, y, z] > 0)
                             {
-                                BlockType type = (BlockType)blockData[x, y, z];
+                                BlockType type = (BlockType)_blockData[x, y, z];
 
                                 //Positive Y (UP)
-                                if (y + 1 >= bounds || blockData[x, y + 1, z] == 0)
+                                if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
                                     BlockFace faceDir = BlockFace.UP;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                                 // Positive X (EAST)
-                                if (x + 1 >= bounds || blockData[x + 1, y, z] == 0)
+                                if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
                                     BlockFace faceDir = BlockFace.EAST;
@@ -178,7 +207,7 @@ namespace Vox.Genesis
 
 
                                 //Negative X (WEST)
-                                if (x - 1 < 0 || blockData[x - 1, y, z] == 0)
+                                if (x - 1 < 0 || _blockData[x - 1, y, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
                                     BlockFace faceDir = BlockFace.WEST;
@@ -186,7 +215,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Negative Y (DOWN)
-                                if (y - 1 < 0 || blockData[x, y - 1, z] == 0)
+                                if (y - 1 < 0 || _blockData[x, y - 1, z] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
                                     BlockFace faceDir = BlockFace.DOWN;
@@ -194,7 +223,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Positive Z (NORTH)
-                                if (z + 1 >= bounds || blockData[x, y, z + 1] == 0)
+                                if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
                                     BlockFace faceDir = BlockFace.NORTH;
@@ -202,7 +231,7 @@ namespace Vox.Genesis
                                 }
 
                                 //Negative Z (SOUTH)
-                                if (z - 1 < 0 || blockData[x, y, z - 1] == 0)
+                                if (z - 1 < 0 || _blockData[x, y, z - 1] == 0)
                                 {
                                     int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
                                     BlockFace faceDir = BlockFace.SOUTH;
@@ -286,7 +315,7 @@ namespace Vox.Genesis
 
         public short[,] GetHeightmap()
         {
-            return heightMap;
+            return _heightMap!;
         }
 
         public bool IsGenerated()

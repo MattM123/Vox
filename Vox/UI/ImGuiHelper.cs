@@ -100,6 +100,7 @@ namespace Vox.UI
 
 
                                 Window.SetMenuRendered(false);
+                                _regionManager?.ClearVisibleRegions();
                                 _regionManager?.SetWorldDir(folder);
                             }
                             ImGui.SameLine();
@@ -182,21 +183,14 @@ namespace Vox.UI
             ImGui.Text($"Rotation: X:{_player.GetRotation().X}, Y:{_player.GetRotation().Y}");
             ImGui.Text("IsGrounded: " + _player.IsPlayerGrounded());
 
-            BlockFace f = BlockFace.ALL;
-            OpenTK.Mathematics.Vector3 block = _player.UpdateViewTarget(out f, out _, out OpenTK.Mathematics.Vector3 blockSpace);
-            Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(block);
-            OpenTK.Mathematics.Vector3i idx = _regionManager.GetChunkRelativeCoordinates(block);
-            BlockType type = (BlockType) blockChunk.blockData[idx.X, idx.Y, idx.Z];
-            ImGui.Text($"Looking At: {blockSpace} ({type})");
-            ImGui.Text("");
-
             ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
             ImGui.Text("World");
             ImGui.PopStyleColor();
 
-            ImGui.Text("Region: " + _player.GetRegionWithPlayer().ToString());
+            string playerRegioIdx = _regionManager.GetRegionIndex((int) _player.GetPosition().X % _regionManager.GetChunkBounds(), (int) _player.GetPosition().Z % _regionManager.GetChunkBounds());
+            ImGui.Text("Region: " + _regionManager.TryGetRegionFromFile(playerRegioIdx));
             ImGui.Text(_player.GetChunkWithPlayer().ToString());
-            ImGui.Text("Chunks Surrounding Player: " + _chunkCache.UpdateChunkCache().Count);
+            ImGui.Text("Chunks Surrounding Player: " + _chunkCache!.UpdateChunkCache().Count);
 
             ImGui.Text("");
             ImGui.Text("Chunks In Memory: " + _regionManager.PollChunkMemory());

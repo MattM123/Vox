@@ -90,11 +90,11 @@ namespace Vox.Genesis
             //Look for region in loaded regions
             _regionManager.GetVisibleRegions().TryGetValue(regionIdx, out Region? chunkRegion);
 
-            //if region is still null, try get from file system
+            //if region is still null, try to get from file
             if (chunkRegion == null)
             {
                 chunkRegion = _regionManager.TryGetRegionFromFile(regionIdx);
-                _regionManager.EnterRegion(regionIdx); //cache region in memory for future additions to chunk list
+                _regionManager.EnterRegion(chunkRegion); //cache region in memory for future additions to chunk list
             }
 
             lock (chunkLock)

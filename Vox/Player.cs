@@ -130,7 +130,7 @@ namespace Vox
                 //If the ray steps into an air block, continue to the next step iteration
                 Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
                 Vector3 blockDataIndex = _regionManager.GetChunkRelativeCoordinates(target);
-                if (actionChunk.blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
+                if (actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
                     previousBlock = target;
                     blockSpace = target;
                     continue;

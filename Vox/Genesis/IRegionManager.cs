@@ -27,5 +27,8 @@ namespace Vox.Genesis
         void PropagateBlockLight(Vector3 location, BlockFace faceDir, bool depropagate, bool colorOverride);
         Vector3i GetChunkRelativeCoordinates(Vector3 v);
         Region GetGlobalRegionFromChunkCoords(int x, int z);
+        int GetRegionBounds();
+        Region EnterRegion(Region region);
+        void ClearVisibleRegions();
     }
 }

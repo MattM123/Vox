@@ -76,8 +76,8 @@ namespace Vox
         public static readonly ShaderManager _shaderManager = new();
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
         private static float angle = 0.0f;
-        private static Chunk? globalPlayerChunk = null;
-        private static Region? globalPlayerRegion = null;
+        private static Chunk? _globalPlayerChunk = null;
+        private static Region? _globalPlayerRegion = null;
         private static Matrix4 modelMatricRotate;
         private static Matrix4 viewMatrix;
 
@@ -653,7 +653,7 @@ namespace Vox
             Vector3i idx = _regionManager.GetChunkRelativeCoordinates(target);
 
             //If its a lamp block, display the color picker when the key is pressed to display it
-            if (current[Keys.C] && (BlockType)actionChunk.blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+            if (current[Keys.C] && (BlockType)actionChunk._blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
             {
                 if (!_imguiHelper!.ShowBlockColorPicker())
                 {
@@ -740,7 +740,7 @@ namespace Vox
             }
             else
             {
-                //  _imguiHelper!.ShowDebugMenu(ioptr);
+                  _imguiHelper!.ShowDebugMenu(ioptr);
             }
 
             //Color Picker
@@ -892,28 +892,29 @@ namespace Vox
             =====================================*/
 
             //playerChunk will be null when world first loads
-            if (globalPlayerChunk == null)
+            if (_globalPlayerChunk == null)
             {
-                globalPlayerChunk = _regionManager.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,//+ _regionManager.GetChunkBounds(),
+                _globalPlayerChunk = _regionManager.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,//+ _regionManager.GetChunkBounds(),
                      (int) _player!.GetChunkWithPlayer().GetLocation().Y, (int) _player.GetChunkWithPlayer().GetLocation().Z);
                 _player.SetPosition(new(_player.GetPosition().X, _player.GetPosition().Y + 10, _player.GetPosition().Z));
             }
 
             //Updates the chunks to render when the player has moved into a new chunk
+            _chunkCache.SetPlayerChunk(_globalPlayerChunk);
             Dictionary<string, Chunk> chunksToRender = _chunkCache!.UpdateChunkCache();
 
 
-            if (!_player!.GetChunkWithPlayer().Equals(globalPlayerChunk))
+            if (!_player!.GetChunkWithPlayer().Equals(_globalPlayerChunk))
             {
                 _chunkCache.UpdateVisibleRegions();
-                globalPlayerChunk = _player.GetChunkWithPlayer();
-                _chunkCache.SetPlayerChunk(globalPlayerChunk);
+                _globalPlayerChunk = _player.GetChunkWithPlayer();
+                _chunkCache.SetPlayerChunk(_globalPlayerChunk);
 
                 chunksToRender = _chunkCache.UpdateChunkCache();       
 
                 //Updates the regions when player moves into different region
-                if (!_player.GetRegionWithPlayer().Equals(globalPlayerRegion))
-                    globalPlayerRegion = _player.GetRegionWithPlayer();
+                if (!_player.GetRegionWithPlayer().Equals(_globalPlayerRegion))
+                    _globalPlayerRegion = _player.GetRegionWithPlayer();
             }
             //=========================================================================
 
