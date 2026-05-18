@@ -167,11 +167,6 @@ namespace Vox.Genesis
             _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
             _chunkBounds = _regionManager.GetChunkBounds();
 
-            _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
-            _blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
-
-            PopulateHeightmap(x, y, z);
-
         }
         public void GenerateRenderData()
         {

@@ -230,7 +230,7 @@ namespace Vox.Genesis
          */
         public void LeaveRegion(string rIndex)
         {
-            Logger.Info($"Leaving {VisibleRegions[rIndex]}");
+            Logger.Info($"Leaving {VisibleRegions[rIndex]}", ConsoleColor.Blue);
             WriteRegion(rIndex);
             VisibleRegions.Remove(rIndex);
 

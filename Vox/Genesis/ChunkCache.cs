@@ -156,7 +156,6 @@ namespace Vox.Genesis
                 {
                     if (!updatedRegions.ContainsKey(_regionManager.GetVisibleRegions().Keys.ElementAt(i)))
                     {
-                        Console.WriteLine($"Unloaded Region: {_regionManager.GetVisibleRegions().Keys.ElementAt(i)}");
                         _regionManager.LeaveRegion(_regionManager.GetVisibleRegions().Keys.ElementAt(i));
                     }
                 }
