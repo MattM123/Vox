@@ -101,10 +101,9 @@ namespace Vox.Genesis
         }
 
         //Gets the region index given chunk coordinates
-        public string GetRegionIndex(int chunkX, int chunkZ)
+        public string GetRegionIndex()
         {
-            Rectangle bounds = _regionManager.GetGlobalRegionFromChunkCoords(chunkX, chunkZ).GetBounds();
-            return $"{bounds.X}|{bounds.Y}";
+            return $"{_regionBounds.X}|{_regionBounds.Y}";
         }
 
         public override int GetHashCode()

@@ -24,11 +24,12 @@ namespace Vox
             Console.WriteLine("[ERROR] " + e);
             Console.ResetColor();
         }
-        public static void Error(Exception e, string location)
+        public static void Error(Exception e, string location, ConsoleColor color = ConsoleColor.White)
         {
-              
+            Console.ForegroundColor = color;
             Console.WriteLine("[ERROR] " + DateTime.Now + " :: " + e.GetType() + " :: " + e.Message + " :: " + location);
             Console.WriteLine(e.StackTrace);
+            Console.ResetColor();
         }
         public static void Warn(string message)
         {

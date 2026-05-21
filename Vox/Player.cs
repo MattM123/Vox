@@ -555,7 +555,7 @@ namespace Vox
 
             string playerChunkIdx = $"{Math.Floor(position.X / _regionManager!.GetChunkBounds()) * _regionManager.GetChunkBounds()}|{Math.Floor(position.Y / _regionManager.GetChunkBounds()) * _regionManager.GetChunkBounds()}|{Math.Floor(position.Z / _regionManager.GetChunkBounds()) * _regionManager.GetChunkBounds()}";
             int[] index = playerChunkIdx.Split('|').Select(int.Parse).ToArray();
-            string playerRegionIdx = _regionManager.GetRegionIndex(index[0], index[2]);
+            string playerRegionIdx = _regionManager.GetRegionIndexFromChunkCoords(index[0], index[2]);
             return _regionManager.TryGetRegionFromFile(playerRegionIdx);
         }
 

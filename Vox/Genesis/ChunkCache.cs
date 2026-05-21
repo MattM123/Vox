@@ -85,7 +85,7 @@ namespace Vox.Genesis
         private void CacheHelper(int x, int y, int z)
         {
 
-            string regionIdx = _regionManager.GetRegionIndex(x, z);
+            string regionIdx = _regionManager.GetRegionIndexFromChunkCoords(x, z);
 
             //Look for region in loaded regions
             _regionManager.GetVisibleRegions().TryGetValue(regionIdx, out Region? chunkRegion);
@@ -107,8 +107,8 @@ namespace Vox.Genesis
                 if (!chunks.ContainsKey($"{x}|{y}|{z}"))
                     chunks.Add($"{x}|{y}|{z}", c);
             }
-            if (!regions.ContainsKey(_regionManager.GetRegionIndex(x, z))) 
-                regions.Add(_regionManager.GetRegionIndex(x, z), chunkRegion);
+            if (!regions.ContainsKey(_regionManager.GetRegionIndexFromChunkCoords(x, z))) 
+                regions.Add(_regionManager.GetRegionIndexFromChunkCoords(x, z), chunkRegion);
         }
 
         /**

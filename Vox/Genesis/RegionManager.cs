@@ -1,12 +1,6 @@
 ﻿using System.Collections.Concurrent;
-using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 using System.Drawing;
-using System.Drawing.Printing;
-using System.Reflection;
-using System.Reflection.Metadata;
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Assets.Models;
@@ -20,19 +14,18 @@ namespace Vox.Genesis
     public class RegionManager : IRegionManager
     {
         private Dictionary<string, Region> VisibleRegions = [];
-        private readonly List<Region> _regions = [];
-        private static List<Vector3> visited = [];
+        private readonly List<Vector3> visited = [];
 
         private readonly ISSBOManager _ssboManager;
         private readonly ILightHelper _lightHelper;
 
-        private static string worldDir = "";
-        public static readonly int WORLD_HEIGHT = 500;
-        private static int RENDER_DISTANCE = 3;
-        public static readonly int REGION_BOUNDS = 512;
+        private string worldDir = "";
+        private readonly int WORLD_HEIGHT = 500;
+        private readonly int RENDER_DISTANCE = 3;
+        public readonly int REGION_BOUNDS = 512;
         private readonly int CHUNK_BOUNDS = 32;
-        public static long WORLD_SEED;
-        private static object chunkLock = new();
+        private readonly long WORLD_SEED;
+        private readonly object chunkLock = new();
 
         private readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue;
         /**
@@ -41,8 +34,15 @@ namespace Vox.Genesis
          * the players render distance. This region list is constantly updated each
          * frame and is used for reading regions from file and writing regions to file.
          *
-         * @param path The path of this worlds directory
+         * @param path The file path of this worlds directory
          */
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="RegionManager"/> class.
+        /// </summary>
+        /// <param name="path">The file path of this world's directory.</param>
+        /// <param name="ssboManager">The SSBO manager.</param>
+        /// <param name="lightHelper">The light helper.</param>
         public RegionManager(string path, ISSBOManager ssboManager, ILightHelper lightHelper)
         {
             _lightHelper = lightHelper ?? throw new ShaderException(nameof(lightHelper) + " is null in RegionManager");
@@ -56,26 +56,60 @@ namespace Vox.Genesis
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
             WORLD_SEED = BitConverter.ToInt64(buffer, 0);
 
-            SetWorldDir(path);
+            SetRegionDir(path);
         }
 
-        public void SetWorldDir(string path)
+        /// <summary>
+        /// Sets the directory path used to store region data for the world.
+        /// </summary>
+        /// <remarks>If the specified directory does not exist, it is created along with a 'regions'
+        /// subdirectory. Any errors encountered during directory creation are logged.</remarks>
+        /// <param name="path">The file system path to the directory where region data will be stored. Cannot be null or empty.</param>
+        public void SetRegionDir(string path)
         {
-            worldDir = path;
-            if (Directory.Exists(path))
+            try
+            {
+                worldDir = path;
                 Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
+            } catch (Exception ex)
+            {
+                Logger.Error(ex, "RegionManager");
+            }
+            
         }
+
+        /// <summary>
+        /// Removes all regions from the collection of visible regions.
+        /// </summary>
         public void ClearVisibleRegions()
         {
             VisibleRegions.Clear();
         }
+
+        /// <summary>
+        /// Gets the fixed height of the world in blocks.
+        /// </summary>
+        /// <returns>The height of the world as an integer value.</returns>
         public int GetWorldHeight() { return WORLD_HEIGHT; }
+
+        /// <summary>
+        /// Gets the size of one side of the cubic chunk. 
+        /// This value defines the length, width, and height of a chunk in blocks.
+        /// </summary>
+        /// <returns>An integer representing the size of the chunk.</returns>
         public int GetChunkBounds() { return CHUNK_BOUNDS; }
         private void EnqueueEmissiveLightNode(LightNode node)
         {
             BFSEmissivePropagationQueue.Enqueue(node);
         }
 
+        /// <summary>
+        /// Removes and returns the next emissive light node from the propagation queue.
+        /// </summary>
+        /// <remarks>If the queue is empty, the returned light node will have default values. Callers
+        /// should check the returned node to determine if a valid node was dequeued.</remarks>
+        /// <returns>The next available emissive light node if the queue is not empty; otherwise, a default-initialized light
+        /// node.</returns>
         private LightNode DequeueEmissiveLightNode()
         {
             if (BFSEmissivePropagationQueue.TryDequeue(out LightNode node))
@@ -84,12 +118,15 @@ namespace Vox.Genesis
                 return new LightNode("", null);
         }
 
-        /**
-        * Retrieves the Y value for any given x,z column in any chunk
-        * @param x coordinate of column
-        * @param z coordinate of column
-        * @return Returns the noise value which is scaled between 0 and CHUNK_HEIGHT
-        */
+        /// <summary>
+        /// Calculates the global height map value at the specified coordinates using procedural noise generation.
+        /// </summary>
+        /// <remarks>The returned height is determined by combining multiple octaves of noise, resulting
+        /// in varied terrain features.</remarks>
+        /// <param name="x">The X-coordinate to get the height map value for.</param>
+        /// <param name="z">The Z-coordinate to get the height map value for</param>
+        /// <returns>A <see cref="short"/> representing the normalized terrain height at the specified coordinates. The value ranges
+        /// from 0 to the maximum world height.</returns>
         public short GetGlobalHeightMapValue(int x, int z)
         {
             long seed;
@@ -110,17 +147,21 @@ namespace Vox.Genesis
                     + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
                     + (float)(0.25 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
 
-            //Normalized teh noise value
+            //Normalized the noise value and scale between 0 and WORLD_HEIGHT
             float noise = (f * 0.5f) + 0.5f;
-
             return (short)(noise * WORLD_HEIGHT);
 
         }
 
-        /**
-         * Given a 3D point in world space, convert to chunk relative coordinates within
-         * the range of the chunks bounds.
-         **/
+        /// <summary>
+        /// Given a 3D point in world space, convert to chunk relative coordinates within
+        /// the range of the chunks bounds.
+        /// </summary>
+        /// <remarks>Use this method to determine the local position of a point within a chunk, given its
+        /// world coordinates.</remarks>
+        /// <param name="v">The world-space coordinates to convert to chunk-relative coordinates.</param>
+        /// <returns>A <see cref="Vector3i"/> representing the position of the point relative to the origin of its chunk. Each component is in
+        /// the range [0, CHUNK_BOUNDS].</returns>
         public Vector3i GetChunkRelativeCoordinates(Vector3 v)
         {
             return new Vector3i(
@@ -130,14 +171,17 @@ namespace Vox.Genesis
             );
         }
 
-        /**
-        * Given an x, y, and z value for a blocks location, generates the blocks type using
-        * Simplex noise.
-        * @param x coordinate of block
-        * @param y coordinate of block
-        * @param z coordinate of block
-        * @return Returns the noise value which is an enum BlockType scaled between 0 and the number of block types.
-        */
+        /// <summary>
+        /// Determines the global block type at the specified world coordinates using Simplex noise.
+        /// </summary>
+        /// <remarks>The block type is selected based on a noise function seeded by either the current
+        /// menu seed or the world seed, depending on the application state. The result is clamped to exclude non-block
+        /// types. This method will return consistent results
+        /// for the same coordinates and seed.</remarks>
+        /// <param name="x">The X coordinate in world space</param>
+        /// <param name="y">The Y coordinate in world space</param>
+        /// <param name="z">The Z coordinate in world space</param>
+        /// <returns>A <see cref="BlockType"/> enumeration representing the block type at the given coordinates.</returns>
         public BlockType GetGlobalBlockType(int x, int y, int z)
         {
             long seed;
@@ -171,47 +215,14 @@ namespace Vox.Genesis
             return (BlockType)index;
 
         }
-        private BlockType GetGlobalBlockType(Vector3 blockSpace)
-        {
-            int x = (int)blockSpace.X;
-            int y = (int)blockSpace.Y;
-            int z = (int)blockSpace.Z;
 
-            long seed;
-            if (Window.IsMenuRendered())
-                seed = Window.GetMenuSeed();
-            else
-                seed = WORLD_SEED;
 
-            //Generate noise and normalize to 0-1 from -1-1
-            float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
 
-            //how many different types of blocks are there?
-            int blocktypes = Enum.GetValues(typeof(BlockType)).Length;
-
-            // Multiply normalized noise to get an index
-            int index = (int)(noise * blocktypes);
-
-            // Clamp to exlude "non-blocks"
-            index = Math.Clamp(index, 1, blocktypes - 4);
-
-            //Manually define ranges for certain block types like this:
-            //if (noise < 0.3f)
-            //    return BlockType.GRASS_BLOCK;
-            //else if (noise < 0.6f)
-            //    return BlockType.DIRT_BLOCK;
-            //    return BlockType.DIRT_BLOCK;
-            //else
-            //    return BlockType.STONE_BLOCK;
-
-            // Convert index to BlockType
-            return (BlockType)index;
-
-        }
-        /**
-         * Gets the current memory usage for the visibile chunks 
-         * surrounding the player withinin render distance
-         */
+        /// <summary>
+        /// Calculates the total number of chunks currently present in all visible regions.
+        /// </summary>
+        /// <returns>The total count of chunks across all visible regions. Returns 0 if no regions are visible or if all regions
+        /// contain no chunks.</returns>
         public int PollChunkMemory()
         {
             int count = 0;
@@ -220,33 +231,42 @@ namespace Vox.Genesis
             return count;
         }
 
+
+        /// <summary>
+        /// Gets the current render distance setting. Represents how many chunks are 
+        /// rendered in each cardinal direction from the player's current position.
+        /// </summary>
+        /// <returns>The render distance value.</returns>
         public int GetRenderDistance() { return RENDER_DISTANCE; }
-        /**
-         * Removes a region from the visible regions once a player leaves a region and
-         * their render distance no longer overlaps it. Writes region to file in the process
-         * effectively saving the regions state for future use.
-         *
-         * @param r The region to leave
-         */
+
+
+        /// <summary>
+        /// Removes the specified region from the collection of visible regions and updates the display accordingly.
+        /// </summary>
+        /// <remarks>If the specified region does not exist in the collection, no action is taken. This
+        /// method also logs the region removal and updates the display to reflect the change.</remarks>
+        /// <param name="rIndex">The key of the region to remove from the visible regions collection. Cannot be null.</param>
         public void LeaveRegion(string rIndex)
         {
             Logger.Info($"Leaving {VisibleRegions[rIndex]}", ConsoleColor.Blue);
             WriteRegion(rIndex);
             VisibleRegions.Remove(rIndex);
-
         }
 
-        /**
-         * Generates or loads an already generated region from filesystem when the players
-         * render distance intersects with the regions bounds.
-         */
+
+        /// <summary>
+        /// Retrieves a region by its identifier, attempting to load it from the file system if it is not already visible.
+        /// </summary>
+        /// <param name="rIndex">The unique identifier of the region to retrieve. Cannot be null.</param>
+        /// <returns>The region associated with the specified identifier. If the region is not already visible, it is loaded and
+        /// added to the visible regions.</returns>
         public Region EnterRegion(string rIndex)
         {
             //If region is already visible
             if (VisibleRegions.TryGetValue(rIndex, out Region? value))
                 return value;
 
-            //Gets region from files if it's written to file but not visible
+            //Gets region from filesystem if it's not visible
             Region region = TryGetRegionFromFile(rIndex);
 
             if (!VisibleRegions.TryGetValue(rIndex, out _))
@@ -256,25 +276,40 @@ namespace Vox.Genesis
 
         }
 
-        public Region EnterRegion(Region region)
+
+
+        /// <summary>
+        /// Adds the specified region to the collection of visible regions if it is not already present and returns the
+        /// region.
+        /// </summary>
+        /// <remarks>If the specified region is not already tracked as visible, it is added to the
+        /// collection. The region is identified by its bounds' X and Y coordinates.</remarks>
+        /// <param name="region">The region to enter. Cannot be null.</param>
+        /// <returns>The region that was entered. If the region is already present, returns the existing region; otherwise,
+        /// returns the newly added region.</returns>
+        public void EnterRegion(Region region)
         {
             string regionIdx = $"{region.GetBounds().X}|{region.GetBounds().Y}";
 
+            //Null and ungenerated regions are initlialized if necessary 
             if (region == null)
-                return EnterRegion(regionIdx);
+                EnterRegion(regionIdx);
 
             else
             {
                 if (!VisibleRegions.TryGetValue(regionIdx, out _))
                     VisibleRegions.Add(regionIdx, region);
-               
-                return region;
             }
         }
 
-        /**
-         * Write new or existing region to file
-         */
+
+        /// <summary>
+        /// Serializes the specified visible region and writes it to a file in the region data directory.
+        /// </summary>
+        /// <remarks>The region is serialized using MessagePack and saved to a file named according to the
+        /// region's bounds. If a file with the same name already exists, it will be overwritten.</remarks>
+        /// <param name="rIndex">The key identifying the region to write. Must correspond to an existing entry in the visible regions
+        /// collection.</param>
         private void WriteRegion(string rIndex)
         {
             Region r = VisibleRegions[rIndex];
@@ -286,13 +321,25 @@ namespace Vox.Genesis
             File.WriteAllBytes(path, serializedRegion);
         }
 
+        /// <summary>
+        /// Gets the constant value representing the region bounds. 
+        /// This value defines the length and width of the 2D region in blocks.
+        /// </summary>
+        /// <returns>An integer value that specifies the region bounds.</returns>
         public int GetRegionBounds()
         {
             return REGION_BOUNDS;
         }
-        /**
-         * Read existing region from file
-         */
+
+        /// <summary>
+        /// Reads and deserializes a region from the specified file path.
+        /// </summary>
+        /// <remarks>After deserialization, the region and its chunks are initialized in preparation for loading and generating.
+        /// The caller is responsible for ensuring the file at the specified path exists and contains
+        /// valid region data.</remarks>
+        /// <param name="path">The path to the file containing the serialized region data. Cannot be null or empty.</param>
+        /// <returns>A <see cref="Region"/> object representing the deserialized region, or <see langword="null"/> if the
+        /// operation fails.</returns>
         private Region? ReadRegion(string path)
         {
             byte[] serializedData = File.ReadAllBytes(path);
@@ -310,10 +357,15 @@ namespace Vox.Genesis
 
         }
 
-        /**
-         * Attempts to get a region from file.
-         * Returns an empty region to write later if it theres no file to read.
-         */
+
+
+        /// <summary>
+        /// Retrieves an existing region from memory or disk, or creates a new region if none exists for the specified
+        /// index.
+        /// </summary>
+        /// <param name="rIndex">The regions index</param>
+        /// <returns>A Region instance corresponding to the supplied index. Returns a new Region if no existing region is found
+        /// in memory or on disk.</returns>
         public Region TryGetRegionFromFile(string rIndex)
         {
             int[] index = [.. rIndex.Split('|').Select(int.Parse)];
@@ -343,35 +395,15 @@ namespace Vox.Genesis
             }
         }
 
-        /**
-         * Get new empty region given any x,z coordinate pair.
-         */
-        public Region GetGlobalRegionFromChunkCoords(int x, int z)
-        {
-            Region returnRegion = null;
-
-            int xLowerLimit = ((x / REGION_BOUNDS) * REGION_BOUNDS);
-            int xUpperLimit;
-            if (x < 0)
-                xUpperLimit = xLowerLimit - REGION_BOUNDS;
-            else
-                xUpperLimit = xLowerLimit + REGION_BOUNDS;
-
-
-            int zLowerLimit = ((z / REGION_BOUNDS) * REGION_BOUNDS);
-            int zUpperLimit;
-            if (z < 0)
-                zUpperLimit = zLowerLimit - REGION_BOUNDS;
-            else
-                zUpperLimit = zLowerLimit + REGION_BOUNDS;
-
-            //new empty region used for coordinate comparisons
-            return new Region(this, xUpperLimit, zUpperLimit);
-        }
-
-        /**
-         * Get any chunk given a x,y,z coordinate trio and load it into memory
-         */
+        /// <summary>
+        /// Gets the chunk at the specified global coordinates, loading or generating it if necessary.
+        /// </summary>
+        /// <remarks>If the chunk at the specified coordinates has not been generated, this method creates
+        /// and loads it before returning. The method is thread-safe when adding new chunks to a region.</remarks>
+        /// <param name="x">The global X coordinate of the chunk to retrieve.</param>
+        /// <param name="y">The global Y coordinate of the chunk to retrieve.</param>
+        /// <param name="z">The global Z coordinate of the chunk to retrieve.</param>
+        /// <returns>The <see cref="Chunk"/> located at the specified global coordinates.</returns>
         public Chunk GetAndLoadGlobalChunkFromCoords(int x, int y, int z)
         {
 
@@ -381,7 +413,7 @@ namespace Vox.Genesis
                 $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
 
             int[] chunkIdxArray = [.. playerChunkIdx.Split('|').Select(int.Parse)];
-            string playerRegionIdx = GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
+            string playerRegionIdx = GetRegionIndexFromChunkCoords(chunkIdxArray[0], chunkIdxArray[2]);
             Region r = EnterRegion(playerRegionIdx);
 
             //If chunk has not yet been generated, generate it
@@ -413,7 +445,7 @@ namespace Vox.Genesis
 
             int[] chunkIdxArray = chunkIdx.Split('|').Select(int.Parse).ToArray();
 
-            string regionIdx = GetRegionIndex(chunkIdxArray[0], chunkIdxArray[2]);
+            string regionIdx = GetRegionIndexFromChunkCoords(chunkIdxArray[0], chunkIdxArray[2]);
             Region r = EnterRegion(regionIdx);
 
             if (!r.chunks.TryGetValue(chunkIdx, out Chunk? value))
@@ -424,16 +456,50 @@ namespace Vox.Genesis
             return value;
         }
 
-        public string GetRegionIndex(int chunkX, int chunkZ)
+        /// <summary>
+        /// Calculates the region index string corresponding to the specified chunk coordinates.
+        /// </summary>
+        /// <remarks>The region index is determined by grouping chunks into regions of a fixed size
+        /// defined by REGION_BOUNDS. Negative chunk coordinates are handled such that regions extend correctly into
+        /// negative space.</remarks>
+        /// <param name="chunkX">The X coordinate of the chunk.</param>
+        /// <param name="chunkZ">The Z coordinate of the chunk.</param>
+        /// <returns>A <see cref="string"/> representing the region index in the format "x|z", where x and z are the world coordinates of the region
+        /// containing the provided chunk.</returns>
+        public string GetRegionIndexFromChunkCoords(int chunkX, int chunkZ)
         {
-            Rectangle bounds = GetGlobalRegionFromChunkCoords(chunkX, chunkZ).GetBounds();
-            return $"{bounds.X}|{bounds.Y}";
+            int xLowerLimit = ((chunkX / REGION_BOUNDS) * REGION_BOUNDS);
+            int xUpperLimit;
+            if (chunkX < 0)
+                xUpperLimit = xLowerLimit - REGION_BOUNDS;
+            else
+                xUpperLimit = xLowerLimit + REGION_BOUNDS;
+
+
+            int zLowerLimit = ((chunkZ / REGION_BOUNDS) * REGION_BOUNDS);
+            int zUpperLimit;
+            if (chunkZ < 0)
+                zUpperLimit = zLowerLimit - REGION_BOUNDS;
+            else
+                zUpperLimit = zLowerLimit + REGION_BOUNDS;
+
+            return $"{xUpperLimit}|{zUpperLimit}";
         }
 
-        /**
-         * Given an x,y,z coordinate trio representing a block location,
-         * get the chunk that block is supposed to be in and add it to the chunk
-         */
+
+        /// <summary>
+        /// Adds a block of the specified type to the chunk at the given world-space coordinates and updates the corresponding chunk's
+        /// rendering and lighting data as needed.
+        /// </summary>
+        /// <remarks>If the block type is emissive, lighting data is updated and propagated
+        /// asynchronously. Only the visible faces of the block are added to the chunk's rendering data, based on the
+        /// presence of neighboring blocks. This method may trigger updates to lighting and rendering in adjacent chunks
+        /// if the block is placed at a chunk boundary.</remarks>
+        /// <param name="blockSpace">The world-space coordinates where the block will be added. Specifies the position within the global block
+        /// grid.</param>
+        /// <param name="type">The type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
+        /// <param name="blockLight">The light color and intensity to assign to the block if it is emissive. Used for blocks that emit light,
+        /// such as lamps.</param>
         public void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight)
         {
 
@@ -536,10 +602,21 @@ namespace Vox.Genesis
             }
         }
 
-        /**
-         * Given an x,y,z coordinate trio representing a block location,
-         * get the chunk that block is supposed to be in and add it to the chunk
-         */
+
+        /// <summary>
+        /// Adds a block of the specified type to the chunk at the given world-space coordinates and updates the corresponding chunk's
+        /// rendering and lighting data as needed.
+        /// </summary>
+        /// <remarks>If the block type is emissive, lighting data is updated and propagated
+        /// asynchronously. Only the visible faces of the block are added to the chunk's rendering data, based on the
+        /// presence of neighboring blocks. This method may trigger updates to lighting and rendering in adjacent chunks
+        /// if the block is placed at a chunk boundary.</remarks>
+        /// <param name="blockSpace">The world-space coordinates where the block will be added. Specifies the position within the global block
+        /// grid.</param>
+        /// <param name="type">The type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
+        /// <param name="blockLight">The light color and intensity to assign to the block if it is emissive. Used for blocks that emit light,
+        /// such as lamps.</param>
+        /// <param name="colorOverride">Indicates whether to override the block's current light color with the specified blockLight color.</param>
         public void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight, bool colorOverride)
         {
 
@@ -640,11 +717,14 @@ namespace Vox.Genesis
             }
         }
 
-        /**
-         * Given an x,y,z coordinate trio representing a block location,
-         * get the chunk that block is supposed to be in and remove the block
-         * if it is there
-         */
+
+        /// <summary>
+        /// Removes the provided block from its chunk, 
+        /// updating the chunk's block data and rendering information accordingly. 
+        /// If the removed block is emissive, this method also updates and propagates 
+        /// lighting changes to adjacent blocks and chunks as needed.
+        /// </summary>
+        /// <param name="blockSpace">The block space.</param>
         public void RemoveBlockFromChunk(Vector3 blockSpace)
         {
             //The chunk that is added to
@@ -820,12 +900,10 @@ namespace Vox.Genesis
             }
         }
 
-        private BlockType GetBlocktypeFromLocation(Vector3 location)
-        {
-            Chunk chunk = GetAndLoadGlobalChunkFromCoords(location);
-            Vector3i idx = GetChunkRelativeCoordinates(location);
-            return (BlockType)chunk._blockData[idx.X, idx.Y, idx.Z];
-        }
+        /// <summary>
+        /// Gets the dictionary of regions loaded into memory.
+        /// </summary>
+        /// <returns>A dictionary containing the visible regions.</returns>
         public Dictionary<string, Region> GetVisibleRegions()
         {
             return VisibleRegions;
@@ -833,6 +911,45 @@ namespace Vox.Genesis
         //================================================================================================
         //============================= Light Propagation and Depropagation ==============================
         //================================================================================================
+        // Light depropagation does not currently work with multiple light sources in range of eachother. Need to fix
+
+        /// <summary>
+        /// Propagates or removes emissive block lighting from a starting location using a breadth-first search (BFS) traversal.
+        /// Gathers nearby tracked light sources within the configured spread radius and updates affected blocks accordingly.
+        /// </summary>
+        /// <param name="location">
+        /// The world-space position of the block where light propagation or depropagation begins.
+        /// </param>
+        /// <param name="faceDir">
+        /// The block face direction used when reading and applying light values.
+        /// </param>
+        /// <param name="depropagate">
+        /// If <see langword="false"/>, propagates light outward from the source block.
+        /// If <see langword="true"/>, removes previously propagated light values.
+        /// </param>
+        /// <param name="colorOverride">
+        /// Determines whether existing light color values should be overridden during propagation updates.
+        /// </param>
+        /// <remarks>
+        /// This method:
+        /// <list type="bullet">
+        /// <item>
+        /// Collects nearby tracked emissive light sources that fall within the maximum light spread radius.
+        /// </item>
+        /// <item>
+        /// Uses a BFS queue to process light updates incrementally.
+        /// </item>
+        /// <item>
+        /// Executes propagation when the origin block contains light.
+        /// </item>
+        /// <item>
+        /// Executes depropagation to remove light influence from affected nodes.
+        /// </item>
+        /// <item>
+        /// Clears the visited node cache after processing completes.
+        /// </item>
+        /// </list>
+        /// </remarks>
         public void PropagateBlockLight(Vector3 location, BlockFace faceDir, bool depropagate, bool colorOverride)
         {
             int x = (int)location.X;
@@ -885,14 +1002,50 @@ namespace Vox.Genesis
             }
             visited.Clear();
         }
-        /**
-        * Propagates light using Breadth First Search.
-        *
-        * @Param faceDir The block face to apply the light to
-        * @Param node The current light node being processed
-        * @Param colorOverride Whether to combine the color with the existing light or override it
-        * 
-       */
+
+
+
+        /// <summary>
+        /// Processes a single light node during emissive light propagation by evaluating all six adjacent block positions
+        /// and attempting to spread light into neighboring blocks.
+        /// Handles chunk transitions automatically when propagation crosses chunk boundaries.
+        /// </summary>
+        /// <param name="lightingArea">
+        /// Collection of tracked light sources and their color values that may influence propagation results.
+        /// </param>
+        /// <param name="sourceLocation">
+        /// The original world-space position where the propagation operation began.
+        /// </param>
+        /// <param name="faceDir">
+        /// The block face direction used when reading and applying light values.
+        /// </param>
+        /// <param name="node">
+        /// The current light node being processed by the BFS propagation queue.
+        /// Contains the block index and owning chunk.
+        /// </param>
+        /// <param name="depropagate">
+        /// Indicates whether the operation is removing light instead of spreading it.
+        /// </param>
+        /// <param name="colorOverride">
+        /// Determines whether propagated light values should replace existing color information.
+        /// </param>
+        /// <remarks>
+        /// This method:
+        /// <list type="bullet">
+        /// <item>
+        /// Retrieves the current block's light level.
+        /// </item>
+        /// <item>
+        /// Evaluates neighboring blocks in all six cardinal directions (±X, ±Y, ±Z).
+        /// </item>
+        /// <item>
+        /// Detects and loads adjacent chunks when propagation crosses chunk boundaries.
+        /// </item>
+        /// <item>
+        /// Delegates neighbor processing and light application logic to <c>PropagateLightNodeHelper</c>.
+        /// </item>
+        /// </list>
+        /// </remarks>
         private void PropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
         {
             Chunk chunk = node.Chunk;
@@ -981,6 +1134,18 @@ namespace Vox.Genesis
             PropagateLightNodeHelper(lightingArea, loc6, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
         }
 
+
+        /// <summary>
+        /// Work in progress - Helper method for processing a neighboring block during light propagation or depropagation.
+        /// </summary>
+        /// <param name="lightingArea"></param>
+        /// <param name="sourceLocation"></param>
+        /// <param name="location"></param>
+        /// <param name="faceDir"></param>
+        /// <param name="nodeLightLevel"></param>
+        /// <param name="chunk"></param>
+        /// <param name="depropagate"></param>
+        /// <param name="colorOverride"></param>
         private void DepropagationLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, Vector3 location, BlockFace faceDir,
             ColorVector nodeLightLevel, Chunk chunk, bool depropagate, bool colorOverride)
         {
@@ -1158,6 +1323,53 @@ namespace Vox.Genesis
 
             }
         }
+
+        /// <summary>
+        /// Evaluates a neighboring block during emissive light propagation and updates its RGB light values
+        /// if the propagated light is stronger than the block's existing light levels.
+        /// Queues updated blocks for continued breadth-first propagation.
+        /// </summary>
+        /// <param name="lightingArea">
+        /// Collection of tracked light source locations and their associated color intensity values.
+        /// </param>
+        /// <param name="location">
+        /// The world-space position of the neighboring block being evaluated.
+        /// </param>
+        /// <param name="sourceLocation">
+        /// The original light source position used to calculate attenuation over distance.
+        /// </param>
+        /// <param name="faceDir">
+        /// The block face direction used when reading and writing light values.
+        /// </param>
+        /// <param name="lightLevel">
+        /// The current propagated RGB light level from the parent node.
+        /// </param>
+        /// <param name="chunk">
+        /// The chunk containing the target block.
+        /// </param>
+        /// <param name="depropagate">
+        /// Indicates whether the overall operation is performing light removal instead of propagation.
+        /// </param>
+        /// <param name="colorOverride">
+        /// Determines whether existing light color values should be overwritten.
+        /// </param>
+        /// <remarks>
+        /// This method:
+        /// <list type="bullet">
+        /// <item>
+        /// Calculates attenuation based on distance from the original light source.
+        /// </item>
+        /// <item>
+        /// Compares propagated RGB values against existing block light levels.
+        /// </item>
+        /// <item>
+        /// Updates only color channels that would increase the effective light intensity.
+        /// </item>
+        /// <item>
+        /// Enqueues modified blocks so propagation continues outward recursively via BFS.
+        /// </item>
+        /// </list>
+        /// </remarks>
         private void PropagateLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 location, Vector3 sourceLocation, BlockFace faceDir, ColorVector lightLevel, Chunk chunk, bool depropagate, bool colorOverride)
         {
             bool wasUpdated = false;
@@ -1197,6 +1409,52 @@ namespace Vox.Genesis
 
             }
         }
+
+
+        /// <summary>
+        /// Processes a single light node during emissive light removal by evaluating all six adjacent block positions
+        /// and removing propagated light influence from neighboring blocks as needed.
+        /// Handles chunk transitions automatically when traversal crosses chunk boundaries.
+        /// </summary>
+        /// <param name="lightingArea">
+        /// Collection of tracked light sources and their color values used to determine remaining light influence.
+        /// </param>
+        /// <param name="sourceLocation">
+        /// The original world-space position where depropagation began.
+        /// </param>
+        /// <param name="faceDir">
+        /// The block face direction used when reading and updating light values.
+        /// </param>
+        /// <param name="node">
+        /// The current light node being processed by the BFS depropagation queue.
+        /// Contains the block index and owning chunk.
+        /// </param>
+        /// <param name="depropagate">
+        /// Indicates that light values should be removed rather than propagated.
+        /// </param>
+        /// <param name="colorOverride">
+        /// Determines whether existing light color values should be overwritten during updates.
+        /// </param>
+        /// <remarks>
+        /// This method:
+        /// <list type="bullet">
+        /// <item>
+        /// Retrieves the current node's RGB light values.
+        /// </item>
+        /// <item>
+        /// Evaluates neighboring blocks in all six cardinal directions (±X, ±Y, ±Z).
+        /// </item>
+        /// <item>
+        /// Resolves chunk transitions when neighboring blocks exist outside the current chunk.
+        /// </item>
+        /// <item>
+        /// Delegates removal and cleanup logic to <c>DepropagationLightNodeHelper</c>.
+        /// </item>
+        /// <item>
+        /// Supports breadth-first traversal to progressively remove light influence.
+        /// </item>
+        /// </list>
+        /// </remarks>
         private void DepropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
         {
             Chunk chunk = node.Chunk;

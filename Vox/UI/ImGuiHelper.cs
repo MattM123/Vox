@@ -101,7 +101,7 @@ namespace Vox.UI
 
                                 Window.SetMenuRendered(false);
                                 _regionManager?.ClearVisibleRegions();
-                                _regionManager?.SetWorldDir(folder);
+                                _regionManager?.SetRegionDir(folder);
                             }
                             ImGui.SameLine();
 
@@ -187,7 +187,7 @@ namespace Vox.UI
             ImGui.Text("World");
             ImGui.PopStyleColor();
 
-            string playerRegioIdx = _regionManager.GetRegionIndex((int) _player.GetPosition().X % _regionManager.GetChunkBounds(), (int) _player.GetPosition().Z % _regionManager.GetChunkBounds());
+            string playerRegioIdx = _regionManager.GetRegionIndexFromChunkCoords((int) _player.GetPosition().X % _regionManager.GetChunkBounds(), (int) _player.GetPosition().Z % _regionManager.GetChunkBounds());
             ImGui.Text("Region: " + _regionManager.TryGetRegionFromFile(playerRegioIdx));
             ImGui.Text(_player.GetChunkWithPlayer().ToString());
             ImGui.Text("Chunks Surrounding Player: " + _chunkCache!.UpdateChunkCache().Count);
