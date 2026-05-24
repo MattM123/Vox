@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime;
 using System.Text;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
@@ -11,14 +12,7 @@ using Vox.Rendering;
 
 namespace Vox.UI
 {
-    public class ImGuiHelper(
-        IAssetLookup assetLookup,
-        ITextureLoader textureLoader, 
-        ISSBOManager ssboManager, 
-        IPlayer player, 
-        IRegionManager regionManager,
-        ILightHelper lightHeler,
-        IChunkCache chunkCache) : IImGuiHelper
+    public class ImGuiHelper : IImGuiHelper
     {
         private static int rotationAngle = 0;
         private bool SHOW_BLOCK_COLOR_PICKER = false;
@@ -27,16 +21,46 @@ namespace Vox.UI
         public static int _inventoryIconFBO;
         public static int _inventoryIconTexture;
 
-        private readonly ITextureLoader? _textureLoader = textureLoader ?? throw new Exception(nameof(textureLoader) + " is null in ImGuiHelper");
-        private readonly IAssetLookup? _assetLookup = assetLookup ?? throw new Exception(nameof(assetLookup) + " is null in ImGuiHelper");
-        private readonly ISSBOManager? _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in ImGuiHelper");
-        private readonly IPlayer? _player = player ?? throw new Exception(nameof(player) + " is null in ImGuiHelper");
-        private readonly IRegionManager? _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in ImGuiHelper");
-        private readonly ILightHelper? _lightHelper = lightHeler ?? throw new Exception(nameof(lightHeler) + " is null in ImGuiHelper");
-        private readonly IChunkCache? _chunkCache = chunkCache ?? throw new Exception(nameof(chunkCache) + " is null in ImGuiHelper");
+        private readonly ImFontPtr PtFont18;
+        private readonly ImFontPtr PtFont24;
+        private readonly ImFontPtr PtFont72;
+
+        private ITextureLoader? _textureLoader;
+        private readonly IAssetLookup? _assetLookup;
+        private readonly ISSBOManager? _ssboManager;
+        private readonly IPlayer? _player;
+        private readonly IRegionManager? _regionManager;
+        private readonly ILightHelper? _lightHelper;
+        private readonly IChunkCache? _chunkCache;
+        private readonly ISettings? _settings;
+        private readonly ImGuiIOPtr _ioPtr;
+        private readonly ImGuiController _UIController;
 
         private BlockType selectedBlock = BlockType.AIR;
         private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
+
+        public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
+            ILightHelper lightHeler, IChunkCache chunkCache, ISettings settings, ImGuiController UIController)
+        {
+            _textureLoader = textureLoader;
+            _assetLookup = assetLookup;
+            _ssboManager = ssboManager;
+            _player = player;
+            _regionManager = regionManager;
+            _lightHelper = lightHeler;
+            _chunkCache = chunkCache;
+            _settings = settings;
+            _ioPtr = ImGui.GetIO();
+            _UIController = UIController;
+
+            string _assets = "..\\..\\..\\Assets\\";
+
+            PtFont18 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 18.0f);
+            PtFont24 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 24.0f);
+            PtFont72 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 72.0f);
+            _UIController.RecreateFontDeviceTexture();
+
+        }
 
         public void ShowWorldMenu(ImGuiIOPtr ioptr)
         {
@@ -259,24 +283,41 @@ namespace Vox.UI
             }
         }
 
-        public void CreatePlayerInventory(ImGuiController controller)
+        public void CreatePlayerInventory()
         {
+            ImGui.PushFont(PtFont18);
+
+            _settings.SetGuiScale(100f);
+
+            int topFillerPadding = 5;
+            int slotPadding = 5;
+            float _guiScale = _settings.GetGuiScale();
+            float menuWidth = 9.3f * _guiScale;
+            float menuHeight = 7.2f * _guiScale;
+            float slotSize = (menuWidth + slotPadding) / 9;
+            float hotbarSpacing = _guiScale / 3.5f;
+            System.Numerics.Vector2 inventorySlotSize = new(slotSize - (slotPadding * 3f), slotSize - (slotPadding * 3.5f));
+
             rotationAngle += 1;
             if (rotationAngle > 360)
                 rotationAngle = 0;
 
             //Main window sizing and position
             System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
-            ImGui.SetNextWindowPos(new(center.X / 2.2f, center.Y / 4f), ImGuiCond.Always);
-            ImGui.SetNextWindowSize(new(Window.screenWidth / 1.8f, Window.screenHeight / 1.3f));
-            
+            ImGui.SetNextWindowPos(new(center.X - (menuWidth / 2), center.Y - (menuHeight / 2)), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
+
+            // Inventory Top UI styling
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(topFillerPadding, topFillerPadding));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 1f));
 
             ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
 
-            ImGui.BeginChild("InventoryTop", new System.Numerics.Vector2(0, Window.screenHeight / 3.25f));
-            ImGui.ImageButton("TopFiller", 0, new System.Numerics.Vector2(Window.screenWidth / 5.7f, Window.screenHeight / 3.35f));
+            System.Numerics.Vector2 inventoryFillerSize = new((menuWidth / 3) - (topFillerPadding * 3.5f), _guiScale * 2.5f);
+            ImGui.BeginChild("InventoryTop", new System.Numerics.Vector2(menuWidth, 2.7f * _guiScale));
+            ImGui.ImageButton("TopFiller", 0, inventoryFillerSize);
             ImGui.SameLine();
-            ImGui.ImageButton("TopFiller", 0, new System.Numerics.Vector2(Window.screenWidth / 5.7f, Window.screenHeight / 3.35f));
+            ImGui.ImageButton("TopFiller", 0, inventoryFillerSize);
             ImGui.SameLine();
 
             if (selectedBlock != BlockType.AIR)
@@ -353,18 +394,21 @@ namespace Vox.UI
                     });
 
                 RenderInventoryAnimation(256, 256);
-                ImGui.ImageButton("Info Panel", _inventoryIconTexture, new System.Numerics.Vector2(Window.screenWidth / 5.7f, Window.screenHeight / 3.35f));
-            } else
+                ImGui.ImageButton("Info Panel", _inventoryIconTexture, inventoryFillerSize);
+            }
+            else
             {
-                ImGui.ImageButton("Info Panel", 0, new System.Numerics.Vector2(Window.screenWidth / 5.7f, Window.screenHeight / 3.35f));
+                ImGui.ImageButton("Info Panel", 0, inventoryFillerSize);
             }
 
+            ImGui.PopStyleColor(1);
+            ImGui.PopStyleVar(1);
             ImGui.EndChild();
 
             //Inventory UI Stying
             ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0.5f);
-            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(1, 1));
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(slotPadding, slotPadding));
             ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(0.05f, 0.05f, 0.05f, 1f));
             ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 0f, 0f));
@@ -378,16 +422,15 @@ namespace Vox.UI
                 ImGui.PushID(i);
                 BlockType currentSlotType = inventorySlots[i].Key;
 
+
+
                 if (currentSlotType != BlockType.AIR)
                 {
-
-                    System.Numerics.Vector2 size = new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64);
-
 
                     // Calculate button position and size before drawing
                     var cursorPos = ImGui.GetCursorScreenPos();
                     var buttonRectMin = cursorPos;
-                    var buttonRectMax = new System.Numerics.Vector2(cursorPos.X + size.X, cursorPos.Y + size.Y);
+                    var buttonRectMax = new System.Numerics.Vector2(cursorPos.X + inventorySlotSize.X, cursorPos.Y + inventorySlotSize.Y);
                     var mousePos = ImGui.GetMousePos();
 
                     // Determine hover state by manual check *before* drawing
@@ -401,11 +444,13 @@ namespace Vox.UI
                     {
                         selectedBlock = inventorySlots[i].Key;
                         ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
-                        ImGui.ImageButton("##" + i, _inventoryIconTexture, size); 
+                        ImGui.ImageButton("##" + i, _inventoryIconTexture, inventorySlotSize);
 
-                    } else {
+                    }
+                    else
+                    {
 
-                        ImGui.ImageButton("##" + i, textureToUse, size);
+                        ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize);
                     }
                     // Draw rectangle around the button
                     System.Numerics.Vector2 min = ImGui.GetItemRectMin();
@@ -426,7 +471,7 @@ namespace Vox.UI
                 else
                 {
                     //Create ImageButtom
-                    ImGui.ImageButton("##" + i, 0, new((ImGui.GetWindowSize().X / 9f) - 10.5f, 64));
+                    ImGui.ImageButton("##" + i, 0, inventorySlotSize);
 
                 }
                 ImGui.PopID();
@@ -437,13 +482,14 @@ namespace Vox.UI
 
                 //Spacing between hotbar and inventory rows                
                 if (i == 26)
-                    ImGui.Dummy(new(0, 15));
+                    ImGui.Dummy(new(0, hotbarSpacing));
 
 
             }
 
             ImGui.PopStyleVar(3);
             ImGui.PopStyleColor(4);
+            ImGui.PopFont();
             ImGui.End();
         }
 

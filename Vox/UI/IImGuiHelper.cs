@@ -7,7 +7,7 @@ namespace Vox.UI
         void ShowWorldMenu(ImGuiIOPtr ioptr);
         void ShowDebugMenu(ImGuiIOPtr ioptr);
         void CreateBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace);
-        void CreatePlayerInventory(ImGuiController controller);
+        void CreatePlayerInventory();
         bool IsAnyMenuActive();
         bool ShowBlockColorPicker();
         bool ShowPlayerInventory();

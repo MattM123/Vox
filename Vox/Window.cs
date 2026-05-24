@@ -67,6 +67,7 @@ namespace Vox
         private RegionManager? _regionManager;   
         private ChunkCache? _chunkCache;
         private LightHelper? _lightHelper;
+        private Settings? _settings;
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
 
@@ -107,6 +108,9 @@ namespace Vox
         {   
             base.OnLoad();
 
+            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
+            _settings = new Settings();
             _assetLookup = new AssetLookup();
             _ssboManager = new SSBOManager();
             _lightHelper = new LightHelper();
@@ -118,7 +122,7 @@ namespace Vox
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache);
 
 
-            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache);
+            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, _UIController);
             
             
             _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
@@ -141,7 +145,7 @@ namespace Vox
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
-            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
 
             Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
@@ -754,7 +758,7 @@ namespace Vox
             if (_imguiHelper!.ShowPlayerInventory() && !IsMenuRendered())
             {
                 CursorState = CursorState.Normal;
-                _imguiHelper!.CreatePlayerInventory(_UIController);
+                _imguiHelper!.CreatePlayerInventory();
             }
             else if (_imguiHelper!.ShowBlockColorPicker() && !IsMenuRendered())
             {
