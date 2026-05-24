@@ -3,6 +3,7 @@ using System.Runtime;
 using System.Text;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using Vox.Assets;
 using Vox.Assets.Models;
 using Vox.Enums;
@@ -17,6 +18,11 @@ namespace Vox.UI
         private static int rotationAngle = 0;
         private bool SHOW_BLOCK_COLOR_PICKER = false;
         private bool SHOW_PLAYER_INVENTORY = false;
+        private bool SHOW_PAUSE_MENU = false;
+        private bool SHOW_SETTINGS_MENU = false;
+        private bool SHOW_MAIN_MENU = false;
+
+        private Menu _currentMenu;
 
         public static int _inventoryIconFBO;
         public static int _inventoryIconTexture;
@@ -59,9 +65,9 @@ namespace Vox.UI
             PtFont72 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 72.0f);
 
         }
-
-        public void ShowWorldMenu(ImGuiIOPtr ioptr)
+        public void CreateMainMenu()
         {
+            ImGui.PushFont(PtFont18);
 
             float horizontalMenuScale = 3.5f;
             ImGui.Begin("World List", ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
@@ -72,87 +78,85 @@ namespace Vox.UI
 
             ImGui.SetWindowSize(new System.Numerics.Vector2(Window.screenWidth - 400 / horizontalMenuScale, Window.screenHeight));
             ImGui.SetWindowPos(new System.Numerics.Vector2(Window.screenWidth / 30, Window.screenHeight / 40));
-  
+
             ImGui.Text("Choose a World");
 
-                ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
-                    ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
+            ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
+                ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
 
-                ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
-                ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(20f, 2f));
-                ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(10f, 10f));
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
+            ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(20f, 2f));
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(10f, 10f));
 
-                //Create UI entries for each world within world list
-                try
+            //Create UI entries for each world within world list
+            try
+            {
+                IEnumerable<string> worldList = Directory.EnumerateDirectories(Window.GetAppFolder() + "worlds");
+                int dirLen = worldList.Count();
+
+                if (dirLen > 0)
                 {
-                    IEnumerable<string> worldList = Directory.EnumerateDirectories(Window.GetAppFolder() + "worlds");
-                    int dirLen = worldList.Count();
-
-                    if (dirLen > 0)
+                    foreach (string folder in worldList)
                     {
-                        foreach (string folder in worldList)
+
+                        //World label                  
+                        string label = "";
+                        string folderReverse = new([.. folder.Reverse()]);
+
+                        for (int i = 0; i < folderReverse.Length - 1; i++)
                         {
+                            if (folderReverse[i] != '\\')
+                                label += folderReverse[i];
+                            else
+                                break;
+                        }
 
-                            //World label                  
-                            string label = "";
-                            string folderReverse = new([.. folder.Reverse()]);
+                        ImGui.Text(new(label.Reverse().ToArray()));
+                        ImGui.SameLine();
 
-                            for (int i = 0; i < folderReverse.Length - 1; i++)
+                        ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
+                        //Load button
+
+                        ImGui.Button("Load World");
+                        if (ImGui.IsItemClicked())
+                        {
+                            //Reset the menu chunk coordinates so the render in the world.  
+                            foreach (Chunk c in Window.GetMenuChunks())
+                                c.Reset();
+
+
+                            Window.SetMenuRendered(false);
+                            _regionManager?.ClearVisibleRegions();
+                            _regionManager?.SetRegionDir(folder);
+                        }
+                        ImGui.SameLine();
+
+                        //Delete button
+                        ImGui.Button("Delete World");
+                        if (ImGui.IsItemClicked())
+                        {
+                            try
                             {
-                                if (folderReverse[i] != '\\')
-                                    label += folderReverse[i];
-                                else
-                                    break;
+                                Directory.Delete(folder, true);
                             }
-
-                            ImGui.Text(new(label.Reverse().ToArray()));
-                            ImGui.SameLine();
-
-                            ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
-                            //Load button
-
-                            ImGui.Button($"Load World##{folder}");
-                            if (ImGui.IsItemClicked())
+                            catch (Exception e1)
                             {
-                                //Reset the menu chunk coordinates so the render in the world.  
-                                foreach (Chunk c in Window.GetMenuChunks())
-                                    c.Reset();
-
-
-                                Window.SetMenuRendered(false);
-                                _regionManager?.ClearVisibleRegions();
-                                _regionManager?.SetRegionDir(folder);
-                            }
-                            ImGui.SameLine();
-
-                            //Delete button
-                            ImGui.Button($"Delete World##{folder}");
-                            if (ImGui.IsItemClicked())
-                            {
-                                try
-                                {
-                                    Directory.Delete(folder, true);
-                                }
-                                catch (Exception e1)
-                                {
-                                    Logger.Error(e1);
-                                }
+                                Logger.Error(e1);
                             }
                         }
                     }
-                    ImGui.Text("FPS: " + ioptr.Framerate);
                 }
-                catch (Exception e2)
-                {
-                    Logger.Error(e2);
+                ImGui.Text("FPS: " + _ioPtr.Framerate);
+            }
+            catch (Exception e2)
+            {
+                Logger.Error(e2);
 
-                } finally
-                {
-                    ImGui.PopStyleVar(3);
-                    ImGui.EndChild();
-                }
+            }
 
-
+            ImGui.PopStyleVar(3);
+            ImGui.PopStyleColor();
+            ImGui.EndChild();
 
             ImGui.PushItemWidth(Window.screenWidth / horizontalMenuScale);
 
@@ -182,12 +186,13 @@ namespace Vox.UI
                 }
             }
 
-            ImGui.PopStyleColor();
+            ImGui.PopFont();
             ImGui.End();
         }
-
-        public void ShowDebugMenu(ImGuiIOPtr ioptr)
+        public void CreateDebugMenu()
         {
+            ImGui.PushFont(PtFont18);
+
             /*=====================================
              Debug Display
              =====================================*/
@@ -208,7 +213,7 @@ namespace Vox.UI
             ImGui.Text("World");
             ImGui.PopStyleColor();
 
-            string playerRegioIdx = _regionManager.GetRegionIndexFromChunkCoords((int) _player.GetPosition().X % _regionManager.GetChunkBounds(), (int) _player.GetPosition().Z % _regionManager.GetChunkBounds());
+            string playerRegioIdx = _regionManager!.GetRegionIndexFromChunkCoords((int)_player.GetPosition().X % _regionManager.GetChunkBounds(), (int)_player.GetPosition().Z % _regionManager.GetChunkBounds());
             ImGui.Text("Region: " + _regionManager.TryGetRegionFromFile(playerRegioIdx));
             ImGui.Text(_player.GetChunkWithPlayer().ToString());
             ImGui.Text("Chunks Surrounding Player: " + _chunkCache!.UpdateChunkCache().Count);
@@ -226,7 +231,7 @@ namespace Vox.UI
             ImGui.Text("Performance");
             ImGui.PopStyleColor();
 
-            ImGui.Text("FPS: " + ioptr.Framerate);
+            ImGui.Text("FPS: " + _ioPtr.Framerate);
             ImGui.Text("Memory: " + Utils.FormatSize(Process.GetCurrentProcess().WorkingSet64) + "/" + Utils.FormatSize(Process.GetCurrentProcess().PrivateMemorySize64));
             ImGui.Text("VRAM: " + Utils.FormatSize(Utils.GetTotalVRamUsage()) + "/" + Utils.FormatSize(Utils.GetTotalVramCommitted()));
             ImGui.Text("");
@@ -237,14 +242,18 @@ namespace Vox.UI
 
             ImGui.Text(_player.GetViewMatrix().ToString());
             ImGui.End();
-        }
 
-        public void CreateBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace) {
+            ImGui.PopFont();
+        }
+        public void CreateBlockColorPicker(Vector3 blockspace)
+        {
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(410, 270));
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
+                ImGui.PushFont(PtFont18);
+
                 if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor))
                 {
                     Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(blockspace);
@@ -277,12 +286,12 @@ namespace Vox.UI
                     countdown.Wait();
                 }
                 ImGui.EndPopup();
+                ImGui.PopFont();
             }
         }
-
         public void CreatePlayerInventory()
         {
-           // ImGui.PushFont(PtFont18);
+            ImGui.PushFont(PtFont18);
 
             _settings.SetGuiScale(100f);
 
@@ -486,20 +495,125 @@ namespace Vox.UI
 
             ImGui.PopStyleVar(3);
             ImGui.PopStyleColor(4);
-          //  ImGui.PopFont();
+            ImGui.PopFont();
             ImGui.End();
         }
+        public void CreatePauseMenu()
+        {
 
+            //Set menu sizing
+            _settings.SetGuiScale(100f);
+            float _guiScale = _settings.GetGuiScale();
+            float menuWidth = 9.3f * _guiScale;
+            float menuHeight = 7.2f * _guiScale;
+
+            //Main window sizing and position
+            System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
+            ImGui.SetNextWindowPos(new(center.X - (menuWidth / 2), center.Y - (menuHeight / 2)), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
+
+            // Main window UI styling
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 0.5f));
+
+            // Menu creation
+            ImGui.Begin("Paused", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
+
+            // Menu title
+            ImGui.PushFont(PtFont72);
+            Utils.CreateCenteredText("Paused");
+            ImGui.PopFont();
+
+            ImGui.PushFont(PtFont24);
+
+            // Menu filler
+            ImGui.BeginChild("Filler", new(menuWidth, menuHeight / 10));
+            ImGui.EndChild();
+
+            if (Utils.ButtonCentered("Settings", _guiScale / 2, _guiScale / 6))
+            {
+
+            }
+            if (Utils.ButtonCentered("Back To Game", _guiScale / 2, _guiScale / 6))
+            {
+                SHOW_PAUSE_MENU = false;
+                //SetCurrentMenu(Menu.None);
+            }
+
+            ImGui.End();
+
+            // Pop main window UI styling
+            ImGui.PopStyleColor(1);
+            ImGui.PopFont();
+        }
+        public void CreateSettingsMenu()
+        {
+
+            //Set menu sizing
+            _settings.SetGuiScale(100f);
+            float _guiScale = _settings.GetGuiScale();
+            float menuWidth = 9.3f * _guiScale;
+            float menuHeight = 7.2f * _guiScale;
+
+            //Main window sizing and position
+            System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
+            ImGui.SetNextWindowPos(new(center.X - (menuWidth / 2), center.Y - (menuHeight / 2)), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
+
+            // Main window UI styling
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 0.5f));
+
+            // Menu creation
+            ImGui.Begin("Settings", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
+
+            // Menu title
+            ImGui.PushFont(PtFont72);
+            Utils.CreateCenteredText("Settings");
+            ImGui.PopFont();
+
+            ImGui.PushFont(PtFont24);
+
+            // Menu filler
+            ImGui.BeginChild("Filler", new(menuWidth, menuHeight / 10));
+            ImGui.EndChild();
+
+            if (Utils.ButtonCentered("GUI Scale", _guiScale / 2, _guiScale / 6))
+            {
+
+            }
+            if (Utils.ButtonCentered("Back", _guiScale / 2, _guiScale / 6))
+            {
+                SHOW_PAUSE_MENU = true;
+                SHOW_SETTINGS_MENU = false;
+                //SetCurrentMenu(Menu.Pause);
+            }
+
+            ImGui.End();
+
+            // Pop main window UI styling
+            ImGui.PopStyleColor(1);
+            ImGui.PopFont();
+        }
         public bool IsAnyMenuActive()
         {
-            return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY;
+            return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY || SHOW_PAUSE_MENU || SHOW_SETTINGS_MENU;
         }
 
+        public bool ShowWorldMenu()
+        {
+            return SHOW_MAIN_MENU;
+        }
+        public bool ShowSettingsMenu()
+        {
+            return SHOW_SETTINGS_MENU;
+        }
         public bool ShowBlockColorPicker()
         {
             return SHOW_BLOCK_COLOR_PICKER;
         }
-
+        public bool ShowPauseMenu()
+        {
+            return SHOW_PAUSE_MENU;
+        }
         public bool ShowPlayerInventory()
         {
             return SHOW_PLAYER_INVENTORY;
@@ -508,14 +622,17 @@ namespace Vox.UI
         {
             SHOW_PLAYER_INVENTORY = show;
         }
+        public void SetShowPauseMenu(bool show)
+        {
+            SHOW_PAUSE_MENU = show;
+        }
         public void SetShowBlockColorPicker(bool show)
         {
             SHOW_BLOCK_COLOR_PICKER = show;
         }
+        private static readonly int _inventoryVAO = GL.GenVertexArray();
         private void RenderInventoryAnimation(int sizeX, int sizeY)
         {
-            int _inventoryVAO = GL.GenVertexArray();
-
             //Save current state
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
@@ -560,6 +677,31 @@ namespace Vox.UI
             GL.BindVertexArray(prevVAO);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
+        }
+
+        public void SetCurrentMenu(Menu menu)
+        {
+            _currentMenu = menu;
+        }
+        public Menu GetCurrentMenu()
+        {
+            return _currentMenu;
+        }
+        public void RenderCurrentMenu()
+        {
+            if (_currentMenu == Menu.Inventory)
+                CreatePlayerInventory();
+            else if (_currentMenu == Menu.Settings)
+                CreateSettingsMenu();
+            else if (_currentMenu == Menu.ColorPicker && _player != null)
+                CreateBlockColorPicker(_player.UpdateViewTarget(out _, out _, out _));
+            else if (_currentMenu == Menu.Pause)
+                CreatePauseMenu();
+            else if (_currentMenu == Menu.Main)
+                CreateMainMenu();
+            else if (_currentMenu == Menu.Debug)
+                CreateDebugMenu();
+        
         }
     }
 }

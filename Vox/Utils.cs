@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics;
+using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using Vox.Genesis;
@@ -146,6 +147,30 @@ namespace Vox
             
             return (int)(max + SQRT2_MINUS_1 * mid + SQRT3_MINUS_SQRT2 * min);
 
+        }
+        public static void CreateCenteredText(string text)
+        {
+            float windowWidth = ImGui.GetWindowSize().X;
+            float textWidth = ImGui.CalcTextSize(text).X;
+
+            ImGui.SetCursorPosX((windowWidth - textWidth) * 0.5f);
+            ImGui.TextUnformatted(text);
+        }
+        public static bool ButtonCentered(string label, float paddingX = 20f, float paddingY = 8f)
+        {
+            System.Numerics.Vector2 textSize = ImGui.CalcTextSize(label);
+
+            System.Numerics.Vector2 buttonSize = new(
+                textSize.X + paddingX * 2f,
+                textSize.Y + paddingY * 2f
+            );
+
+            System.Numerics.Vector2 available = ImGui.GetContentRegionAvail();
+
+            float cursorX = (available.X - buttonSize.X) * 0.5f;
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() + cursorX);
+
+            return ImGui.Button(label, buttonSize);
         }
     }
 }

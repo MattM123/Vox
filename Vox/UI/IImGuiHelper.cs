@@ -2,12 +2,12 @@
 
 namespace Vox.UI
 {
-    internal interface IImGuiHelper
+    public interface IImGuiHelper
     {
-        void ShowWorldMenu(ImGuiIOPtr ioptr);
-        void ShowDebugMenu(ImGuiIOPtr ioptr);
+        void CreateDebugMenu();
         void CreateBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace);
         void CreatePlayerInventory();
+        void CreateMainMenu();
         bool IsAnyMenuActive();
         bool ShowBlockColorPicker();
         bool ShowPlayerInventory();

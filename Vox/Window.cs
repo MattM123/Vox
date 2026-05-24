@@ -129,11 +129,9 @@ namespace Vox
 
             _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
 
-            _UIController.RecreateFontDeviceTexture();
-            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings);
-            
-            
 
+            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings);
+            _UIController.RecreateFontDeviceTexture();
 
             int texArray = _textureLoader.LoadTextures(4);
 
@@ -747,11 +745,11 @@ namespace Vox
 
             if (renderMenu)
             {
-                _imguiHelper!.ShowWorldMenu(ioptr);
+                _imguiHelper!.CreateMainMenu();
             }
             else
             {
-                  _imguiHelper!.ShowDebugMenu(ioptr);
+                 // _imguiHelper!.ShowDebugMenu(ioptr);
             }
 
             //Color Picker
