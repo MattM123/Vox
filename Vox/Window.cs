@@ -108,7 +108,7 @@ namespace Vox
         {   
             base.OnLoad();
 
-            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
 
             _settings = new Settings();
             _assetLookup = new AssetLookup();
@@ -122,12 +122,17 @@ namespace Vox
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache);
 
 
-            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, _UIController);
-            
-            
             _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
             _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
             sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
+
+
+            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
+            _UIController.RecreateFontDeviceTexture();
+            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings);
+            
+            
 
 
             int texArray = _textureLoader.LoadTextures(4);
@@ -286,6 +291,8 @@ namespace Vox
             ImGuiHelper._inventoryIconFBO = GL.GenFramebuffer();
             ImGuiHelper._inventoryIconTexture = GL.GenTexture();
 
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, ImGuiHelper._inventoryIconFBO);
+
             GL.ActiveTexture(TextureUnit.Texture2);
             GL.BindTexture(TextureTarget.Texture2D, ImGuiHelper._inventoryIconTexture);
             GL.TexImage2D(
@@ -436,10 +443,10 @@ namespace Vox
             /*==============================
             Update UI input and config
             ===============================*/
-            _UIController.Update(this, (float)e.Time);
+            _UIController?.Update(this, (float)e.Time);
 
 
-            GL.ClearColor(1.5f, 0.8f, 1.0f, 0.0f);
+            GL.ClearColor(1.0f, 0.8f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
@@ -481,7 +488,7 @@ namespace Vox
             Render new UI frame over everything
             ========================================*/
             RenderUI();
-            _UIController.Render();
+            _UIController?.Render();
 
             SwapBuffers();
 

@@ -40,7 +40,7 @@ namespace Vox.UI
         private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
 
         public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
-            ILightHelper lightHeler, IChunkCache chunkCache, ISettings settings, ImGuiController UIController)
+            ILightHelper lightHeler, IChunkCache chunkCache, ISettings settings)
         {
             _textureLoader = textureLoader;
             _assetLookup = assetLookup;
@@ -51,14 +51,12 @@ namespace Vox.UI
             _chunkCache = chunkCache;
             _settings = settings;
             _ioPtr = ImGui.GetIO();
-            _UIController = UIController;
 
             string _assets = "..\\..\\..\\Assets\\";
 
             PtFont18 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 18.0f);
             PtFont24 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 24.0f);
             PtFont72 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 72.0f);
-            _UIController.RecreateFontDeviceTexture();
 
         }
 
@@ -74,10 +72,8 @@ namespace Vox.UI
 
             ImGui.SetWindowSize(new System.Numerics.Vector2(Window.screenWidth - 400 / horizontalMenuScale, Window.screenHeight));
             ImGui.SetWindowPos(new System.Numerics.Vector2(Window.screenWidth / 30, Window.screenHeight / 40));
-
-            //  ImGui.PushFont(font);       
+  
             ImGui.Text("Choose a World");
-            //  ImGui.PopFont();
 
                 ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
                     ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
@@ -115,7 +111,7 @@ namespace Vox.UI
                             ImGui.SameLine(ImGui.GetWindowSize().X - 250, -1);
                             //Load button
 
-                            ImGui.Button("Load World");
+                            ImGui.Button($"Load World##{folder}");
                             if (ImGui.IsItemClicked())
                             {
                                 //Reset the menu chunk coordinates so the render in the world.  
@@ -130,7 +126,7 @@ namespace Vox.UI
                             ImGui.SameLine();
 
                             //Delete button
-                            ImGui.Button("Delete World");
+                            ImGui.Button($"Delete World##{folder}");
                             if (ImGui.IsItemClicked())
                             {
                                 try
@@ -150,11 +146,13 @@ namespace Vox.UI
                 {
                     Logger.Error(e2);
 
+                } finally
+                {
+                    ImGui.PopStyleVar(3);
+                    ImGui.EndChild();
                 }
 
-                ImGui.PopStyleVar(2);
-                ImGui.PopStyleColor();
-                ImGui.EndChild();
+
 
             ImGui.PushItemWidth(Window.screenWidth / horizontalMenuScale);
 
@@ -184,7 +182,6 @@ namespace Vox.UI
                 }
             }
 
-            ImGui.PopStyleVar(4);
             ImGui.PopStyleColor();
             ImGui.End();
         }
@@ -285,7 +282,7 @@ namespace Vox.UI
 
         public void CreatePlayerInventory()
         {
-            ImGui.PushFont(PtFont18);
+           // ImGui.PushFont(PtFont18);
 
             _settings.SetGuiScale(100f);
 
@@ -489,7 +486,7 @@ namespace Vox.UI
 
             ImGui.PopStyleVar(3);
             ImGui.PopStyleColor(4);
-            ImGui.PopFont();
+          //  ImGui.PopFont();
             ImGui.End();
         }
 
@@ -515,9 +512,10 @@ namespace Vox.UI
         {
             SHOW_BLOCK_COLOR_PICKER = show;
         }
-        private static readonly int _inventoryVAO = GL.GenVertexArray();
         private void RenderInventoryAnimation(int sizeX, int sizeY)
         {
+            int _inventoryVAO = GL.GenVertexArray();
+
             //Save current state
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
