@@ -93,7 +93,6 @@ namespace Vox
         private Matrix4 sunlightViewMatrix;
         private static Matrix4 lightSpaceMatrix;
         private static int _nextFaceIndex;
-        private static bool PAUSE = false;
 
 
         //used for player and lighting projection matrices
@@ -682,11 +681,11 @@ namespace Vox
                 // Shows pause menu if Escape is pressed
                 if (current[Keys.Escape] && _imguiHelper?.GetCurrentMenu() != Menu.Main)
                 {
-                    // Show pause menu if no menu is currently active, otherwise close the pause menu
+                    // Show pause menu if no menu is currently active, otherwise close the active menu
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
                         _imguiHelper.SetCurrentMenu(Menu.Pause);
-                    else if (_imguiHelper?.GetCurrentMenu() == Menu.Pause)
-                        _imguiHelper.SetCurrentMenu(Menu.None);
+                    else
+                        _imguiHelper?.SetCurrentMenu(Menu.None);
                 }
             }
             previousKeyboardState = current;
