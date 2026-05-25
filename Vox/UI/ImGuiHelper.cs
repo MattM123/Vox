@@ -16,14 +16,11 @@ namespace Vox.UI
     public class ImGuiHelper : IImGuiHelper
     {
         private static int rotationAngle = 0;
-        private bool SHOW_BLOCK_COLOR_PICKER = false;
-        private bool SHOW_PLAYER_INVENTORY = false;
-        private bool SHOW_PAUSE_MENU = false;
-        private bool SHOW_SETTINGS_MENU = false;
-        private bool SHOW_MAIN_MENU = false;
 
+        
         private Menu _currentMenu;
 
+        private readonly int _inventoryVAO = GL.GenVertexArray();
         public static int _inventoryIconFBO;
         public static int _inventoryIconTexture;
 
@@ -120,12 +117,15 @@ namespace Vox.UI
                         ImGui.Button("Load World");
                         if (ImGui.IsItemClicked())
                         {
+                            //Clear UI world load
+                            SetCurrentMenu(Menu.None);
+
                             //Reset the menu chunk coordinates so the render in the world.  
                             foreach (Chunk c in Window.GetMenuChunks())
                                 c.Reset();
 
 
-                            Window.SetMenuRendered(false);
+                            Window.DisplayMainMenuScreen(false);
                             _regionManager?.ClearVisibleRegions();
                             _regionManager?.SetRegionDir(folder);
                         }
@@ -252,6 +252,7 @@ namespace Vox.UI
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
+
                 ImGui.PushFont(PtFont18);
 
                 if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor))
@@ -450,12 +451,12 @@ namespace Vox.UI
                     {
                         selectedBlock = inventorySlots[i].Key;
                         ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
+
                         ImGui.ImageButton("##" + i, _inventoryIconTexture, inventorySlotSize);
 
                     }
                     else
                     {
-
                         ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize);
                     }
                     // Draw rectangle around the button
@@ -531,12 +532,16 @@ namespace Vox.UI
 
             if (Utils.ButtonCentered("Settings", _guiScale / 2, _guiScale / 6))
             {
-
+                SetCurrentMenu(Menu.Settings);
             }
             if (Utils.ButtonCentered("Back To Game", _guiScale / 2, _guiScale / 6))
             {
-                SHOW_PAUSE_MENU = false;
-                //SetCurrentMenu(Menu.None);
+                SetCurrentMenu(Menu.None);
+            }
+            if (Utils.ButtonCentered("Back to Main Menu", _guiScale / 2, _guiScale / 6))
+            {
+                SetCurrentMenu(Menu.Main);
+                Window.DisplayMainMenuScreen(true);
             }
 
             ImGui.End();
@@ -582,9 +587,7 @@ namespace Vox.UI
             }
             if (Utils.ButtonCentered("Back", _guiScale / 2, _guiScale / 6))
             {
-                SHOW_PAUSE_MENU = true;
-                SHOW_SETTINGS_MENU = false;
-                //SetCurrentMenu(Menu.Pause);
+                SetCurrentMenu(Menu.Pause);
             }
 
             ImGui.End();
@@ -593,44 +596,6 @@ namespace Vox.UI
             ImGui.PopStyleColor(1);
             ImGui.PopFont();
         }
-        public bool IsAnyMenuActive()
-        {
-            return SHOW_BLOCK_COLOR_PICKER || SHOW_PLAYER_INVENTORY || SHOW_PAUSE_MENU || SHOW_SETTINGS_MENU;
-        }
-
-        public bool ShowWorldMenu()
-        {
-            return SHOW_MAIN_MENU;
-        }
-        public bool ShowSettingsMenu()
-        {
-            return SHOW_SETTINGS_MENU;
-        }
-        public bool ShowBlockColorPicker()
-        {
-            return SHOW_BLOCK_COLOR_PICKER;
-        }
-        public bool ShowPauseMenu()
-        {
-            return SHOW_PAUSE_MENU;
-        }
-        public bool ShowPlayerInventory()
-        {
-            return SHOW_PLAYER_INVENTORY;
-        }
-        public void SetShowPlayerInventory(bool show)
-        {
-            SHOW_PLAYER_INVENTORY = show;
-        }
-        public void SetShowPauseMenu(bool show)
-        {
-            SHOW_PAUSE_MENU = show;
-        }
-        public void SetShowBlockColorPicker(bool show)
-        {
-            SHOW_BLOCK_COLOR_PICKER = show;
-        }
-        private static readonly int _inventoryVAO = GL.GenVertexArray();
         private void RenderInventoryAnimation(int sizeX, int sizeY)
         {
             //Save current state
@@ -693,8 +658,10 @@ namespace Vox.UI
                 CreatePlayerInventory();
             else if (_currentMenu == Menu.Settings)
                 CreateSettingsMenu();
-            else if (_currentMenu == Menu.ColorPicker && _player != null)
+            else if (_currentMenu == Menu.ColorPicker && _player != null) { 
                 CreateBlockColorPicker(_player.UpdateViewTarget(out _, out _, out _));
+                ImGui.OpenPopup("ColorPicker");
+            }
             else if (_currentMenu == Menu.Pause)
                 CreatePauseMenu();
             else if (_currentMenu == Menu.Main)

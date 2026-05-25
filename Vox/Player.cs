@@ -21,6 +21,8 @@ namespace Vox
         private readonly IRegionManager? _regionManager;
         private readonly IChunkCache? _chunkCache;
 
+        private Matrix4 _viewMatrix;
+
         public static Vector3 position = Vector3.Zero;
         private static float yaw = 0f;
         private static float pitch = 0f;
@@ -176,8 +178,9 @@ namespace Vox
                     break;
                 }
             }
-            //Returns the last block the player was looking at
-            Window._shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
+            //Returns the last block the player was looking at only if no menu is open
+            if (!Window.IsAnyMenuShowing())
+                Window._shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
 
             return target;
         }
@@ -645,7 +648,7 @@ namespace Vox
          */
         public Matrix4 GetViewMatrix()
         {
-            if (!Window.IsMenuRendered())
+            if (!Window.IsMainMenuScreenDisplayed())
             {
                 // Starting with a forward direction of -Z axis in local space
                 Vector3 forward = new Vector3(0, 0, -1);
@@ -678,6 +681,10 @@ namespace Vox
             }
         }
 
+        public void SetViewMatrix(Matrix4 viewMatrix)
+        {
+
+        }
         public void RotateYaw(float deltaYaw)
         {
             yaw += deltaYaw;

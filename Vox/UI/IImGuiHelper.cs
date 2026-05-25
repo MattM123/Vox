@@ -8,9 +8,5 @@ namespace Vox.UI
         void CreateBlockColorPicker(OpenTK.Mathematics.Vector3 blockspace);
         void CreatePlayerInventory();
         void CreateMainMenu();
-        bool IsAnyMenuActive();
-        bool ShowBlockColorPicker();
-        bool ShowPlayerInventory();
-        void SetShowPlayerInventory(bool show);
     }
 }

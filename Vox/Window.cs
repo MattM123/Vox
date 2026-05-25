@@ -71,7 +71,7 @@ namespace Vox
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
 
-
+        private static bool isAnyMenuShowing = false;
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
         public static readonly ShaderManager _shaderManager = new();
@@ -107,8 +107,6 @@ namespace Vox
         protected override void OnLoad()
         {   
             base.OnLoad();
-
-
 
             _settings = new Settings();
             _assetLookup = new AssetLookup();
@@ -468,24 +466,13 @@ namespace Vox
 
                 RenderWorld();
             }
-
-            //Render inventory animation
-            //Angle variable now used by inventory instead of main menu
-            if (_imguiHelper!.ShowPlayerInventory())
-            {
-                if (angle > 360)
-                    angle = 0.0f;
-
-                angle += 0.1f * (float)e.Time;
-                _shaderManager.GetShaderProgram("Inventory").Bind();
-            }
-
+            
             ImGuiController.CheckGLError("End of frame");
 
             /*======================================
             Render new UI frame over everything
             ========================================*/
-            RenderUI();
+            RenderUI((float)e.Time);
             _UIController?.Render();
 
             SwapBuffers();
@@ -498,7 +485,7 @@ namespace Vox
                 .SetMatrixUniform("projectionMatrix", pMatrix)
                 .SetMatrixUniform("modelMatrix", modelMatricRotate);
 
-            if (IsMenuRendered())
+            if (_imguiHelper?.GetCurrentMenu() == Menu.Main)
             {
                 modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
                 Matrix4 menuMatrix = modelMatricRotate;
@@ -546,13 +533,19 @@ namespace Vox
         {
             base.OnUpdateFrame(args);
 
-            //Update player and cursor state
-            if (!IsMenuRendered())
-            {
-                GetPlayer().Update((float)args.Time);
+            // Update pause status
+            if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                isAnyMenuShowing = false;
+            else
+                isAnyMenuShowing = true;
 
-                if (!_imguiHelper!.ShowBlockColorPicker() && !PAUSE && !_imguiHelper!.ShowPlayerInventory())
-                    _player!.SetLookDir(MouseState.Y, MouseState.X);
+            //Update player and cursor state
+            if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause)
+            {
+                _player?.Update((float)args.Time);
+
+                if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                    _player?.SetLookDir(MouseState.Y, MouseState.X);
             }
 
             /*==================================
@@ -600,7 +593,7 @@ namespace Vox
             _shaderManager.GetShaderProgram("Lighting").Bind()
                 .SetVector3Uniform("light.position", sunlightPos);
 
-            if (!IsMenuRendered())
+            if (_imguiHelper?.GetCurrentMenu() != Menu.Main)
                 sunlightViewMatrix = Matrix4.LookAt(sunlightPos, new(0, 0, 0), Vector3.UnitY);
             else
                 sunlightViewMatrix = Matrix4.LookAt(sunlightPos, GetPlayer().GetPosition(), Vector3.UnitY);
@@ -636,7 +629,7 @@ namespace Vox
             if (float.IsNaN(GetPlayer().GetBlockedDirection().X))
                 return;
 
-            if (!IsMenuRendered() && !_imguiHelper!.ShowBlockColorPicker()) {
+            if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause && _imguiHelper?.GetCurrentMenu() != Menu.Settings) { 
                 if (current[Keys.W])// && Math.Sign(GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z))
                     GetPlayer().MoveForward(1);
                 if (current[Keys.S] && Math.Sign(-GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z)) GetPlayer().MoveForward(-1);
@@ -649,45 +642,53 @@ namespace Vox
                 if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     GetPlayer().MoveUp(-1);
 
-                if (current[Keys.Escape])
-                    PAUSE = !PAUSE;
-
             }
 
-            Vector3 target = new(0, 0, 0);
-            if (!_imguiHelper!.ShowPlayerInventory())
-                target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
-
-            Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(target);
-            Vector3i idx = _regionManager.GetChunkRelativeCoordinates(target);
-
-            //If its a lamp block, display the color picker when the key is pressed to display it
-            if (current[Keys.C] && (BlockType)actionChunk._blockData[idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+            if (_imguiHelper?.GetCurrentMenu() != Menu.Main)
             {
-                if (!_imguiHelper!.ShowBlockColorPicker())
+                Vector3 target = new(0, 0, 0);
+
+                if (_imguiHelper?.GetCurrentMenu() != Menu.Inventory)
+                    target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
+
+
+                Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(target);
+                Vector3i idx = _regionManager.GetChunkRelativeCoordinates(target);
+
+                //Render color picker for light emitting blocks
+                if (current[Keys.C] && (BlockType)actionChunk._blockData![idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
                 {
-                    _imguiHelper.SetShowBlockColorPicker(true);
-                    dirX = MouseState.X;
-                    dirY = MouseState.Y;
-                } else
+                    // If no menu is currently active, show the colorpicker, otherwise close the colorpicker
+                    if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                        _imguiHelper.SetCurrentMenu(Menu.ColorPicker);
+                    else if (_imguiHelper?.GetCurrentMenu() == Menu.ColorPicker)
+                    {
+                        _imguiHelper.SetCurrentMenu(Menu.None);
+                        ImGui.CloseCurrentPopup();
+                    }
+                }
+
+                // Show player inventory
+                if (current[Keys.E] && _imguiHelper?.GetCurrentMenu() != Menu.Main)
                 {
-                    _imguiHelper.SetShowBlockColorPicker(false);
-                    Console.WriteLine("Set look direction to X: " + dirX + " Y: " + dirY);
-                    _player!.SetLookDir(dirX, dirY);
+
+                    // If no menu is currently active, show the inventory, otherwise close the inventory
+                    if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                        _imguiHelper.SetCurrentMenu(Menu.Inventory);
+                    else if (_imguiHelper?.GetCurrentMenu() == Menu.Inventory)
+                        _imguiHelper.SetCurrentMenu(Menu.None);
+                }
+
+                // Shows pause menu if Escape is pressed
+                if (current[Keys.Escape] && _imguiHelper?.GetCurrentMenu() != Menu.Main)
+                {
+                    // Show pause menu if no menu is currently active, otherwise close the pause menu
+                    if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                        _imguiHelper.SetCurrentMenu(Menu.Pause);
+                    else if (_imguiHelper?.GetCurrentMenu() == Menu.Pause)
+                        _imguiHelper.SetCurrentMenu(Menu.None);
                 }
             }
-
-            // Show player inventory
-            if (current[Keys.E] && !IsMenuRendered())
-            {
-                _imguiHelper.SetShowPlayerInventory(!_imguiHelper.ShowPlayerInventory());
-
-                // If both inventory and color picker is showing, close the color picker
-                if (_imguiHelper.ShowPlayerInventory() && _imguiHelper.ShowBlockColorPicker())
-                    _imguiHelper.SetShowBlockColorPicker(false);
-            }
-
-
             previousKeyboardState = current;
         }
         protected override void OnKeyUp(KeyboardKeyEventArgs e)
@@ -705,17 +706,17 @@ namespace Vox
         {
             base.OnMouseDown(e); 
 
-            if (!IsMenuRendered() && !_imguiHelper!.ShowPlayerInventory())
+            if (_imguiHelper?.GetCurrentMenu() == Menu.None)
             {
                 Vector3 block = GetPlayer().UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
 
-                if (e.Button == MouseButton.Left && !_imguiHelper!.IsAnyMenuActive())
+                if (e.Button == MouseButton.Left)
                 {
                     ColorVector color = new(9, 9, 8);
                     _regionManager!.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), color);
 
                 }
-                if (e.Button == MouseButton.Right && !_imguiHelper!.IsAnyMenuActive())
+                if (e.Button == MouseButton.Right)
                 {
                     _regionManager!.RemoveBlockFromChunk(block);
                 }
@@ -726,72 +727,68 @@ namespace Vox
         protected override void OnTextInput(TextInputEventArgs e)
         {
             base.OnTextInput(e);
-            _UIController.PressChar((char)e.Unicode);
+            _UIController?.PressChar((char)e.Unicode);
         }
 
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             base.OnMouseWheel(e);
 
-            _UIController.MouseScroll(e.Offset);
+            _UIController?.MouseScroll(e.Offset);
         }
         public static long GetMenuSeed()
         {
             return menuSeed;
         }
-        private void RenderUI()
+        private void RenderUI(float time)
         {
-            ImGuiIOPtr ioptr = ImGui.GetIO();
-
             if (renderMenu)
             {
-                _imguiHelper!.CreateMainMenu();
+                _imguiHelper?.SetCurrentMenu(Menu.Main);
             }
             else
             {
                  // _imguiHelper!.ShowDebugMenu(ioptr);
             }
 
-            //Color Picker
             KeyboardState current = KeyboardState.GetSnapshot();
-            Vector3 target = (0, 0, 0);
-            
-            if (!_imguiHelper!.ShowPlayerInventory())
-                target = GetPlayer().UpdateViewTarget(out _, out _, out _);
 
-            //Cursor state handling
-            if (_imguiHelper!.ShowPlayerInventory() && !IsMenuRendered())
+            //============================
+            //Inventory shader binding
+            //============================
+            if (_imguiHelper?.GetCurrentMenu() == Menu.Inventory)
+             {
+                 if (angle > 360)
+                     angle = 0.0f;
+            
+                 angle += 0.1f * time;
+                 _shaderManager.GetShaderProgram("Inventory").Bind();
+             }
+
+            //============================
+            //Handle cursor state on menus
+            //============================
+            if (_imguiHelper?.GetCurrentMenu() != Menu.None)
             {
                 CursorState = CursorState.Normal;
-                _imguiHelper!.CreatePlayerInventory();
-            }
-            else if (_imguiHelper!.ShowBlockColorPicker() && !IsMenuRendered())
+            } else
             {
-                CursorState = CursorState.Normal;
-                _imguiHelper.SetShowBlockColorPicker(true);
-                _imguiHelper!.CreateBlockColorPicker(target);
-                ImGui.OpenPopup("ColorPicker");
-            }
-            else if (!_imguiHelper!.ShowBlockColorPicker() && !IsMenuRendered() && !PAUSE)
-            {
-                ImGui.CloseCurrentPopup();
                 CursorState = CursorState.Grabbed;
-            } else if (IsMenuRendered() || PAUSE)
-            {
-                CursorState = CursorState.Normal;
             }
+
+            _imguiHelper?.RenderCurrentMenu();
         }
        
 
-        public static bool IsMenuRendered() { return renderMenu; }
+        public static bool IsMainMenuScreenDisplayed() { return renderMenu; }
 
-        public static void SetMenuRendered(bool val) { renderMenu = val; }
+        public static void DisplayMainMenuScreen(bool val) { renderMenu = val; }
 
     
         private void RenderMenu()
         {
             int vaoo = GL.GenVertexArray();
-
+            
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
@@ -1060,6 +1057,10 @@ namespace Vox
         }
         private static HashSet<string> visited = new();
 
+        public static bool IsAnyMenuShowing()
+        {
+            return isAnyMenuShowing;
+        }
         private static string ProcessShaderIncludes(string filePath)
         {
             string fullPath = Path.GetFullPath(filePath);

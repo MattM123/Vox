@@ -130,7 +130,7 @@ namespace Vox.Genesis
         public short GetGlobalHeightMapValue(int x, int z)
         {
             long seed;
-            if (Window.IsMenuRendered())
+            if (Window.IsMainMenuScreenDisplayed())
                 seed = Window.GetMenuSeed();
             else
                 seed = WORLD_SEED;
@@ -185,7 +185,7 @@ namespace Vox.Genesis
         public BlockType GetGlobalBlockType(int x, int y, int z)
         {
             long seed;
-            if (Window.IsMenuRendered())
+            if (Window.IsMainMenuScreenDisplayed())
                 seed = Window.GetMenuSeed();
             else
                 seed = WORLD_SEED;
