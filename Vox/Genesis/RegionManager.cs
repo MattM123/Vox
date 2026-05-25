@@ -43,20 +43,16 @@ namespace Vox.Genesis
         /// <param name="path">The file path of this world's directory.</param>
         /// <param name="ssboManager">The SSBO manager.</param>
         /// <param name="lightHelper">The light helper.</param>
-        public RegionManager(string path, ISSBOManager ssboManager, ILightHelper lightHelper)
+        public RegionManager(ISSBOManager ssboManager, ILightHelper lightHelper)
         {
             _lightHelper = lightHelper ?? throw new ShaderException(nameof(lightHelper) + " is null in RegionManager");
             _ssboManager = ssboManager ?? throw new ShaderException(nameof(ssboManager) + " is null in RegionManager");
 
             BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
-            worldDir = path;
-            WORLD_SEED = path.GetHashCode();
 
             byte[] buffer = new byte[8];
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
             WORLD_SEED = BitConverter.ToInt64(buffer, 0);
-
-            SetRegionDir(path);
         }
 
         /// <summary>

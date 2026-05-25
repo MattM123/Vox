@@ -9,7 +9,7 @@ using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
-using Vox.UI;
+using Vox.UI.MenuLogic;
 using Region = Vox.Genesis.Region;
 
 namespace Vox

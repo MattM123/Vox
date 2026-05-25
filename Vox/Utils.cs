@@ -172,5 +172,30 @@ namespace Vox
 
             return ImGui.Button(label, buttonSize);
         }
+        public static void WrappedButton(string label, System.Numerics.Vector2 size)
+        {
+            System.Numerics.Vector2 pos = ImGui.GetCursorScreenPos();
+
+            // 1. Create the interaction area
+            if (ImGui.InvisibleButton(label + "##inv", size))
+            {
+                // Handle click logic here
+            }
+
+            // 2. Determine button state for visual feedback
+            bool isHovered = ImGui.IsItemHovered();
+            bool isActive = ImGui.IsItemActive();
+            uint color = isActive ? ImGui.GetColorU32(ImGuiCol.ButtonActive) :
+                         isHovered ? ImGui.GetColorU32(ImGuiCol.ButtonHovered) :
+                         ImGui.GetColorU32(ImGuiCol.Button);
+
+            // 3. Manually draw the background and wrapped text
+            ImGui.GetWindowDrawList().AddRectFilled(pos, pos + size, color, ImGui.GetStyle().FrameRounding);
+
+            ImGui.SetCursorScreenPos(pos + ImGui.GetStyle().FramePadding);
+            ImGui.PushTextWrapPos(pos.X + size.X - ImGui.GetStyle().FramePadding.X);
+            ImGui.TextUnformatted(label);
+            ImGui.PopTextWrapPos();
+        }
     }
 }

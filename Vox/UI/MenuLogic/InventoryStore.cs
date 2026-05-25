@@ -5,7 +5,7 @@ using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
 
-namespace Vox.UI
+namespace Vox.UI.MenuLogic
 {
 
     public class InventoryStore : IInventoryStore

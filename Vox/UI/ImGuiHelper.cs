@@ -10,6 +10,7 @@ using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
+using Vox.UI.MenuLogic;
 
 namespace Vox.UI
 {
@@ -35,7 +36,7 @@ namespace Vox.UI
         private readonly IRegionManager? _regionManager;
         private readonly ILightHelper? _lightHelper;
         private readonly IChunkCache? _chunkCache;
-        private readonly ISettings? _settings;
+        private readonly ISettingsStore? _settings;
         private readonly ImGuiIOPtr _ioPtr;
         private readonly ImGuiController _UIController;
 
@@ -43,7 +44,7 @@ namespace Vox.UI
         private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
 
         public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
-            ILightHelper lightHeler, IChunkCache chunkCache, ISettings settings)
+            ILightHelper lightHeler, IChunkCache chunkCache, ISettingsStore settings)
         {
             _textureLoader = textureLoader;
             _assetLookup = assetLookup;
@@ -64,6 +65,10 @@ namespace Vox.UI
         }
         public void CreateMainMenu()
         {
+            float _guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 20f * _guiScale;
+            float menuHeight = 15f * _guiScale;
+
             ImGui.PushFont(PtFont18);
 
             float horizontalMenuScale = 3.5f;
@@ -71,14 +76,10 @@ namespace Vox.UI
 
             //Set menu style
             ImGui.PushStyleColor(ImGuiCol.ChildBg, new System.Numerics.Vector4(0f, 0f, 0f, 0.3f));
-            //Set menu size
-
-            ImGui.SetWindowSize(new System.Numerics.Vector2(Window.screenWidth - 400 / horizontalMenuScale, Window.screenHeight));
-            ImGui.SetWindowPos(new System.Numerics.Vector2(Window.screenWidth / 30, Window.screenHeight / 40));
 
             ImGui.Text("Choose a World");
 
-            ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, Window.screenHeight / 1.15f),
+            ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, menuHeight / 2.5f),
                 ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
 
             ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
@@ -247,8 +248,12 @@ namespace Vox.UI
         }
         public void CreateBlockColorPicker(Vector3 blockspace)
         {
+            float _guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 9.3f * _guiScale;
+            float menuHeight = 7.2f * _guiScale;
+
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new System.Numerics.Vector2(410, 270));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(_guiScale * 3, _guiScale * 3));
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
@@ -294,11 +299,9 @@ namespace Vox.UI
         {
             ImGui.PushFont(PtFont18);
 
-            _settings.SetGuiScale(100f);
-
             int topFillerPadding = 5;
             int slotPadding = 5;
-            float _guiScale = _settings.GetGuiScale();
+            float _guiScale = _settings!.GetSettings().GuiScale;
             float menuWidth = 9.3f * _guiScale;
             float menuHeight = 7.2f * _guiScale;
             float slotSize = (menuWidth + slotPadding) / 9;
@@ -501,10 +504,8 @@ namespace Vox.UI
         }
         public void CreatePauseMenu()
         {
-
             //Set menu sizing
-            _settings.SetGuiScale(100f);
-            float _guiScale = _settings.GetGuiScale();
+            float _guiScale = _settings!.GetSettings().GuiScale;
             float menuWidth = 9.3f * _guiScale;
             float menuHeight = 7.2f * _guiScale;
 
@@ -532,6 +533,7 @@ namespace Vox.UI
 
             if (Utils.ButtonCentered("Settings", _guiScale / 2, _guiScale / 6))
             {
+                _settings.FillBuffersFromSettings();
                 SetCurrentMenu(Menu.Settings);
             }
             if (Utils.ButtonCentered("Back To Game", _guiScale / 2, _guiScale / 6))
@@ -554,8 +556,7 @@ namespace Vox.UI
         {
 
             //Set menu sizing
-            _settings.SetGuiScale(100f);
-            float _guiScale = _settings.GetGuiScale();
+            float _guiScale = _settings!.GetSettings().GuiScale;
             float menuWidth = 9.3f * _guiScale;
             float menuHeight = 7.2f * _guiScale;
 
@@ -581,9 +582,15 @@ namespace Vox.UI
             ImGui.BeginChild("Filler", new(menuWidth, menuHeight / 10));
             ImGui.EndChild();
 
-            if (Utils.ButtonCentered("GUI Scale", _guiScale / 2, _guiScale / 6))
+            float val = _settings.GetSettings().GuiScaleBuffer;
+            if (ImGui.SliderFloat("GUI Scale", ref val, 50f, 150f, "%.1f", ImGuiSliderFlags.AlwaysClamp | ImGuiSliderFlags.Logarithmic))
             {
-
+                _settings.GetSettings().GuiScaleBuffer = val;
+            }
+            if (Utils.ButtonCentered("Apply Settings", _guiScale / 2, _guiScale / 6))
+            {
+                _settings.SetGuiScale(_settings.GetSettings().GuiScaleBuffer);
+                _settings.SaveSettingsToFile();
             }
             if (Utils.ButtonCentered("Back", _guiScale / 2, _guiScale / 6))
             {

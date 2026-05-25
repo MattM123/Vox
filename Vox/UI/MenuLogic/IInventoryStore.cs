@@ -2,7 +2,7 @@
 using Vox.Enums;
 using Vox.Model;
 
-namespace Vox.UI
+namespace Vox.UI.MenuLogic
 {
     public interface IInventoryStore
     {

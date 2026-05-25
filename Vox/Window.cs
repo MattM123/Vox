@@ -16,6 +16,7 @@ using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
 using Vox.UI;
+using Vox.UI.MenuLogic;
 using BlendingFactor = OpenTK.Graphics.OpenGL4.BlendingFactor;
 using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
@@ -67,7 +68,7 @@ namespace Vox
         private RegionManager? _regionManager;   
         private ChunkCache? _chunkCache;
         private LightHelper? _lightHelper;
-        private Settings? _settings;
+        private SettingsStore? _settings;
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
 
@@ -107,14 +108,17 @@ namespace Vox
         {   
             base.OnLoad();
 
-            _settings = new Settings();
+            _settings = new SettingsStore(appFolder);
+          //  _settings.TryLoadSettingsFromFile();
+          //  _settings.FillBuffersFromSettings();
+
             _assetLookup = new AssetLookup();
             _ssboManager = new SSBOManager();
             _lightHelper = new LightHelper();
 
             _inventoryStore = new InventoryStore(_ssboManager);
             _textureLoader = new TextureLoader(_assets, _assetLookup);
-            _regionManager = new RegionManager("", _ssboManager, _lightHelper);
+            _regionManager = new RegionManager(_ssboManager, _lightHelper);
             _chunkCache = new ChunkCache(null, _regionManager!);
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache);
 
@@ -122,7 +126,6 @@ namespace Vox
             _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
             _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
             sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
-
 
             _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
 

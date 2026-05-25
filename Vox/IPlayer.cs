@@ -2,7 +2,7 @@
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
-using Vox.UI;
+using Vox.UI.MenuLogic;
 
 namespace Vox
 {
