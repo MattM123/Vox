@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
+using Vox.Assets;
 using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Model;
@@ -19,6 +20,9 @@ namespace Vox.Genesis
 
         [IgnoreMember]
         private IRegionManager? _regionManager;
+
+        [IgnoreMember]
+        private IAssetLookup? _assetLookup;
 
         //Vector4 (x, y, z, faceDir)
         [IgnoreMember]
@@ -65,10 +69,11 @@ namespace Vox.Genesis
 
         [SerializationConstructor]
         public Chunk() { }
-        public Chunk(ISSBOManager ssboManager, IRegionManager regionManager)
+        public Chunk(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup)
         {
-            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Chunk");
-            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
+            _assetLookup = assetLookup;
+            _ssboManager = ssboManager;
+            _regionManager = regionManager;
             _chunkBounds = _regionManager.GetChunkBounds();
 
             _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
@@ -126,16 +131,17 @@ namespace Vox.Genesis
                     {
                         for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
                         {
+                            int worldX = (int)(x1 + xLoc);
+                            int worldY = (int)(y1 + yLoc);
+                            int worldZ = (int)(z1 + zLoc);
+
                             int elevation = _heightMap![z1, x1];
 
                             //Set block data to AIR and visibility to false if its not visible
-                            if (y1 + yLoc <= elevation && elevation >= yLoc)
+                            if (worldY <= elevation)
                             {
-                                _blockData![x1, y1, z1] = (short)_regionManager.GetGlobalBlockType((int)(x1 + xLoc), (int)(y1 + yLoc), (int)(z1 + zLoc));
-                            }
-                            else
-                            {
-                                _blockData![x1, y1, z1] = 0;
+                                _blockData![x1, y1, z1] =
+                                    (short)_regionManager.GetGlobalBlockType(worldX, worldY, worldZ);
                             }
                         }
                     }
@@ -150,21 +156,27 @@ namespace Vox.Genesis
 
 
         /// <summary>
-        /// Re-Initializes the chunk with the given SSBO manager and region manager. 
+        /// Re-Initializes the chunk with the given dependencies. 
         /// This is used when deserializing a region from file, as the region manager and SSBO manager
         /// is not serialized with the region.
         /// </summary>
         /// <param name="ssboManager"></param>
+        /// <param name="assetLookup"></param>
+        /// <param name="regionManager"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="z"></param>
         /// <exception cref="Exception"></exception>
-        public void Initialize(ISSBOManager ssboManager, IRegionManager regionManager, float x, float y, float z)
+        public void Initialize(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup, float x, float y, float z)
         {
             xLoc = x;
             zLoc = z;
             yLoc = y;
             location = new Vector3(xLoc, yLoc, zLoc);
 
-            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Chunk");
-            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Chunk");
+            _assetLookup = assetLookup;
+            _ssboManager = ssboManager;
+            _regionManager = regionManager;
             _chunkBounds = _regionManager.GetChunkBounds();
 
         }
@@ -188,14 +200,14 @@ namespace Vox.Genesis
                                 //Positive Y (UP)
                                 if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
                                     BlockFace faceDir = BlockFace.UP;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                                 // Positive X (EAST)
                                 if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
                                     BlockFace faceDir = BlockFace.EAST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -204,7 +216,7 @@ namespace Vox.Genesis
                                 //Negative X (WEST)
                                 if (x - 1 < 0 || _blockData[x - 1, y, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
                                     BlockFace faceDir = BlockFace.WEST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -212,7 +224,7 @@ namespace Vox.Genesis
                                 //Negative Y (DOWN)
                                 if (y - 1 < 0 || _blockData[x, y - 1, z] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                                     BlockFace faceDir = BlockFace.DOWN;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -220,7 +232,7 @@ namespace Vox.Genesis
                                 //Positive Z (NORTH)
                                 if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                                     BlockFace faceDir = BlockFace.NORTH;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -228,7 +240,7 @@ namespace Vox.Genesis
                                 //Negative Z (SOUTH)
                                 if (z - 1 < 0 || _blockData[x, y, z - 1] == 0)
                                 {
-                                    int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                                     BlockFace faceDir = BlockFace.SOUTH;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }

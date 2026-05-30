@@ -1,9 +1,13 @@
 ﻿
 using System.IO;
+using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL4;
 using StbiSharp;
 using Vox.Assets;
+using Vox.Enums;
 using Vox.Exceptions;
+using Buffer = System.Buffer;
 namespace Vox.Rendering
 {
     public class TextureLoader : ITextureLoader
@@ -15,33 +19,28 @@ namespace Vox.Rendering
         public TextureLoader(string assetsPath, IAssetLookup assetLookup)
         {
             _textureIDs = [];
-            _assetsPath = assetsPath ?? throw new ShaderException(nameof(assetsPath) + " is null in TextureLoader");
-            _assetLookup = assetLookup ?? throw new ShaderException(nameof(assetLookup) + " is null in TextureLoader" );
+            _assetsPath = assetsPath;
+            _assetLookup = assetLookup;
 
             Directory.CreateDirectory(_assetsPath + "Textures");
             Directory.CreateDirectory(_assetsPath + "BlockTextures");
         }
 
-        public int LoadTextures(int slot)
+        public int LoadTextures()
         {
-
-            string[] tex = [.. Directory.EnumerateFiles(_assetsPath + "BlockTextures")];
- 
-            int width = 16;
-            int height = 16;
+            int textureSize = 16;
 
             //========================
             //Texture Setup
             //========================
-
-            int numLayers = tex.Length;
+            int numberOfTextures = 7;
 
             //Create and bind texture array
-            int texId = GL.GenTexture();
+            int textureArray = GL.GenTexture();         
 
-            GL.ActiveTexture(TextureUnit.Texture0 + slot);
-            GL.BindTexture(TextureTarget.Texture2DArray, texId);
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, width, height, numLayers);
+            GL.ActiveTexture(TextureUnit.Texture4);
+            GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, textureSize, textureSize, numberOfTextures);
 
             // Setting texture parameters
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMaxLevel, 0);
@@ -51,33 +50,72 @@ namespace Vox.Rendering
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
 
-            for (int i = 0; i < numLayers; i++)
+            //Load atlas into memory
+            using var memoryStream = new MemoryStream();
+            using FileStream stream = File.OpenRead(Path.Combine(_assetsPath!, "Atlas.png"));
+            stream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            StbiImage image = Stbi.LoadFromMemory(memoryStream, 4);
+
+            byte[] layerBuffer = new byte[
+                numberOfTextures *
+                textureSize *
+                textureSize *
+                4];
+
+            byte[] atlas = image.Data.ToArray();
+            int texturesPerRow = 64;
+            int channels = 4;
+
+            int rowSize = textureSize * channels;
+            int copySize = textureSize * channels;
+
+            List<Texture> textures = _assetLookup!.GetTexturesWithLayers();
+
+            for (int i = 0; i < textures.Count; i++)
             {
-                using var memoryStream = new MemoryStream();
-                using FileStream stream = File.OpenRead(tex[i]);
-                stream.CopyTo(memoryStream);
-                memoryStream.Position = 0;
-                using var image = Stbi.LoadFromMemory(memoryStream, 4);
+                int layer = _assetLookup.GetTextureLayerFromTexture(textures[i]);
+                int atlasWidth = texturesPerRow * textureSize;
 
-                string filename = stream.Name[(stream.Name.LastIndexOf('\\') + 1)..];
+                for (int y = 0; y < textureSize; y++)
+                {
+                    int tileX = i % texturesPerRow;
+                    int tileY = i / texturesPerRow;
 
-                byte[] subimageData = image.Data.ToArray();
-                
-                // Use TexSubImage3D to upload the image data to the specific layer
-                GL.TexSubImage3D(
-                    TextureTarget.Texture2DArray,                           //Target
-                    0,                                                      //Level
-                    0, 0,                                                   //XY Offset
-                    _assetLookup!.GetTextureValueFromFilename(filename),    //Z offset
-                    width, height, 1,                                       //Width, height, depth
-                    PixelFormat.Rgba,                                       //Pixel Format
-                    PixelType.UnsignedByte,                                 //Pixel Type
-                    subimageData);                                          //Image data
+                    int srcOffset =
+                        ((tileY * textureSize + y) * atlasWidth +
+                         tileX * textureSize) * channels;
+
+                    int dstOffset =
+                        ((layer * textureSize * textureSize) +
+                         (y * textureSize)) * channels;
+
+                    Buffer.BlockCopy(
+                        atlas,
+                        srcOffset,
+                        layerBuffer,
+                        dstOffset,
+                        copySize
+                    );
+                }
             }
 
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
-            _textureIDs.Add(texId);
-            return texId;
+
+            GL.TexSubImage3D(
+                TextureTarget.Texture2DArray,
+                0,
+                0, 0, 0,
+                textureSize,
+                textureSize,
+                numberOfTextures,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                layerBuffer
+            );
+
+            stream.Close();
+            _textureIDs.Add(textureArray);
+            return textureArray;
         }
 
         /*

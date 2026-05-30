@@ -2,7 +2,7 @@
 {
     public interface ITextureLoader
     {
-        int LoadTextures(int slot);
+        int LoadTextures();
         int LoadSingleTexture(string fileBlockName);
         void CleanupTextures();
         void CleanupTexture(int texid);

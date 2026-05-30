@@ -384,7 +384,7 @@ namespace Vox.UI
                 {
                     // Render block model for current slot
                     InventoryStore inventory = _player!.GetInventory();
-                    BlockModel model = ModelLoader.GetModel(selectedBlock);
+                    BlockModel model = _assetLookup!.GetModel(selectedBlock);
                     string modelElements = model.GetElements().ElementAt(0).ToString();
 
                     int start = modelElements.IndexOf("from=(") + 6;
@@ -404,7 +404,7 @@ namespace Vox.UI
                         facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                         index = 0,
                         lighting = 0,
-                        textureLayer = (int)model.GetTexture(BlockFace.NORTH),
+                        textureLayer = (int)model.GetTextureLayer(BlockFace.NORTH),
                         faceDirection = (int)BlockFace.NORTH
                     });
                     inventory.AddOrUpdateFaceInMemory(
@@ -413,7 +413,7 @@ namespace Vox.UI
                             facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                             index = 1,
                             lighting = 56149,
-                            textureLayer = (int)model.GetTexture(BlockFace.SOUTH),
+                            textureLayer = (int)model.GetTextureLayer(BlockFace.SOUTH),
                             faceDirection = (int)BlockFace.SOUTH
                         });
                     inventory.AddOrUpdateFaceInMemory(
@@ -422,7 +422,7 @@ namespace Vox.UI
                             facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                             index = 2,
                             lighting = 56149,
-                            textureLayer = (int)model.GetTexture(BlockFace.EAST),
+                            textureLayer = (int)model.GetTextureLayer(BlockFace.EAST),
                             faceDirection = (int)BlockFace.EAST
                         });
                     inventory.AddOrUpdateFaceInMemory(
@@ -431,7 +431,7 @@ namespace Vox.UI
                             facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                             index = 3,
                             lighting = 56149,
-                            textureLayer = (int)model.GetTexture(BlockFace.WEST),
+                            textureLayer = (int)model.GetTextureLayer(BlockFace.WEST),
                             faceDirection = (int)BlockFace.WEST
                         });
                     inventory.AddOrUpdateFaceInMemory(
@@ -440,7 +440,7 @@ namespace Vox.UI
                             facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                             index = 4,
                             lighting = 56149,
-                            textureLayer = (int)model.GetTexture(BlockFace.UP),
+                            textureLayer = (int)model.GetTextureLayer(BlockFace.UP),
                             faceDirection = (int)BlockFace.UP
                         });
                     inventory.AddOrUpdateFaceInMemory(
@@ -449,7 +449,7 @@ namespace Vox.UI
                             facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
                             index = 5,
                             lighting = 56149,
-                            textureLayer = (int)model.GetTexture(BlockFace.DOWN),
+                            textureLayer = (int)model.GetTextureLayer(BlockFace.DOWN),
                             faceDirection = (int)BlockFace.DOWN
                         });
 

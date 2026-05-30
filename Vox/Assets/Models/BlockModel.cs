@@ -10,14 +10,18 @@ namespace Vox.Assets.Models
         private Dictionary<BlockFace, string> textures = [];
         private readonly List<Element> elements = [];
         private bool transparent = false;
-        BlockModel parentModel;
-        BlockType type;
+        private BlockModel parentModel;
+        private BlockType _type;
+        private readonly IAssetLookup _assetLookup;
 
-        public BlockModel() { }
+        public BlockModel(IAssetLookup assetLookup) {
+            _assetLookup = assetLookup;
+        }
 
-        public BlockModel(JObject jsonObject, BlockType type)
+        public BlockModel(JObject jsonObject, BlockType type, IAssetLookup assetLookup)
         {
-            this.type = type;
+            _assetLookup = assetLookup;
+            _type = type;
             JToken? parent = jsonObject["parent"];
             JObject? jsonTextures = jsonObject["textures"] as JObject;
             JArray? jsonElements = jsonObject["elements"] as JArray;
@@ -28,11 +32,11 @@ namespace Vox.Assets.Models
                 string parentPath = Path.Combine(Window.GetAssetPath(), "BlockModels", parent.ToString());
                 string jsonContent = File.ReadAllText(parentPath + ".json");
                 JObject parentObj = JObject.Parse(jsonContent);
-                parentModel = new BlockModel(parentObj, type);
+                parentModel = new BlockModel(parentObj, type, _assetLookup);
             }
             else
             {
-                parentModel = new BlockModel();
+                parentModel = new BlockModel(_assetLookup);
             }
 
             textures = new Dictionary<BlockFace, string>(parentModel.textures);
@@ -100,21 +104,19 @@ namespace Vox.Assets.Models
             }
         }
 
-        public bool IsTransparent() { return transparent; }
 
         /**
          * Retrieves a texture from a block model for rendering.
          * If there the model has no texture assigned it assumes its AIR
          */
-        public Texture GetTexture(BlockFace side)
+        public int GetTextureLayer(BlockFace side)
         {
-            Texture output = 0;
             if (textures.TryGetValue(side, out string? value)) {
-                Enum.TryParse(value, true, out output);
-                return output;
+                Enum.TryParse(value, true, out Texture texture);
+                return _assetLookup.GetTextureLayerFromTexture(texture) - 1;
             }
 
-            return output;
+            return 0;
         }
 
         public Dictionary<BlockFace, string> GetTextures()
@@ -129,7 +131,7 @@ namespace Vox.Assets.Models
 
         public BlockModel RotateX(int degrees)
         {
-            BlockModel model = new();
+            BlockModel model = new(_assetLookup);
 
             //Adds current instance textures to a new model, then rotates them
             for (int i = 0; i < textures.Count; i++)
@@ -147,7 +149,7 @@ namespace Vox.Assets.Models
 
         public BlockModel RotateY(int degrees)
         {
-            BlockModel model = new();
+            BlockModel model = new(_assetLookup);
 
             //Adds current instance textures to a new model, then rotates them
             for (int i = 0; i < textures.Count; i++)
@@ -162,7 +164,7 @@ namespace Vox.Assets.Models
 
         public BlockModel RotateZ(int degrees)
         {
-            BlockModel model = new();
+            BlockModel model = new(_assetLookup);
 
             //Adds current instance textures to a new model, then rotates them
             for (int i = 0; i < textures.Count; i++)
@@ -175,7 +177,7 @@ namespace Vox.Assets.Models
             return model;
         }
 
-        public BlockType GetBlockType() { return type; }
+        public BlockType GetBlockType() { return _type; }
         public override string ToString()
         {
             string tex = "";
@@ -198,12 +200,6 @@ namespace Vox.Assets.Models
             }
             return "\ntextures=\n" + tex + "elements=\n" + ele + "faces=\n" + faces;
         }
-
-       //public static BlockModel ForPath(AssetPath path)
-       //{
-       //    JObject obj = AssetManager.GetInstance().GetJson(path);
-       //    return new BlockModel(obj);
-       //}
     }
 }
 

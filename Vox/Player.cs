@@ -52,10 +52,10 @@ namespace Vox
          */
         public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache)
         {
-            _ssboManager = ssboManager ?? throw new Exception(nameof(ssboManager) + " is null in Player");
-            _inventoryStore = inventoryStore ?? throw new Exception(nameof(inventoryStore) + " is null in Player");
-            _regionManager = regionManager ?? throw new Exception(nameof(regionManager) + " is null in Player");
-            _chunkCache = chunkCache ?? throw new Exception(nameof(chunkCache) + " is null in Player");
+            _ssboManager = ssboManager;
+            _inventoryStore = inventoryStore;
+            _regionManager = regionManager;
+            _chunkCache = chunkCache;
 
 
             // Test / debug values for inventory, can be removed later
@@ -64,6 +64,7 @@ namespace Vox
             _inventoryStore.SetSlot(2, BlockType.GRASS_BLOCK, 16);
             _inventoryStore.SetSlot(3, BlockType.TEST_BLOCK, 55);
             _inventoryStore.SetSlot(4, BlockType.TARGET_BLOCK, 64);
+            _inventoryStore.SetSlot(5, BlockType.STONE_BLOCK, 10);
 
             _chunkCache.SetPlayerChunk(GetChunkWithPlayer());      
             position = new(0, _regionManager.GetGlobalHeightMapValue((int)position.X, (int)position.Z) + 1, 0);

@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Security.Cryptography;
 using MessagePack;
 using OpenTK.Mathematics;
+using Vox.Assets;
 using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Exceptions;
@@ -18,6 +19,7 @@ namespace Vox.Genesis
 
         private readonly ISSBOManager _ssboManager;
         private readonly ILightHelper _lightHelper;
+        private readonly IAssetLookup _assetLookup;
 
         private string worldDir = "";
         private readonly int WORLD_HEIGHT = 500;
@@ -43,10 +45,11 @@ namespace Vox.Genesis
         /// <param name="path">The file path of this world's directory.</param>
         /// <param name="ssboManager">The SSBO manager.</param>
         /// <param name="lightHelper">The light helper.</param>
-        public RegionManager(ISSBOManager ssboManager, ILightHelper lightHelper)
+        public RegionManager(ISSBOManager ssboManager, ILightHelper lightHelper, IAssetLookup assetLookup)
         {
-            _lightHelper = lightHelper ?? throw new ShaderException(nameof(lightHelper) + " is null in RegionManager");
-            _ssboManager = ssboManager ?? throw new ShaderException(nameof(ssboManager) + " is null in RegionManager");
+            _lightHelper = lightHelper;
+            _ssboManager = ssboManager;
+            _assetLookup = assetLookup;
 
             BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
 
@@ -137,7 +140,7 @@ namespace Vox.Genesis
 
             //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
             //more smooth, spread out hills.
-            double var2 = 0.001;
+            double var2 = 0.031;
 
             float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
                     + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
@@ -168,16 +171,16 @@ namespace Vox.Genesis
         }
 
         /// <summary>
-        /// Determines the global block type at the specified world coordinates using Simplex noise.
+        /// Determines the global block _type at the specified world coordinates using Simplex noise.
         /// </summary>
-        /// <remarks>The block type is selected based on a noise function seeded by either the current
+        /// <remarks>The block _type is selected based on a noise function seeded by either the current
         /// menu seed or the world seed, depending on the application state. The result is clamped to exclude non-block
         /// types. This method will return consistent results
         /// for the same coordinates and seed.</remarks>
         /// <param name="x">The X coordinate in world space</param>
         /// <param name="y">The Y coordinate in world space</param>
         /// <param name="z">The Z coordinate in world space</param>
-        /// <returns>A <see cref="BlockType"/> enumeration representing the block type at the given coordinates.</returns>
+        /// <returns>A <see cref="BlockType"/> enumeration representing the block _type at the given coordinates.</returns>
         public BlockType GetGlobalBlockType(int x, int y, int z)
         {
             long seed;
@@ -190,25 +193,24 @@ namespace Vox.Genesis
             float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
 
             //how many different types of blocks are there?
-            int blocktypes = Enum.GetValues(typeof(BlockType)).Length;
+
+            //this needs to be fixed. It has range 0-3 which doesnt map correctly to the texture layers
+            List<BlockType> naturalBlockTypes = _assetLookup.GetNaturalBlockTypes();
 
             // Multiply normalized noise to get an index
-            int index = (int)(noise * blocktypes);
-
-            // Clamp to exlude "non-blocks"
-            index = Math.Clamp(index, 1, blocktypes - 4);
+            int index = (int)(noise * naturalBlockTypes.Count);
+            index = Math.Clamp(index, 0, naturalBlockTypes.Count - 1);
 
             //Manually define ranges for certain block types like this:
             //if (noise < 0.3f)
             //    return BlockType.GRASS_BLOCK;
             //else if (noise < 0.6f)
             //    return BlockType.DIRT_BLOCK;
-            //    return BlockType.DIRT_BLOCK;
             //else
             //    return BlockType.STONE_BLOCK;
 
             // Convert index to BlockType
-            return (BlockType)index;
+            return naturalBlockTypes[index];
 
         }
 
@@ -347,7 +349,7 @@ namespace Vox.Genesis
             region.Initialize(this);
 
             foreach (Chunk chunk in region.chunks.Values)
-                chunk.Initialize(_ssboManager, this, chunk.xLoc, chunk.yLoc, chunk.zLoc);
+                chunk.Initialize(_ssboManager, this, _assetLookup, chunk.xLoc, chunk.yLoc, chunk.zLoc);
 
             return region;
 
@@ -415,7 +417,7 @@ namespace Vox.Genesis
             //If chunk has not yet been generated, generate it
             if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
             {
-                value = new Chunk(_ssboManager, this).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
+                value = new Chunk(_ssboManager, this, _assetLookup).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
                 lock (chunkLock)
                 {
                     r.chunks.Add(playerChunkIdx, value);
@@ -446,7 +448,7 @@ namespace Vox.Genesis
 
             if (!r.chunks.TryGetValue(chunkIdx, out Chunk? value))
             {
-                value = new Chunk(_ssboManager, this).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
+                value = new Chunk(_ssboManager, this, _assetLookup).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
                 r.chunks.Add(chunkIdx, value);
             }
             return value;
@@ -484,16 +486,16 @@ namespace Vox.Genesis
 
 
         /// <summary>
-        /// Adds a block of the specified type to the chunk at the given world-space coordinates and updates the corresponding chunk's
+        /// Adds a block of the specified _type to the chunk at the given world-space coordinates and updates the corresponding chunk's
         /// rendering and lighting data as needed.
         /// </summary>
-        /// <remarks>If the block type is emissive, lighting data is updated and propagated
+        /// <remarks>If the block _type is emissive, lighting data is updated and propagated
         /// asynchronously. Only the visible faces of the block are added to the chunk's rendering data, based on the
         /// presence of neighboring blocks. This method may trigger updates to lighting and rendering in adjacent chunks
         /// if the block is placed at a chunk boundary.</remarks>
         /// <param name="blockSpace">The world-space coordinates where the block will be added. Specifies the position within the global block
         /// grid.</param>
-        /// <param name="type">The type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
+        /// <param name="type">The _type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
         /// <param name="blockLight">The light color and intensity to assign to the block if it is emissive. Used for blocks that emit light,
         /// such as lamps.</param>
         public void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight)
@@ -521,7 +523,7 @@ namespace Vox.Genesis
             //Positive Y (UP)
             if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing UP Face");
@@ -529,7 +531,7 @@ namespace Vox.Genesis
             // Positive X (EAST)
             if (x + 1 >= bounds || actionChunk._blockData[(short)(x + 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing EAST Face");
@@ -539,7 +541,7 @@ namespace Vox.Genesis
             //Negative X (WEST)
             if (x - 1 < 0 || actionChunk._blockData[(short)(x - 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing WEST Face");
@@ -550,7 +552,7 @@ namespace Vox.Genesis
             //If player is below the blocks Y level, render the bottom face
             // && Window.GetPlayer().GetPosition().Y < y)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing DOWN Face");
@@ -559,7 +561,7 @@ namespace Vox.Genesis
             //Positive Z (NORTH)
             if (z + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing NORTH Face");
@@ -568,7 +570,7 @@ namespace Vox.Genesis
             //Negative Z (SOUTH)
             if (z - 1 < 0 || actionChunk._blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing SOUTH Face");
@@ -599,17 +601,18 @@ namespace Vox.Genesis
         }
 
 
+
         /// <summary>
-        /// Adds a block of the specified type to the chunk at the given world-space coordinates and updates the corresponding chunk's
+        /// Adds a block of the specified _type to the chunk at the given world-space coordinates and updates the corresponding chunk's
         /// rendering and lighting data as needed.
         /// </summary>
-        /// <remarks>If the block type is emissive, lighting data is updated and propagated
+        /// <remarks>If the block _type is emissive, lighting data is updated and propagated
         /// asynchronously. Only the visible faces of the block are added to the chunk's rendering data, based on the
         /// presence of neighboring blocks. This method may trigger updates to lighting and rendering in adjacent chunks
         /// if the block is placed at a chunk boundary.</remarks>
         /// <param name="blockSpace">The world-space coordinates where the block will be added. Specifies the position within the global block
         /// grid.</param>
-        /// <param name="type">The type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
+        /// <param name="type">The _type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
         /// <param name="blockLight">The light color and intensity to assign to the block if it is emissive. Used for blocks that emit light,
         /// such as lamps.</param>
         /// <param name="colorOverride">Indicates whether to override the block's current light color with the specified blockLight color.</param>
@@ -638,7 +641,7 @@ namespace Vox.Genesis
             //Positive Y (UP)
             if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.UP);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing UP Face");
@@ -646,7 +649,7 @@ namespace Vox.Genesis
             // Positive X (EAST)
             if (x + 1 >= bounds || actionChunk._blockData[(short)(x + 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.EAST);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing EAST Face");
@@ -656,7 +659,7 @@ namespace Vox.Genesis
             //Negative X (WEST)
             if (x - 1 < 0 || actionChunk._blockData[(short)(x - 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.WEST);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing WEST Face");
@@ -667,7 +670,7 @@ namespace Vox.Genesis
             //If player is below the blocks Y level, render the bottom face
             // && Window.GetPlayer().GetPosition().Y < y)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.DOWN);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing DOWN Face");
@@ -676,7 +679,7 @@ namespace Vox.Genesis
             //Positive Z (NORTH)
             if (z + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.NORTH);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing NORTH Face");
@@ -685,7 +688,7 @@ namespace Vox.Genesis
             //Negative Z (SOUTH)
             if (z - 1 < 0 || actionChunk._blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
             {
-                int texLayer = (int)ModelLoader.GetModel(type).GetTexture(BlockFace.SOUTH);
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
                 Console.WriteLine("Updaing SOUTH Face");
@@ -928,7 +931,7 @@ namespace Vox.Genesis
         /// </param>
         /// <remarks>
         /// This method:
-        /// <list type="bullet">
+        /// <list _type="bullet">
         /// <item>
         /// Collects nearby tracked emissive light sources that fall within the maximum light spread radius.
         /// </item>
@@ -1027,7 +1030,7 @@ namespace Vox.Genesis
         /// </param>
         /// <remarks>
         /// This method:
-        /// <list type="bullet">
+        /// <list _type="bullet">
         /// <item>
         /// Retrieves the current block's light level.
         /// </item>
@@ -1351,7 +1354,7 @@ namespace Vox.Genesis
         /// </param>
         /// <remarks>
         /// This method:
-        /// <list type="bullet">
+        /// <list _type="bullet">
         /// <item>
         /// Calculates attenuation based on distance from the original light source.
         /// </item>
@@ -1433,7 +1436,7 @@ namespace Vox.Genesis
         /// </param>
         /// <remarks>
         /// This method:
-        /// <list type="bullet">
+        /// <list _type="bullet">
         /// <item>
         /// Retrieves the current node's RGB light values.
         /// </item>

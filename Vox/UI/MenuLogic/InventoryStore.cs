@@ -27,10 +27,10 @@ namespace Vox.UI.MenuLogic
         }
 
         /// <summary>
-        /// Sets the block type and quantity for the slot at the specified index.
+        /// Sets the block _type and quantity for the slot at the specified index.
         /// </summary>
         /// <param name="index">The zero-based index of the slot to update.</param>
-        /// <param name="blockType">The type of block to assign to the slot.</param>
+        /// <param name="blockType">The _type of block to assign to the slot.</param>
         /// <param name="quantity">The number of blocks to set for the slot. If less than zero, the quantity is set to zero.</param>
         public void SetSlot(int index, BlockType blockType, int quantity)
         {
@@ -43,8 +43,8 @@ namespace Vox.UI.MenuLogic
         /// <summary>
         /// Gets the collection of slots in this inventory store.
         /// </summary>
-        /// <returns>A dictionary mapping slot indices to key-value pairs, where each key is a block type and each value is the
-        /// count of that block type in the slot.</returns>
+        /// <returns>A dictionary mapping slot indices to key-value pairs, where each key is a block _type and each value is the
+        /// count of that block _type in the slot.</returns>
         public Dictionary<int, KeyValuePair<BlockType, int>> GetSlots()
         {
             return slots;

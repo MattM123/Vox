@@ -123,8 +123,8 @@ namespace Vox
             _lightHelper = new LightHelper();
 
             _inventoryStore = new InventoryStore(_ssboManager);
-            _textureLoader = new TextureLoader(_assets, _assetLookup);
-            _regionManager = new RegionManager(_ssboManager, _lightHelper);
+            _textureLoader = new TextureLoader("..\\..\\..\\Assets\\Textures\\", _assetLookup);
+            _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
             _chunkCache = new ChunkCache(null, _regionManager!);
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache);
 
@@ -139,7 +139,7 @@ namespace Vox
             _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose);
             _UIController.RecreateFontDeviceTexture();
 
-            int texArray = _textureLoader.LoadTextures(4);
+            int texArray = _textureLoader.LoadTextures();
 
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
@@ -147,10 +147,9 @@ namespace Vox
             menuSeed = BitConverter.ToInt64(buffer, 0);
 
 
-            //Load textures and models
+            //Load textures and _models
 
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
-            ModelLoader.LoadModels();
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
 
@@ -500,7 +499,7 @@ namespace Vox
             else
             {
                 _shaderManager.GetShaderProgram("Terrain").Bind()
-                    .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureValueFromFilename("target.png"))
+                    .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureLayerFromTexture(Texture.TARGET))
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1])
