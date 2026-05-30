@@ -8,6 +8,7 @@ namespace Vox.Rendering
     {
         private readonly Dictionary<string, ShaderProgram> _shaders = [];
 
+        
         public ShaderManager()
         {
         }

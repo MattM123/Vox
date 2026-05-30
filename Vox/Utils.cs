@@ -70,11 +70,6 @@ namespace Vox
                 }
             }
         }
-        public static int ConvertToNewRange(int input, int fromMin, int fromMax, int toMin, int toMax)
-        {
-            return (int)(((float)(input - fromMin) / (fromMax - fromMin)) * (toMax - toMin) + toMin);
-        }
-
         private static readonly Lazy<IEnumerable<Func<long>>> TotalVramUsageCounters = new
         (
             () =>
@@ -93,7 +88,6 @@ namespace Vox
             },
             LazyThreadSafetyMode.ExecutionAndPublication
         );
-
         private static readonly Lazy<IEnumerable<Func<long>>> TotalCommittedVram = new
         (
             () =>
@@ -112,10 +106,8 @@ namespace Vox
             },
             LazyThreadSafetyMode.ExecutionAndPublication
         );
-
         public static long GetTotalVRamUsage() => TotalVramUsageCounters.Value.Select(x => x()).Sum();
         public static long GetTotalVramCommitted() => TotalCommittedVram.Value.Select(x => x()).Sum();
-
         public static int GetVectorDistance(Vector3 a, Vector3 b)
         {
             //======================
@@ -197,5 +189,6 @@ namespace Vox
             ImGui.TextUnformatted(label);
             ImGui.PopTextWrapPos();
         }
+
     }
 }

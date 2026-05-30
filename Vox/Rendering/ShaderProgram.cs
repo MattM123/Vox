@@ -249,8 +249,6 @@ namespace Vox.Rendering
             Unbind();
             if (programId != 0)
             {
-                GL.DeleteShader(vertexShaderId);
-                GL.DeleteShader(fragmentShaderId);
                 GL.DeleteProgram(programId);
             }
         }

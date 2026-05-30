@@ -71,6 +71,9 @@ namespace Vox
         private SettingsStore? _settings;
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
+        private static bool _isClosing = false;
+
+        private readonly Action _close;
 
         private static bool isAnyMenuShowing = false;
         private static bool renderMenu = true;
@@ -95,6 +98,8 @@ namespace Vox
         private static Matrix4 lightSpaceMatrix;
         private static int _nextFaceIndex;
 
+        private static int _menuVAO;
+        private static int _terrainVAO;
 
         //used for player and lighting projection matrices
         private static float FAR = 1000.0f;
@@ -108,9 +113,10 @@ namespace Vox
         {   
             base.OnLoad();
 
+            _terrainVAO = GL.GenVertexArray();
+            _menuVAO = GL.GenVertexArray();
+
             _settings = new SettingsStore(appFolder);
-          //  _settings.TryLoadSettingsFromFile();
-          //  _settings.FillBuffersFromSettings();
 
             _assetLookup = new AssetLookup();
             _ssboManager = new SSBOManager();
@@ -130,7 +136,7 @@ namespace Vox
             _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
 
 
-            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings);
+            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose);
             _UIController.RecreateFontDeviceTexture();
 
             int texArray = _textureLoader.LoadTextures(4);
@@ -260,7 +266,6 @@ namespace Vox
                 PixelType.Float, 
                 IntPtr.Zero
             );
-            GL.Viewport(0, 0, 4096, 4096);
 
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Less);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);
@@ -283,7 +288,8 @@ namespace Vox
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
-
+            GL.Enable(EnableCap.CullFace);
+            GL.CullFace(OpenTK.Graphics.OpenGL4.CullFaceMode.Back);
             //------------------------Inventory FrameBuffer---------------------------------
             //Inventory animation framebuffer
             ImGuiHelper._inventoryIconFBO = GL.GenFramebuffer();
@@ -303,7 +309,6 @@ namespace Vox
                 PixelType.UnsignedByte,
                 IntPtr.Zero
             );
-            GL.Viewport(0, 0, 256, 256);
 
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
@@ -319,18 +324,6 @@ namespace Vox
                 ImGuiHelper._inventoryIconTexture,
                 0
             );
-
-            // Depth renderbuffer for the 3D inventory FBO
-            int inventoryDepthRBO = GL.GenRenderbuffer();
-            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, inventoryDepthRBO);
-            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.DepthComponent24, 256, 256);
-            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, RenderbufferTarget.Renderbuffer, inventoryDepthRBO);
-            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
-
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
 
             //========================
@@ -430,14 +423,23 @@ namespace Vox
             {
                 c.GenerateRenderData();
             }
+                    
+            //Free resources
+            //_textureLoader.Unbind(texArray);
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
 
+            if (_isClosing)
+            {
+                RequestClose();
+                return;
+            }
+
             base.OnRenderFrame(e);
 
-
+            
             /*==============================
             Update UI input and config
             ===============================*/
@@ -533,6 +535,12 @@ namespace Vox
         private static float dirY = 0.0f;
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
+            if (_isClosing)
+            {
+                RequestClose();
+                return;
+            }
+
             base.OnUpdateFrame(args);
 
             // Update pause status
@@ -676,7 +684,12 @@ namespace Vox
 
                     // If no menu is currently active, show the inventory, otherwise close the inventory
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+                    {
                         _imguiHelper.SetCurrentMenu(Menu.Inventory);
+
+                        //Create inventory textures for the duration of the menu
+
+                    }
                     else if (_imguiHelper?.GetCurrentMenu() == Menu.Inventory)
                         _imguiHelper.SetCurrentMenu(Menu.None);
                 }
@@ -725,7 +738,6 @@ namespace Vox
            
             }
         }
-
         protected override void OnTextInput(TextInputEventArgs e)
         {
             base.OnTextInput(e);
@@ -750,7 +762,8 @@ namespace Vox
             }
             else
             {
-                 // _imguiHelper!.ShowDebugMenu(ioptr);
+                _imguiHelper!.CreateDebugMenu();
+                _imguiHelper!.CreateDebugMenu();
             }
 
             KeyboardState current = KeyboardState.GetSnapshot();
@@ -789,16 +802,14 @@ namespace Vox
     
         private void RenderMenu()
         {
-            int vaoo = GL.GenVertexArray();
-            
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
             GL.Viewport(0, 0, 4096, 4096);
 
             //Bind FBO and clear depth
-            GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
+            GL.Clear(ClearBufferMask.DepthBufferBit);
 
 
             //Check FBO
@@ -808,7 +819,7 @@ namespace Vox
                 Console.WriteLine($"Framebuffer error: {status}");
             }
             _shaderManager.GetShaderProgram("Lighting").Bind();
-            GL.BindVertexArray(vaoo);
+            GL.BindVertexArray(_menuVAO);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,  // Drawing a triangle strip
@@ -950,11 +961,6 @@ namespace Vox
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
-            int vaoo = GL.GenVertexArray();
-
-            /*==========================================
-             * DEPTH RENDERING PRE-PASS
-             * ========================================*/
             GL.Viewport(0, 0, 4096, 4096);
 
             //Bind FBO and clear depth
@@ -970,7 +976,7 @@ namespace Vox
                 Console.WriteLine($"Framebuffer error: {status}");
             }
             _shaderManager.GetShaderProgram("Lighting").Bind();
-            GL.BindVertexArray(vaoo);
+            GL.BindVertexArray(_terrainVAO);
 
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
             GL.BindBufferBase(OpenTK.Graphics.OpenGL4.BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
@@ -1026,10 +1032,21 @@ namespace Vox
         protected override void OnClosing(CancelEventArgs e)
         {
             base.OnClosing(e);
+
+            _isClosing = true;
             _shaderManager.CleanupShaders();
-            //TextureLoader.Unbind();
+
+
+
+            Environment.Exit(0);
         }
 
+        private void RequestClose()
+        {
+            Console.WriteLine(_isClosing);
+            _isClosing = true;
+            Close();
+        }
         protected override void OnResize(ResizeEventArgs e)
         {
             base.OnResize(e);
@@ -1046,6 +1063,7 @@ namespace Vox
             // Tell ImGui of the new size
             _UIController.WindowResized(ClientSize.X, ClientSize.Y);
         }
+
 
         public Player GetPlayer() {
             _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!);
@@ -1100,7 +1118,6 @@ namespace Vox
             return sb.ToString();
         }
 
-
         public static int GetAndIncrementNextFaceIndex()
         {
             return Interlocked.Increment(ref _nextFaceIndex) - 1;
@@ -1128,7 +1145,6 @@ namespace Vox
                 ClientSize = new Vector2i(screenWidth, screenHeight),
                 APIVersion = new Version(4, 6), 
             });
-
 
             wnd.Run();
         }

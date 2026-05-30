@@ -10,10 +10,11 @@ namespace Vox.Rendering
     {
         private readonly string? _assetsPath;
         private readonly IAssetLookup? _assetLookup;
+        private List<int> _textureIDs;
 
         public TextureLoader(string assetsPath, IAssetLookup assetLookup)
         {
-
+            _textureIDs = [];
             _assetsPath = assetsPath ?? throw new ShaderException(nameof(assetsPath) + " is null in TextureLoader");
             _assetLookup = assetLookup ?? throw new ShaderException(nameof(assetLookup) + " is null in TextureLoader" );
 
@@ -53,7 +54,7 @@ namespace Vox.Rendering
             for (int i = 0; i < numLayers; i++)
             {
                 using var memoryStream = new MemoryStream();
-                FileStream stream = File.OpenRead(tex[i]);
+                using FileStream stream = File.OpenRead(tex[i]);
                 stream.CopyTo(memoryStream);
                 memoryStream.Position = 0;
                 using var image = Stbi.LoadFromMemory(memoryStream, 4);
@@ -72,10 +73,10 @@ namespace Vox.Rendering
                     PixelFormat.Rgba,                                       //Pixel Format
                     PixelType.UnsignedByte,                                 //Pixel Type
                     subimageData);                                          //Image data
-                image.Dispose();
             }
 
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2DArray);
+            _textureIDs.Add(texId);
             return texId;
         }
 
@@ -144,15 +145,34 @@ namespace Vox.Rendering
 
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 
+            _textureIDs.Add(texId);
             return texId;
         }
-        //public static void Unbind()
-        //{
-        //    GL.BindTexture(TextureTarget.Texture2DArray, 0);
-        //    GL.BindTexture(TextureTarget.Texture2D, 0);
-        //    GL.DeleteTexture(texId);
-        //
-        //}
+        public void CleanupTextures()
+        {
+            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            foreach (int id in _textureIDs)
+            {
+                GL.DeleteTexture(id);
+                _textureIDs.Remove(id);
+            }
+        }
+        public void CleanupTexture(int texid)
+        {
+            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+            foreach (int id in _textureIDs)
+            {
+                if (id == texid)
+                {
+                    GL.DeleteTexture(id);
+                    _textureIDs.Remove(id);
+                    break;
+                }
+            }
+        }
     }
 }
 

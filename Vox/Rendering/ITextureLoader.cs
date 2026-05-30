@@ -4,6 +4,7 @@
     {
         int LoadTextures(int slot);
         int LoadSingleTexture(string fileBlockName);
-       // void Dispose(int texId);
+        void CleanupTextures();
+        void CleanupTexture(int texid);
     }
 }
