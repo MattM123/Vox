@@ -1,10 +1,6 @@
-﻿using System.Data;
-using System.Diagnostics;
-using System.Runtime;
+﻿using System.Diagnostics;
 using System.Text;
 using ImGuiNET;
-using OpenTK.Graphics.OpenGL;
-using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using Vox.Assets;
 using Vox.Assets.Models;
@@ -13,8 +9,6 @@ using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
 using Vox.UI.MenuLogic;
-using static System.Net.Mime.MediaTypeNames;
-using static System.Net.WebRequestMethods;
 using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
 using FramebufferErrorCode = OpenTK.Graphics.OpenGL4.FramebufferErrorCode;
 using FramebufferTarget = OpenTK.Graphics.OpenGL4.FramebufferTarget;
@@ -53,6 +47,7 @@ namespace Vox.UI
 
         private BlockType selectedBlock = BlockType.AIR;
         private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
+        private System.Numerics.Vector4 color = new System.Numerics.Vector4(0,0,0,0.5f);
 
         public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
             ILightHelper lightHeler, IChunkCache chunkCache, ISettingsStore settings, Action requestClose)
@@ -360,15 +355,10 @@ namespace Vox.UI
 
             // Main window UI styling
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(topFillerPadding, topFillerPadding));
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 1f));
-
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(1f, 0f, 1f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 1f, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0f, 1f, 0f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new System.Numerics.Vector4(1f, 1f, 0f, 1f));
 
-            ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 8f);
-            ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0.5f);
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(slotPadding, slotPadding));
 
             ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
@@ -458,7 +448,11 @@ namespace Vox.UI
                 }
                 else
                 {
-                    ImGui.ImageButton("Info Panel", 0, inventoryFillerSize);
+                    //ImGui.Button("Info Panel", inventoryFillerSize);
+                    //Create empty inventory slot
+                    System.Numerics.Vector4 tintCol = new System.Numerics.Vector4(0, 0, 0, 0);
+                    System.Numerics.Vector4 bgCol = new System.Numerics.Vector4(0, 0, 0, 0);
+                    ImGui.ImageButton("##T", _inventoryIconFBO, inventoryFillerSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                 }
 
                 ImGui.EndChild();
@@ -470,35 +464,44 @@ namespace Vox.UI
                 ImGui.PushID(i);
                 BlockType currentSlotType = inventorySlots[i].Key;
 
-
+                // Calculate button position and size before drawing
+                var cursorPos = ImGui.GetCursorScreenPos();
+                var buttonRectMin = cursorPos;
+                var buttonRectMax = new System.Numerics.Vector2(cursorPos.X + inventorySlotSize.X, cursorPos.Y + inventorySlotSize.Y);
+                var mousePos = ImGui.GetMousePos();
+                
+                // Determine hover state by manual check *before* drawing
+                bool isHovered = mousePos.X >= buttonRectMin.X && mousePos.X <= buttonRectMax.X &&
+                                 mousePos.Y >= buttonRectMin.Y && mousePos.Y <= buttonRectMax.Y;
 
                 if (currentSlotType != BlockType.AIR)
                 {
 
-                    // Calculate button position and size before drawing
-                    var cursorPos = ImGui.GetCursorScreenPos();
-                    var buttonRectMin = cursorPos;
-                    var buttonRectMax = new System.Numerics.Vector2(cursorPos.X + inventorySlotSize.X, cursorPos.Y + inventorySlotSize.Y);
-                    var mousePos = ImGui.GetMousePos();
-
-                    // Determine hover state by manual check *before* drawing
-                    bool isHovered = mousePos.X >= buttonRectMin.X && mousePos.X <= buttonRectMax.X &&
-                                     mousePos.Y >= buttonRectMin.Y && mousePos.Y <= buttonRectMax.Y;
-
-                    // Select texture image for slot
-                    textureToUse = _textureLoader!.LoadSingleTexture(_assetLookup!.GetFileFromBlockType(currentSlotType));
+                    // Select texture image for slot0
+                    Enum.TryParse(_assetLookup!.GetModel(currentSlotType).GetTextures()[BlockFace.UP], true, out Texture tex);
+                    textureToUse = _textureLoader!.LoadSingleTexture("test.png");
 
                     if (isHovered)
                     {
                         selectedBlock = inventorySlots[i].Key;
                         ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
-
                         ImGui.ImageButton("##" + i, _inventoryIconTexture, inventorySlotSize);
-
                     }
                     else
                     {
-                        ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize);
+
+                        //Render the test texture for a slot with an item
+                        if (inventorySlots[i].Key != BlockType.AIR)
+                            ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize);
+
+                        //Render an empty slot if theres no item
+                        else
+                        {
+                            //Create empty inventory slot
+                            System.Numerics.Vector4 tintCol = new System.Numerics.Vector4(0, 0, 0, 0);
+                            System.Numerics.Vector4 bgCol = new System.Numerics.Vector4(0, 0, 0, 0);
+                            ImGui.ImageButton("##" + i, _inventoryIconFBO, inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                        }
                     }
                     // Draw rectangle around the button
                     System.Numerics.Vector2 min = ImGui.GetItemRectMin();
@@ -518,9 +521,12 @@ namespace Vox.UI
                 }
                 else
                 {
-                    //Create ImageButtom
-                    ImGui.ImageButton("##" + i, 0, inventorySlotSize);
+               //     selectedBlock = BlockType.AIR;
 
+                    //Create empty inventory slot
+                    System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
+                    System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
+                    ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                 }
                 ImGui.PopID();
 
@@ -536,7 +542,7 @@ namespace Vox.UI
             }
 
             ImGui.PopStyleVar(3);
-            ImGui.PopStyleColor(4);
+            ImGui.PopStyleColor(3);
             ImGui.PopFont();
             ImGui.End();
         }
@@ -625,9 +631,16 @@ namespace Vox.UI
             {
                 _settings.GetSettings().GuiScaleBuffer = val;
             }
+
+           // System.Numerics.Vector4 color = new();
+            if (ImGui.ColorPicker4("UI Color", ref color)) 
+            {
+                _settings.GetSettings().UIColorBuffer = new System.Numerics.Vector4(color.X, color.Y, color.Z, 0.5f);
+            }
             if (Utils.ButtonCentered("Apply Settings", _guiScale / 2, _guiScale / 6))
             {
                 _settings.SetGuiScale(_settings.GetSettings().GuiScaleBuffer);
+                _settings.SetUIColor(_settings.GetSettings().UIColorBuffer);
                 _settings.SaveSettingsToFile();
             }
             if (Utils.ButtonCentered("Back", _guiScale / 2, _guiScale / 6))
@@ -641,24 +654,6 @@ namespace Vox.UI
             ImGui.PopStyleColor(1);
             ImGui.PopFont();
         }
-        // Only load inventory textures when the inventory is opened,
-        // not every frame while it is open. Cache textures for reuse.
-        //
-        // Textures should be reused while the inventory is active.
-        // Do not recreate textures in the render loop.
-        //
-        // Textures are only deleted when the application shuts down
-        // or when the asset system explicitly unloads them.
-
-        //On open
-            //GL.GenTexture()
-            //GL.BindTexture(Texture2DArray, texId)
-            //GL.TexImage3D(...) (or equivalent layers upload)
-        //While open
-            //reuse that same texId
-        //On close
-            //GL.DeleteTexture(texId)
-
 
         // Texture atlas????? probly should use a texture atlas
         private void RenderInventoryAnimation(int sizeX, int sizeY)
@@ -683,16 +678,8 @@ namespace Vox.UI
             GL.BindVertexArray(_inventoryVAO);
             GL.Viewport(0, 0, sizeX, sizeY);
 
-            //Dont need i guess??? idk everything renders fine with this commented
-
-            // Bind SSBO for vertex data
-           //var inventorySsbo = _ssboManager!.GetSSBO(SSBO.Inventory);
-           //GL.BindBuffer(BufferTarget.ShaderStorageBuffer, inventorySsbo.Handle);
-           //GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, inventorySsbo.BindingIndex, inventorySsbo.Handle);
-
-
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-            GL.ClearColor(1, 0, 0, 0);
+            GL.ClearColor(1, 0, 0, 1);
 
             //Drawing
             GL.DrawArraysInstanced(

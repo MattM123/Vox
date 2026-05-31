@@ -12,12 +12,12 @@ namespace Vox.Assets
         private readonly Dictionary<Texture, int> TextureToTextureLayer = new()
         {   
             { Texture.AIR, 0 },
-            { Texture.GRASS_SIDE, 6 },
-            { Texture.GRASS_FULL, 4 },
-            { Texture.LAMP, 5 },
+            { Texture.TEST, 1 },
             { Texture.STONE, 2 },
             { Texture.DIRT, 3 },
-            { Texture.TEST, 1 },
+            { Texture.GRASS_FULL, 4 },          
+            { Texture.LAMP, 5 },
+            { Texture.GRASS_SIDE, 6 },
             { Texture.TARGET, 7 }
 
 

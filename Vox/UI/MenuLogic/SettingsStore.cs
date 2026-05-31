@@ -1,4 +1,5 @@
 ﻿using System.Drawing.Printing;
+using System.Numerics;
 using System.Text.Json.Nodes;
 using Newtonsoft.Json;
 using Vox.Model;
@@ -38,6 +39,7 @@ namespace Vox.UI.MenuLogic
         public void FillBuffersFromSettings()
         {
             _settings!.GuiScaleBuffer = _settings!.GuiScale;
+            _settings.UIColorBuffer = _settings!.UIColor;
         }
 
         /// <summary>
@@ -54,6 +56,11 @@ namespace Vox.UI.MenuLogic
         {
             _settings!.GuiScaleBuffer = guiScale;
             _settings!.GuiScale = guiScale;
+        }
+        public void SetUIColor(Vector4 UIColor)
+        {
+            _settings!.UIColorBuffer = UIColor;
+            _settings!.UIColor = UIColor;
         }
         public Settings GetSettings()
         {

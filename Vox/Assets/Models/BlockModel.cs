@@ -14,6 +14,14 @@ namespace Vox.Assets.Models
         private BlockType _type;
         private readonly IAssetLookup _assetLookup;
 
+        Dictionary<string, BlockFace> _placeholders = new()
+        {
+            { "#all", BlockFace.ALL },
+            { "#top", BlockFace.TOP },
+            { "#bottom", BlockFace.BOTTOM },
+            { "#side", BlockFace.SIDE }
+        };
+
         public BlockModel(IAssetLookup assetLookup) {
             _assetLookup = assetLookup;
         }
@@ -50,7 +58,7 @@ namespace Vox.Assets.Models
                     BlockFace face;
                     Enum.TryParse(texture.Key, true, out face);
 
-                    textures[face] = texture.Value.ToString();
+                    textures[face] = texture.Value!.ToString();
                 }
             }
 
@@ -75,30 +83,15 @@ namespace Vox.Assets.Models
             //Map parent texture references to child model textures
             foreach (BlockFace key in textures.Keys)
             {
+                string value = textures[key];
 
-                if (textures.TryGetValue(BlockFace.ALL, out string? all))
+                // If the value starts with '#', it's a placeholder
+                if (value.StartsWith("#") && _placeholders.TryGetValue(value, out BlockFace sourceFace))
                 {
-                    if (textures[key] == "#all")
-                        textures[key] = all;
-                }
-                if (textures.TryGetValue(BlockFace.TOP, out string? top))
-                {
-                    if (textures[key] == "#top")
-                        textures[key] = top;
-                }
-                if (textures.TryGetValue(BlockFace.BOTTOM, out string? bottom))
-                {
-                    if (textures[key] == "#bottom")
-                        textures[key] = bottom;
-                }
-                if (textures.TryGetValue(BlockFace.SIDE, out string? side))
-                {
-                    if (textures[key] == "#side")
+                    // If the source face actually exists in the texture map, resolve it
+                    if (textures.TryGetValue(sourceFace, out string? resolvedValue))
                     {
-                        textures[key] = side;
-                        textures[key] = side;
-                        textures[key] = side;
-                        textures[key] = side;
+                        textures[key] = resolvedValue;
                     }
                 }
             }
@@ -111,11 +104,12 @@ namespace Vox.Assets.Models
          */
         public int GetTextureLayer(BlockFace side)
         {
-            if (textures.TryGetValue(side, out string? value)) {
-                Enum.TryParse(value, true, out Texture texture);
-                return _assetLookup.GetTextureLayerFromTexture(texture) - 1;
+            //Subtract by 1 to account for AIR texture
+            if (textures.TryGetValue(side, out string? value))
+            {
+                if (Enum.TryParse(value, true, out Texture texture))
+                    return _assetLookup.GetTextureLayerFromTexture(texture);
             }
-
             return 0;
         }
 
@@ -180,6 +174,7 @@ namespace Vox.Assets.Models
         public BlockType GetBlockType() { return _type; }
         public override string ToString()
         {
+
             string tex = "";
             foreach (KeyValuePair<BlockFace, string> t in textures)
             {
@@ -198,7 +193,7 @@ namespace Vox.Assets.Models
                     faces += $"[{elements[i].faces[j]}]\n";
                 }
             }
-            return "\ntextures=\n" + tex + "elements=\n" + ele + "faces=\n" + faces;
+            return _type + "\ntextures=\n" + tex + "elements=\n" + ele + "faces=\n" + faces;
         }
     }
 }

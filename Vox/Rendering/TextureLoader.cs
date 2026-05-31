@@ -15,6 +15,9 @@ namespace Vox.Rendering
         private readonly string? _assetsPath;
         private readonly IAssetLookup? _assetLookup;
         private List<int> _textureIDs;
+        private int textureSize = 16;
+        private int numberOfTextures = 7;
+        private readonly StbiImage _cachedAtlasData;
 
         public TextureLoader(string assetsPath, IAssetLookup assetLookup)
         {
@@ -24,16 +27,21 @@ namespace Vox.Rendering
 
             Directory.CreateDirectory(_assetsPath + "Textures");
             Directory.CreateDirectory(_assetsPath + "BlockTextures");
+
+            //Load atlas into memory
+            using var memoryStream = new MemoryStream();
+            using FileStream stream = File.OpenRead(Path.Combine(_assetsPath!, "Atlas.png"));
+            stream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            _cachedAtlasData = Stbi.LoadFromMemory(memoryStream, 4);
+            stream.Close();
         }
 
         public int LoadTextures()
         {
-            int textureSize = 16;
-
             //========================
             //Texture Setup
             //========================
-            int numberOfTextures = 7;
 
             //Create and bind texture array
             int textureArray = GL.GenTexture();         
@@ -50,20 +58,13 @@ namespace Vox.Rendering
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
 
-            //Load atlas into memory
-            using var memoryStream = new MemoryStream();
-            using FileStream stream = File.OpenRead(Path.Combine(_assetsPath!, "Atlas.png"));
-            stream.CopyTo(memoryStream);
-            memoryStream.Position = 0;
-            StbiImage image = Stbi.LoadFromMemory(memoryStream, 4);
-
             byte[] layerBuffer = new byte[
                 numberOfTextures *
                 textureSize *
                 textureSize *
                 4];
 
-            byte[] atlas = image.Data.ToArray();
+            byte[] atlas = _cachedAtlasData.Data.ToArray();
             int texturesPerRow = 64;
             int channels = 4;
 
@@ -113,13 +114,12 @@ namespace Vox.Rendering
                 layerBuffer
             );
 
-            stream.Close();
             _textureIDs.Add(textureArray);
             return textureArray;
         }
 
         /*
-         * Loads a single texture such as a diffuse or specular map
+         * Loads a single texture
          */
         public int LoadSingleTexture(string fileBlockName)
         {
@@ -130,23 +130,6 @@ namespace Vox.Rendering
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texId);
 
-            //string[] tex = [.. Directory.EnumerateFiles(Path.Combine(assets, "BlockTextures", fileBlockName))];
-           // string[] projTex = Directory.EnumerateFiles("..\\..\\..\\Assets\\Textures").ToArray();
-
-            //Copies textures into foler if not present
-            //if (tex.Length != projTex.Length)
-            //{
-            //    numLayers = projTex.Length;
-            //    Logger.Info("Reloading default textures");
-            //    for (int i = 0; i < projTex.Length; i++)
-            //    {
-            //        File.Copy(projTex[i], Path.Combine(assets, "Textures", Path.GetFileName(projTex[i])), true);
-            //        Logger.Debug($"Loaded texture {Path.GetFileName(projTex[i])}");
-            //    }
-            //    //update int value
-            //    tex = Directory.EnumerateFiles(Path.Combine(assets, "Textures")).ToArray();
-            //}
-
             // Here we open a stream to the file and pass it to StbImageSharp to load.
             using (Stream stream = File.OpenRead(Path.Combine(_assetsPath!, "BlockTextures", fileBlockName)))
             {
@@ -155,13 +138,13 @@ namespace Vox.Rendering
                 using var image = Stbi.LoadFromMemory(memoryStream, 4);
 
                 GL.TexImage2D(
-                    TextureTarget.Texture2D, 
-                    0, 
-                    PixelInternalFormat.Rgba, 
-                    image.Width, image.Height, 
-                    0, 
-                    PixelFormat.Rgba, 
-                    PixelType.UnsignedByte, 
+                    TextureTarget.Texture2D,
+                    0,
+                    PixelInternalFormat.Rgba,
+                    image.Width, image.Height,
+                    0,
+                    PixelFormat.Rgba,
+                    PixelType.UnsignedByte,
                     image.Data.ToArray()
                 );
             }
@@ -184,6 +167,45 @@ namespace Vox.Rendering
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
 
             _textureIDs.Add(texId);
+            return texId;
+        }
+
+        public int UpdateExistingTexture(int texId, int layer)
+        {
+
+            //Setup the 2D Texture handle
+            GL.BindTexture(TextureTarget.Texture2D, texId);
+
+            //Calculate coordinates for the single texture
+            int texturesPerRow = 64; // Adjust based on your Atlas.png width
+            int channels = 4;
+            int tileX = layer % texturesPerRow;
+            int tileY = layer / texturesPerRow;
+
+            // 4. Extract only the bytes for this specific tile
+            byte[] tileBuffer = new byte[textureSize * textureSize * channels];
+            int atlasWidthPixels = _cachedAtlasData.Width; // Assuming you have dimensions available
+
+            for (int y = 0; y < textureSize; y++)
+            {
+                int srcOffset = ((tileY * textureSize + y) * atlasWidthPixels + (tileX * textureSize)) * channels;
+                int dstOffset = (y * textureSize) * channels;
+
+                Buffer.BlockCopy(_cachedAtlasData.Data.ToArray(), srcOffset, tileBuffer, dstOffset, textureSize * channels);
+            }
+
+            // Overwrite the existing texture pixels without creating a new handle
+            GL.TexSubImage2D(
+                TextureTarget.Texture2D,
+                0,
+                0, 0,
+                textureSize,
+                textureSize,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                tileBuffer // Your new data
+            );
+
             return texId;
         }
         public void CleanupTextures()

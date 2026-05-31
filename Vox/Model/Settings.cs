@@ -9,8 +9,7 @@ namespace Vox.Model
 
         public float GuiScaleBuffer { get; set; } = 0f;
 
-        public Vector4 ThemeColor1 { get; set; }
-
-        public Vector4 ThemeColor2 { get; set; }
+        public Vector4 UIColor { get; set; }
+        public Vector4 UIColorBuffer { get; set; }
     }
 }
