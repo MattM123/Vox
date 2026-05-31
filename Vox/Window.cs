@@ -761,8 +761,7 @@ namespace Vox
             }
             else
             {
-                _imguiHelper!.CreateDebugMenu();
-                _imguiHelper!.CreateDebugMenu();
+                //_imguiHelper!.CreateDebugMenu();
             }
 
             KeyboardState current = KeyboardState.GetSnapshot();

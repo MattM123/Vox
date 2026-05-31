@@ -87,7 +87,7 @@ namespace Vox.UI
             ImGui.Begin("World List", ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
 
             //Set menu style
-            ImGui.PushStyleColor(ImGuiCol.ChildBg, new System.Numerics.Vector4(0f, 0f, 0f, 0.3f));
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, _settings.GetSettings().UIColor);
 
             ImGui.Text("Choose a World");
 
@@ -232,10 +232,16 @@ namespace Vox.UI
             /*=====================================
              Debug Display
              =====================================*/
-            ImGui.Begin("Debug");
-
+            // Menu sizing
             ImGui.SetWindowPos(new System.Numerics.Vector2(0, 0));
             ImGui.SetWindowSize(new System.Numerics.Vector2(Window.screenWidth / 4.0f, Window.screenHeight / 2.0f));
+
+            // Menu styling
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
+
+            ImGui.Begin("Debug");
+
+
 
             ImGui.PushStyleColor(ImGuiCol.Text, ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(1.0f, 1.0f, 0.0f, 1.0f)));
             ImGui.Text("Player");
@@ -279,6 +285,7 @@ namespace Vox.UI
             ImGui.Text(_player.GetViewMatrix().ToString());
             ImGui.End();
 
+            ImGui.PopStyleColor();
             ImGui.PopFont();
         }
         public void CreateBlockColorPicker(Vector3 blockspace)
@@ -287,15 +294,21 @@ namespace Vox.UI
             float menuWidth = 9.3f * _guiScale;
             float menuHeight = 7.2f * _guiScale;
 
+            //Menu sizing
             ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new System.Numerics.Vector2(_guiScale * 3, _guiScale * 3));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(_guiScale * 2.8f, _guiScale * 2.8f));
+
+            //Menu styling
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
 
                 ImGui.PushFont(PtFont18);
 
-                if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor))
+                ImGui.PushItemWidth(_guiScale * 2.5f);
+                if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor,
+                    ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.PickerHueWheel | ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoLabel | ImGuiColorEditFlags.DisplayRGB))
                 {
                     Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(blockspace);
 
@@ -326,9 +339,12 @@ namespace Vox.UI
                     }));
                     countdown.Wait();
                 }
+                ImGui.PopItemWidth();
                 ImGui.EndPopup();
                 ImGui.PopFont();
             }
+
+            ImGui.PopStyleColor();
         }
         public void CreatePlayerInventory()
         {
@@ -354,10 +370,10 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(topFillerPadding, topFillerPadding));
+           // ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(topFillerPadding, topFillerPadding));
             ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 1f, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new System.Numerics.Vector4(1f, 1f, 0f, 1f));
+          //  ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 1f, 1f));
+          //  ImGui.PushStyleColor(ImGuiCol.ButtonActive, new System.Numerics.Vector4(1f, 1f, 0f, 1f));
 
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(slotPadding, slotPadding));
 
@@ -541,8 +557,8 @@ namespace Vox.UI
 
             }
 
-            ImGui.PopStyleVar(3);
-            ImGui.PopStyleColor(3);
+            ImGui.PopStyleVar(2);
+            ImGui.PopStyleColor(1);
             ImGui.PopFont();
             ImGui.End();
         }
@@ -559,7 +575,7 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 0.5f));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
 
             // Menu creation
             ImGui.Begin("Paused", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
@@ -610,7 +626,7 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, new System.Numerics.Vector4(29 / 255, 26 / 255, 29 / 255, 0.5f));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
 
             // Menu creation
             ImGui.Begin("Settings", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
@@ -632,11 +648,15 @@ namespace Vox.UI
                 _settings.GetSettings().GuiScaleBuffer = val;
             }
 
-           // System.Numerics.Vector4 color = new();
-            if (ImGui.ColorPicker4("UI Color", ref color)) 
+            ImGui.Dummy(new(_guiScale / 2, _guiScale / 2));
+
+            ImGui.PushItemWidth(_guiScale * 2.5f);
+            if (ImGui.ColorPicker4("UI Color", ref color, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.PickerHueWheel | ImGuiColorEditFlags.DisplayRGB)) 
             {
-                _settings.GetSettings().UIColorBuffer = new System.Numerics.Vector4(color.X, color.Y, color.Z, 0.5f);
+                _settings.GetSettings().UIColorBuffer = new System.Numerics.Vector4(color.X, color.Y, color.Z, 0.6f);
             }
+            ImGui.PopItemWidth();
+
             if (Utils.ButtonCentered("Apply Settings", _guiScale / 2, _guiScale / 6))
             {
                 _settings.SetGuiScale(_settings.GetSettings().GuiScaleBuffer);
