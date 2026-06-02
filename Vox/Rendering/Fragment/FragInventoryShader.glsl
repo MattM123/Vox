@@ -171,7 +171,7 @@ void main()
     // Apply shadowing
     float shadedLight = lightAmount * (1.0 - shadow) * lightIntensity;
 
-    vec3 ambient = light.ambient * material.ambient;
+    vec3 ambient = light.ambient * material.ambient + norm;
 
 
     vec3 baseLighting = ((lightAmount) * vec3(1,1,1)) * (light.ambient * lightIntensity) ;

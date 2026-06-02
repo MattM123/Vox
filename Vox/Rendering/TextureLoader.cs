@@ -218,6 +218,7 @@ namespace Vox.Rendering
         {
 
             //Save current state
+            int prevTex = GL.GetInteger(GetPName.TextureBinding2D);
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
             int prevVAO = GL.GetInteger(GetPName.VertexArrayBinding);
@@ -261,7 +262,6 @@ namespace Vox.Rendering
             }
 
             GL.BindVertexArray(_inventoryStore.GetInventoryVAO());
-
             int viewportSize = 128;
             for (int i = 0; i < Enum.GetValues(typeof(BlockType)).Length; i++)
             {
@@ -272,14 +272,21 @@ namespace Vox.Rendering
 
                 int cols = 1024 / viewportSize;
 
-                int x = (i % cols) * viewportSize;
-                int y = (i / cols) * viewportSize;
+                // i - 1 to account for air being skipped, so that we start at the
+                // top left of the atlas and fill in row by row
+                int x = ((i - 1) % cols) * viewportSize;
+                int y = ((i - 1) / cols) * viewportSize;
 
+                // Set where to render the icon model on the atlas
                 GL.Viewport(x, y, viewportSize, viewportSize);
 
-                Console.WriteLine($"Rendering icon for {type} at viewport ({x}, {y}, {viewportSize}, {viewportSize})");
+                // Forces draws to be synchronous
+                // Waits until the previous draw call completes before updating the SSBO with the next blocktype
+                GL.Finish();
+
+                // Draw the next icon model
                 _inventoryStore?.UpdateSSBOBlock(type);
-                   
+                
                 //Drawing
                 GL.DrawArraysInstanced(
                     PrimitiveType.TriangleStrip,  // Drawing a triangle strip
@@ -287,14 +294,12 @@ namespace Vox.Rendering
                     4,                            // 4 vertices per face (for triangle strip)
                     6                             // Instance count (number of faces to draw)
                 );
-            }   
+            }
 
-
-            // Unbind render target
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
+            
 
             //Restore state
+            GL.BindTexture(TextureTarget.Texture2D, prevTex);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFBO);
             GL.UseProgram(prevProgram);
             GL.BindVertexArray(prevVAO);
