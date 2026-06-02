@@ -10,9 +10,13 @@ namespace Vox.UI.MenuLogic
         Dictionary<int, KeyValuePair<BlockType, int>> GetSlots();
         void IncrementSlotQuantity(int increment, int slot);
         void DecrementSlotQuantity(int decrement, int slot);
-        Matrix4 GetIconProjection();
-        Matrix4 GetIconViewMatrix();
-        Matrix4 GetIconModelMatrix();
-        void AddOrUpdateFaceInMemory(BlockFaceInstance face);
+        Matrix4 GetDisplayProjection();
+        Matrix4 GetDisplayViewMatrix();
+        Matrix4 GetDisplayModelMatrix();
+        void UpdateSSBOBlock(BlockType modelblockType);
+        int GetInventoryVAO();
+        int GetInventoryDisplayFBO();
+        int GetInventoryIconAtlas();
+        int GetInventoryIconSlotFBO();
     }
 }

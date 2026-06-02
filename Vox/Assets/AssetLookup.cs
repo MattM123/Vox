@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Numerics;
+using System.Reflection;
 using System.Reflection.Emit;
 using Newtonsoft.Json.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -19,10 +20,12 @@ namespace Vox.Assets
             { Texture.LAMP, 5 },
             { Texture.GRASS_SIDE, 6 },
             { Texture.TARGET, 7 }
-
-
         };
 
+        private readonly Dictionary<BlockType, Vector2> BlockTypeToIconUV = new()
+        {
+
+        };
         private readonly Dictionary<BlockType, string> BlockTypeToIconFile = new()
         {
             {BlockType.DIRT_BLOCK, "dirt.png" },

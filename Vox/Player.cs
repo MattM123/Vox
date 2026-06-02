@@ -20,6 +20,7 @@ namespace Vox
         private readonly ISSBOManager? _ssboManager;
         private readonly IRegionManager? _regionManager;
         private readonly IChunkCache? _chunkCache;
+        private readonly IShaderManager? _shaderManager;
 
         private Matrix4 _viewMatrix;
 
@@ -50,12 +51,13 @@ namespace Vox
          * Default player object is initialized at a position of 0,0,0 within
          * Region 0,0.
          */
-        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache)
+        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache, IShaderManager shaderManager)
         {
             _ssboManager = ssboManager;
             _inventoryStore = inventoryStore;
             _regionManager = regionManager;
             _chunkCache = chunkCache;
+            _shaderManager = shaderManager;
 
 
             // Test / debug values for inventory, can be removed later
@@ -181,7 +183,7 @@ namespace Vox
             }
             //Returns the last block the player was looking at only if no menu is open
             if (!Window.IsAnyMenuShowing())
-                Window._shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
+                _shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
 
             return target;
         }

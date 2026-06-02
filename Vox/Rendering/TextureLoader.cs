@@ -1,12 +1,16 @@
 ﻿
 using System.IO;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL4;
+using OpenTK.Mathematics;
 using StbiSharp;
 using Vox.Assets;
 using Vox.Enums;
 using Vox.Exceptions;
+using Vox.Model;
+using Vox.UI.MenuLogic;
 using Buffer = System.Buffer;
 namespace Vox.Rendering
 {
@@ -14,16 +18,22 @@ namespace Vox.Rendering
     {
         private readonly string? _assetsPath;
         private readonly IAssetLookup? _assetLookup;
+        private readonly IInventoryStore? _inventoryStore;
+
         private List<int> _textureIDs;
         private int textureSize = 16;
         private int numberOfTextures = 7;
         private readonly StbiImage _cachedAtlasData;
+        private readonly IShaderManager? _shaderManager;
 
-        public TextureLoader(string assetsPath, IAssetLookup assetLookup)
+        public TextureLoader(string assetsPath, IAssetLookup assetLookup, IInventoryStore inventoryStore, IShaderManager shaderManager)
         {
             _textureIDs = [];
             _assetsPath = assetsPath;
             _assetLookup = assetLookup;
+            _inventoryStore = inventoryStore;
+            _shaderManager = shaderManager;
+
 
             Directory.CreateDirectory(_assetsPath + "Textures");
             Directory.CreateDirectory(_assetsPath + "BlockTextures");
@@ -117,10 +127,6 @@ namespace Vox.Rendering
             _textureIDs.Add(textureArray);
             return textureArray;
         }
-
-        /*
-         * Loads a single texture
-         */
         public int LoadSingleTexture(string fileBlockName)
         {
             // Generate handle
@@ -169,7 +175,6 @@ namespace Vox.Rendering
             _textureIDs.Add(texId);
             return texId;
         }
-
         public int UpdateExistingTexture(int texId, int layer)
         {
 
@@ -208,31 +213,96 @@ namespace Vox.Rendering
 
             return texId;
         }
-        public void CleanupTextures()
+
+        public int GenerateIconAtlas()
         {
-            GL.BindTexture(TextureTarget.Texture2DArray, 0);
+
+            //Save current state
+            int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
+            int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
+            int prevVAO = GL.GetInteger(GetPName.VertexArrayBinding);
+            int[] prevViewport = new int[4];
+            GL.GetInteger(GetPName.Viewport, prevViewport);
+
+
+            int texId = _inventoryStore!.GetInventoryIconAtlas();
+
+            GL.BindTexture(TextureTarget.Texture2D, texId);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+
+            // 
+            Matrix4 modelMatrix = Matrix4.Identity *                                                                                  // Standard Identity
+                                  Matrix4.CreateTranslation(-0.5f, -0.5f, -0.5f) *                                                    // Position block model center on the origin
+                                  Matrix4.CreateFromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(Window.GetAngle() * 150));   // Rotated model around Y Axis
+
+            float distance = 1.5f;
+            Matrix4 viewMatrix = Matrix4.LookAt(
+                new Vector3(distance, distance, distance),
+                new Vector3(0f, 0f, 0f),
+                Vector3.UnitY
+            );
+
+            _shaderManager?.GetShaderProgram("Inventory").Bind()
+                .SetMatrixUniform("projectionMatrix", _inventoryStore!.GetDisplayProjection())
+                .SetMatrixUniform("viewMatrix", _inventoryStore.GetDisplayViewMatrix())
+                .SetMatrixUniform("modelMatrix", _inventoryStore.GetDisplayModelMatrix());
+
+            // Bind frame buffer
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryStore!.GetInventoryIconSlotFBO());
+
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                Logger.Error($"Icon Atlas Framebuffer error: {status}");
+            } else
+            {
+                Logger.Success("Successfully bound icon atlas framebuffer with status " + status);
+            }
+
+            GL.BindVertexArray(_inventoryStore.GetInventoryVAO());
+
+            int viewportSize = 128;
+            for (int i = 0; i < Enum.GetValues(typeof(BlockType)).Length; i++)
+            {
+                BlockType type = (BlockType)i;
+
+                if (type == BlockType.AIR)
+                    continue;
+
+                int cols = 1024 / viewportSize;
+
+                int x = (i % cols) * viewportSize;
+                int y = (i / cols) * viewportSize;
+
+                GL.Viewport(x, y, viewportSize, viewportSize);
+
+                Console.WriteLine($"Rendering icon for {type} at viewport ({x}, {y}, {viewportSize}, {viewportSize})");
+                _inventoryStore?.UpdateSSBOBlock(type);
+                   
+                //Drawing
+                GL.DrawArraysInstanced(
+                    PrimitiveType.TriangleStrip,  // Drawing a triangle strip
+                    0,                            // Start from the first vertex in the base geometry
+                    4,                            // 4 vertices per face (for triangle strip)
+                    6                             // Instance count (number of faces to draw)
+                );
+            }   
+
+
+            // Unbind render target
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.BindTexture(TextureTarget.Texture2D, 0);
 
-            foreach (int id in _textureIDs)
-            {
-                GL.DeleteTexture(id);
-                _textureIDs.Remove(id);
-            }
+            //Restore state
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFBO);
+            GL.UseProgram(prevProgram);
+            GL.BindVertexArray(prevVAO);
+            GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+
+            return texId;
         }
-        public void CleanupTexture(int texid)
-        {
-            GL.BindTexture(TextureTarget.Texture2DArray, 0);
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            foreach (int id in _textureIDs)
-            {
-                if (id == texid)
-                {
-                    GL.DeleteTexture(id);
-                    _textureIDs.Remove(id);
-                    break;
-                }
-            }
-        }
+
     }
 }
 

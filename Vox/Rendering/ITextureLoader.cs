@@ -4,8 +4,7 @@
     {
         int LoadTextures();
         int LoadSingleTexture(string fileBlockName);
-        void CleanupTextures();
-        void CleanupTexture(int texid);
         int UpdateExistingTexture(int texId, int layer);
+        int GenerateIconAtlas();
     }
 }

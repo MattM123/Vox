@@ -24,10 +24,6 @@ namespace Vox.UI
 
         private Menu _currentMenu;
 
-        private readonly int _inventoryVAO = GL.GenVertexArray();
-        public static int _inventoryIconFBO;
-        public static int _inventoryIconTexture;
-
         private readonly ImFontPtr PtFont18;
         private readonly ImFontPtr PtFont24;
         private readonly ImFontPtr PtFont72;
@@ -40,17 +36,19 @@ namespace Vox.UI
         private readonly ILightHelper? _lightHelper;
         private readonly IChunkCache? _chunkCache;
         private readonly ISettingsStore? _settings;
+        private readonly IShaderManager? _shaderManager;
         private readonly ImGuiIOPtr _ioPtr;
         private readonly ImGuiController _UIController;
 
         private readonly Action _requestClose;
 
+        private int _blockIconAtlas;
         private BlockType selectedBlock = BlockType.AIR;
         private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
         private System.Numerics.Vector4 color = new System.Numerics.Vector4(0,0,0,0.5f);
 
         public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
-            ILightHelper lightHeler, IChunkCache chunkCache, ISettingsStore settings, Action requestClose)
+            ILightHelper lightHeler, IChunkCache chunkCache, ISettingsStore settings, Action requestClose, IShaderManager shaderManager)
         {
             _textureLoader = textureLoader;
             _assetLookup = assetLookup;
@@ -62,6 +60,7 @@ namespace Vox.UI
             _settings = settings;
             _ioPtr = ImGui.GetIO();
             _requestClose = requestClose;
+            _shaderManager = shaderManager;
 
             string _assets = "..\\..\\..\\Assets\\";
 
@@ -172,17 +171,17 @@ namespace Vox.UI
                     Console.WriteLine("test");
                     Console.WriteLine(_requestClose == null ? "NULL ACTION" : "ACTION EXISTS");
 
-                    if (_inventoryIconTexture != 0)
-                    {
-                        GL.DeleteTexture(_inventoryIconTexture);
-                        _inventoryIconTexture = 0;
-                    }
-
-                    if (_inventoryIconFBO != 0)
-                    {
-                        GL.DeleteFramebuffer(_inventoryIconFBO);
-                        _inventoryIconFBO = 0;
-                    }
+                   // if (inventoryStore.GetInventoryIconAtlas() != 0)
+                   // {
+                   //     GL.DeleteTexture(inventoryStore.GetInventoryIconAtlas());
+                   //     inventoryStore.GetInventoryIconAtlas() = 0;
+                   // }
+                   //
+                   // if (inventoryStore.GetInventoryDisplayFBO() != 0)
+                   // {
+                   //     GL.DeleteFramebuffer(inventoryStore.GetInventoryDisplayFBO());
+                   //     inventoryStore.GetInventoryDisplayFBO() = 0;
+                   // }
 
 
                     _requestClose();
@@ -348,8 +347,9 @@ namespace Vox.UI
         }
         public void CreatePlayerInventory()
         {
-            ImGui.PushFont(PtFont18);
+            InventoryStore inventoryStore = _player!.GetInventory();
 
+            ImGui.PushFont(PtFont18);
             IntPtr textureToUse = IntPtr.Zero;
             int topFillerPadding = 5;
             int slotPadding = 5;
@@ -370,11 +370,7 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-           // ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(topFillerPadding, topFillerPadding));
             ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
-          //  ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0f, 0f, 1f, 1f));
-          //  ImGui.PushStyleColor(ImGuiCol.ButtonActive, new System.Numerics.Vector4(1f, 1f, 0f, 1f));
-
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(slotPadding, slotPadding));
 
             ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
@@ -390,91 +386,23 @@ namespace Vox.UI
                 {
                     // Render block model for current slot
                     InventoryStore inventory = _player!.GetInventory();
-                    BlockModel model = _assetLookup!.GetModel(selectedBlock);
-                    string modelElements = model.GetElements().ElementAt(0).ToString();
-
-                    int start = modelElements.IndexOf("from=(") + 6;
-                    int end = modelElements.IndexOf(")", start);
-
-                    string coords = modelElements[start..end];
-                    string[] parts = coords.Split(',');
-
-
-                    int x = int.Parse(parts[0].Trim());
-                    int y = int.Parse(parts[1].Trim());
-                    int z = int.Parse(parts[2].Trim());
-
-                    inventory.AddOrUpdateFaceInMemory(
-                    new BlockFaceInstance
-                    {
-                        facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                        index = 0,
-                        lighting = 0,
-                        textureLayer = (int)model.GetTextureLayer(BlockFace.NORTH),
-                        faceDirection = (int)BlockFace.NORTH
-                    });
-                    inventory.AddOrUpdateFaceInMemory(
-                        new BlockFaceInstance
-                        {
-                            facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                            index = 1,
-                            lighting = 56149,
-                            textureLayer = (int)model.GetTextureLayer(BlockFace.SOUTH),
-                            faceDirection = (int)BlockFace.SOUTH
-                        });
-                    inventory.AddOrUpdateFaceInMemory(
-                        new BlockFaceInstance
-                        {
-                            facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                            index = 2,
-                            lighting = 56149,
-                            textureLayer = (int)model.GetTextureLayer(BlockFace.EAST),
-                            faceDirection = (int)BlockFace.EAST
-                        });
-                    inventory.AddOrUpdateFaceInMemory(
-                        new BlockFaceInstance
-                        {
-                            facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                            index = 3,
-                            lighting = 56149,
-                            textureLayer = (int)model.GetTextureLayer(BlockFace.WEST),
-                            faceDirection = (int)BlockFace.WEST
-                        });
-                    inventory.AddOrUpdateFaceInMemory(
-                        new BlockFaceInstance
-                        {
-                            facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                            index = 4,
-                            lighting = 56149,
-                            textureLayer = (int)model.GetTextureLayer(BlockFace.UP),
-                            faceDirection = (int)BlockFace.UP
-                        });
-                    inventory.AddOrUpdateFaceInMemory(
-                        new BlockFaceInstance
-                        {
-                            facePosition = new OpenTK.Mathematics.Vector3(x, y, z),
-                            index = 5,
-                            lighting = 56149,
-                            textureLayer = (int)model.GetTextureLayer(BlockFace.DOWN),
-                            faceDirection = (int)BlockFace.DOWN
-                        });
+                    inventory.UpdateSSBOBlock(selectedBlock);
 
                     RenderInventoryAnimation(256, 256);
-                    ImGui.ImageButton("Info Panel", _inventoryIconTexture, inventoryFillerSize);
+                    ImGui.ImageButton("Info Panel", inventoryStore.GetInventoryDisplayTexture(), inventoryFillerSize);
                 }
                 else
                 {
-                    //ImGui.Button("Info Panel", inventoryFillerSize);
                     //Create empty inventory slot
-                    System.Numerics.Vector4 tintCol = new System.Numerics.Vector4(0, 0, 0, 0);
-                    System.Numerics.Vector4 bgCol = new System.Numerics.Vector4(0, 0, 0, 0);
-                    ImGui.ImageButton("##T", _inventoryIconFBO, inventoryFillerSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                    System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
+                    System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
+                    ImGui.ImageButton("##Empty", inventoryStore.GetInventoryDisplayFBO(), inventoryFillerSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                 }
 
                 ImGui.EndChild();
 
             //Populate inventory slots
-            Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = _player!.GetInventory().GetSlots();
+            Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = inventoryStore.GetSlots();
             for (int i = 0; i < inventorySlots.Count; i++)
             {
                 ImGui.PushID(i);
@@ -492,31 +420,28 @@ namespace Vox.UI
 
                 if (currentSlotType != BlockType.AIR)
                 {
-
-                    // Select texture image for slot0
-                    Enum.TryParse(_assetLookup!.GetModel(currentSlotType).GetTextures()[BlockFace.UP], true, out Texture tex);
-                    textureToUse = _textureLoader!.LoadSingleTexture("test.png");
-
                     if (isHovered)
                     {
                         selectedBlock = inventorySlots[i].Key;
                         ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
-                        ImGui.ImageButton("##" + i, _inventoryIconTexture, inventorySlotSize);
+                        ImGui.ImageButton("##" + i, inventoryStore.GetInventoryDisplayTexture(), inventorySlotSize);
                     }
                     else
                     {
 
                         //Render the test texture for a slot with an item
                         if (inventorySlots[i].Key != BlockType.AIR)
-                            ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize);
+                        {
+                            ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, new(0.125f, 0), new(0.250f, 0.125f));
+                        }
 
                         //Render an empty slot if theres no item
                         else
                         {
                             //Create empty inventory slot
-                            System.Numerics.Vector4 tintCol = new System.Numerics.Vector4(0, 0, 0, 0);
-                            System.Numerics.Vector4 bgCol = new System.Numerics.Vector4(0, 0, 0, 0);
-                            ImGui.ImageButton("##" + i, _inventoryIconFBO, inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                            System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
+                            System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
+                            ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                         }
                     }
                     // Draw rectangle around the button
@@ -674,10 +599,10 @@ namespace Vox.UI
             ImGui.PopStyleColor(1);
             ImGui.PopFont();
         }
-
-        // Texture atlas????? probly should use a texture atlas
         private void RenderInventoryAnimation(int sizeX, int sizeY)
         {
+            InventoryStore inventoryStore = _player!.GetInventory();
+
             //Save current state
             int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
@@ -685,8 +610,8 @@ namespace Vox.UI
             int[] prevViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, prevViewport);
 
-            //FBO setup FIRST, before viewport
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconFBO);
+            //FBO setup first, before viewport
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, inventoryStore.GetInventoryDisplayFBO());
 
             FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
@@ -695,7 +620,7 @@ namespace Vox.UI
                 return;
             }
 
-            GL.BindVertexArray(_inventoryVAO);
+            GL.BindVertexArray(inventoryStore.GetInventoryVAO());
             GL.Viewport(0, 0, sizeX, sizeY);
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -718,7 +643,6 @@ namespace Vox.UI
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
         }
-
         public void SetCurrentMenu(Menu menu)
         {
             _currentMenu = menu;

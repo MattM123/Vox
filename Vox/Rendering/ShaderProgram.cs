@@ -138,12 +138,10 @@ namespace Vox.Rendering
             GL.GetShader(shaderId, ShaderParameter.CompileStatus, out status);
 
             // Check for compilation errors
-            Console.ForegroundColor = ConsoleColor.Cyan;
             if (status != (int)All.True)
                 Logger.Error(new Exception($"ShaderProgram.CreateShader - Failed to compile {shaderType} shader for {shaderIdentity[shaderId]}: {GL.GetShaderInfoLog(shaderId)}"), ConsoleColor.Red);
             else
-                Logger.Debug($"ShaderProgram.CreateShader - Successfully compiled {shaderType} {shaderIdentity[shaderId]}", ConsoleColor.Green);
-            Console.ResetColor();
+                Logger.Success($"ShaderProgram.CreateShader - Successfully compiled {shaderType} {shaderIdentity[shaderId]}", ConsoleColor.Green);
 
             GL.AttachShader(programId, shaderId);
 
@@ -167,46 +165,45 @@ namespace Vox.Rendering
                     {
                         GL.DetachShader(programId, vertexShaderId);
                         GL.DeleteShader(vertexShaderId);
-                        Logger.Info("Successfully linked vertex shader with status " + status, ConsoleColor.Green);
+                        Logger.Success("Successfully linked vertex shader with status " + status);
                     }
                     else
                     {
-                        Logger.Error("============================================================================", ConsoleColor.Cyan);
-                        Logger.Error("                Failed to attach vertex shaders with ID of 0                ", ConsoleColor.Cyan);
-                        Logger.Error("============================================================================", ConsoleColor.Cyan);
-                        Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()), ConsoleColor.Cyan);
-                        Logger.Debug(GetProgramLog(), ConsoleColor.Cyan);             
+                        Logger.Error("============================================================================");
+                        Logger.Error("                Failed to attach vertex shaders with ID of 0                ");
+                        Logger.Error("============================================================================");
+                        Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
+                        Logger.Debug(GetProgramLog());             
                     }
 
                     if (fragmentShaderId != 0)
                     {
                         GL.DetachShader(programId, fragmentShaderId);
                         GL.DeleteShader(fragmentShaderId);
-                        Logger.Debug("Successfully linked fragment shader with status " + status, ConsoleColor.Green);
+                        Logger.Success("Successfully linked fragment shader with status " + status);
                     }
                     else
                     {
-                        Logger.Error("============================================================================", ConsoleColor.Cyan);    
-                        Logger.Error("               Failed to attach fragment shaders with ID of 0               ", ConsoleColor.Cyan);
-                        Logger.Error("============================================================================", ConsoleColor.Cyan);
-                        Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()), ConsoleColor.Cyan);
-                        Logger.Debug(GetProgramLog(), ConsoleColor.Cyan);
+                        Logger.Error("============================================================================");    
+                        Logger.Error("               Failed to attach fragment shaders with ID of 0               ");
+                        Logger.Error("============================================================================");
+                        Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
+                        Logger.Debug(GetProgramLog());
                     }
 
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Logger.Error("============================================================================", ConsoleColor.Cyan);
-                    Logger.Error("                Shader processing failed with linking error                 ", ConsoleColor.Cyan);
-                    Logger.Error("============================================================================", ConsoleColor.Cyan);
-                    Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()), ConsoleColor.Cyan);
-                    Logger.Debug(GetProgramLog(), ConsoleColor.Cyan);
+                    Logger.Error("============================================================================");
+                    Logger.Error("                Shader processing failed with linking error                 ");
+                    Logger.Error("============================================================================");
+                    Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
+                    Logger.Debug(GetProgramLog());
 
                     Logger.Error(new ShaderException($"Shader program with ID of {programId} and shaders {shaderIdentity[vertexShaderId]} " +
-                        $"and {shaderIdentity[fragmentShaderId]} failed to link properly"), ConsoleColor.Cyan);
+                        $"and {shaderIdentity[fragmentShaderId]} failed to link properly"));
 
                     return;
                 }
                 // Linking succeeded
-                Logger.Debug($"Shader program with ID of {programId} linked successfully.", ConsoleColor.Green);
+                Logger.Success($"Shader program with ID of {programId} linked successfully.");
 
                 // Validate the shader program
                 GL.ValidateProgram(programId);
@@ -218,17 +215,16 @@ namespace Vox.Rendering
 
                 if (vStatus != (int)All.True)
                 {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Logger.Error("===============================================================================", ConsoleColor.Cyan);
-                    Logger.Error("               Shader processing failed with validation error                  ", ConsoleColor.Cyan);
-                    Logger.Error("===============================================================================", ConsoleColor.Cyan);
-                    Logger.Error(new ShaderException("Failed to validate program with status " + vStatus + "\nError Code: " + GL.GetError()), ConsoleColor.Cyan);
-                    Logger.Debug(GetProgramLog(), ConsoleColor.Cyan);
+                    Logger.Error("===============================================================================");
+                    Logger.Error("               Shader processing failed with validation error                  ");
+                    Logger.Error("===============================================================================");
+                    Logger.Error(new ShaderException("Failed to validate program with status " + vStatus + "\nError Code: " + GL.GetError()));
+                    Logger.Debug(GetProgramLog());
                 }
             }
             catch (Exception e)
             {
-                Logger.Error(e, ConsoleColor.Cyan);
+                Logger.Error(e);
             }
         }
 

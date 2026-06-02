@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using ImGuiNET;
+using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -69,6 +70,7 @@ namespace Vox
         private ChunkCache? _chunkCache;
         private LightHelper? _lightHelper;
         private SettingsStore? _settings;
+        public ShaderManager? _shaderManager;
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static bool _isClosing = false;
@@ -78,7 +80,7 @@ namespace Vox
         private static bool isAnyMenuShowing = false;
         private static bool renderMenu = true;
         private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
-        public static readonly ShaderManager _shaderManager = new();
+
         private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
         private static float angle = 0.0f;
         private static Chunk? _globalPlayerChunk = null;
@@ -90,7 +92,7 @@ namespace Vox
         private static long menuSeed;
         private static Vector3 sunlightPos;
         private static int crosshairTex;
-        private static int sunlightDepthMapFBO;
+        public static int sunlightDepthMapFBO;
         private static int sunlightDepthMap;
         private static Matrix4 pMatrix;
         private Matrix4 sunlightProjectionMatrix;
@@ -113,100 +115,20 @@ namespace Vox
         {   
             base.OnLoad();
 
-            _terrainVAO = GL.GenVertexArray();
-            _menuVAO = GL.GenVertexArray();
-
-            _settings = new SettingsStore(appFolder);
-
-            _assetLookup = new AssetLookup();
-            _ssboManager = new SSBOManager();
-            _lightHelper = new LightHelper();
-
-            _inventoryStore = new InventoryStore(_ssboManager);
-            _textureLoader = new TextureLoader("..\\..\\..\\Assets\\Textures\\", _assetLookup);
-            _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
-            _chunkCache = new ChunkCache(null, _regionManager!);
-            _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache);
-
-
-            _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
-            _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
-            sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
-
-            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
-
-
-            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose);
-            _UIController.RecreateFontDeviceTexture();
-
-            int texArray = _textureLoader.LoadTextures();
-
-            //Generate menu chunk seed
-            byte[] buffer = new byte[8];
-            RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
-            menuSeed = BitConverter.ToInt64(buffer, 0);
-
-
-            //Load textures and _models
-
-            //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
-
-            Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
-
-
-
-            Directory.CreateDirectory(appFolder + "worlds");
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Lequal);
-            GL.Enable(EnableCap.LineSmooth);
-            GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
-            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-            GL.Enable(EnableCap.Blend);
 
-         //   GL.Enable(EnableCap.CullFace);
-          // GL.CullFace(CullFaceMode.Back);
+            _shaderManager = new ShaderManager();
 
-            GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
-            GL.Enable(EnableCap.DebugOutput);
 
             //============================
             //Shader Compilation and Setup
             //============================
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine(
-            "                            %%%%                            \n" +
-            "                          %%%%%%%%                          \n" +
-            "                         %%%%%%%%%%                         \n" +
-            "                       %%%%%%%%%%%%%%                       \n" +
-            "                     %%%%%%%%%%%%%%%%%%                     \n" +
-            "                   %%%%%%%%%%%%%%%%%%%%%%                   \n" +
-            "                 %%%%%%%%%%%%%%%%%%%%%%%%%%                 \n" +
-            "               @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%               \n" +
-            "             @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +-=             \n" +
-            "           @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::=           \n" +
-            "          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::-=          \n" +
-            "        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:::::::::::-=        \n" +
-            "      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +:::::::::::::::-=     \n" +
-            "    @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *:::::::::::::::::::=    \n" +
-            "  @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::::::::=@ \n" +
-            " %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::::::::::::::::::::-= \n" +
-            "@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%=:::::::::::::::::::::::::::-+\n" +
-            "  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#-:::::::::::::::::::::::-=  \n" +
-            "    %%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::::::=   \n" +
-            "     @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% *-::::::::::::::::=     \n" +
-            "       @%%%%%%%%%%%%%%%%%%%%%%%%%%%%% +:::::::::::::= +     \n" +
-            "         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#+:::::::::=+         \n" +
-            "           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:::::-+           \n" +
-            "             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#=:-+             \n" +
-            "               %%%%%%%%%%%%%%%%%%%%%%%%%%%%%#@              \n" +
-            "                @%%%%%%%%%%%%%%%%%%%%%%%%%%@                \n" +
-            "                  @%%%%%%%%%%%%%%%%%%%%%%@                  \n" +
-            "                    %%%%%%%%%%%%%%%%%%%%                    \n" +
-            "                      %%%%%%%%%%%%%%%%       LYGIA.xyz      \n" +
-            "                        %%%%%%%%%%%%   Processing Shaders...\n" +
-            "                         @%%%%%%%%@                         \n" +
-            "                           @%%%%@                           \n" +
-            "                             %@                             \n");
+            " ==========================================================\n" +
+            " Shaders created with the help of LYGIA.xyz shader library \n" +
+            " ==========================================================\n");
             Console.ResetColor();
 
             //-----------------------Terrain shaders---------------------------------            
@@ -235,7 +157,7 @@ namespace Vox
             string fragmentCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Fragment\\Frag_Crosshair.glsl");
 
             _shaderManager.AddShaderProgram("Crosshair", new())
-                .CreateVertexShader("Vertex_Crosshair", vertexCrosshairSource)  
+                .CreateVertexShader("Vertex_Crosshair", vertexCrosshairSource)
                 .CreateFragmentShader("Frag_Crosshair", fragmentCrosshairSource)
                 .Link();
             //-----------------------Lighting shaders---------------------------------
@@ -247,7 +169,79 @@ namespace Vox
                 .CreateVertexShader("VertexInventoryShader", vertexInventorySource)
                 .CreateFragmentShader("FragInventoryShader", fragInventorySource)
                 .Link();
+            string inventoryProgramName = "Shader Program: Inventory";
+            GL.ObjectLabel(ObjectLabelIdentifier.Program, _shaderManager.GetShaderProgram("Inventory").GetProgramId(), inventoryProgramName.Length, inventoryProgramName);
             //------------------------Inventory shaders---------------------------------
+
+            _terrainVAO = GL.GenVertexArray();
+            _menuVAO = GL.GenVertexArray();
+
+            _settings = new SettingsStore(appFolder);
+            _assetLookup = new AssetLookup();
+            _ssboManager = new SSBOManager();
+            _lightHelper = new LightHelper();
+
+            _inventoryStore = new InventoryStore(_ssboManager, _assetLookup);
+            _textureLoader = new TextureLoader("..\\..\\..\\Assets\\Textures\\", _assetLookup, _inventoryStore, _shaderManager);
+            _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
+            _chunkCache = new ChunkCache(null, _regionManager!);
+            _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache, _shaderManager);
+
+
+            _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
+            _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
+            sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
+
+            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+
+
+            /*=================
+            Add SSBOs
+            ==================*/
+
+            // SSBO Size based on nrender distance
+            int blockFacesPerBlock = 6;
+            int maxBlocksPerChunk = (int)Math.Pow(_regionManager.GetChunkBounds(), 3);
+            int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
+            int TerrainSSBOSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
+
+            _ssboManager.AddSSBO(TerrainSSBOSize, 0, SSBO.Terrain);
+            _ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, SSBO.Inventory);
+
+            _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose, _shaderManager);
+            _UIController.RecreateFontDeviceTexture();
+
+
+
+            /*============================
+            Generate textures from SSBOs
+            =============================*/
+
+            int texArray = _textureLoader.LoadTextures();
+
+            //Generate menu chunk seed
+            byte[] buffer = new byte[8];
+            RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
+            menuSeed = BitConverter.ToInt64(buffer, 0);
+
+
+            //Load textures and _models
+            //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
+
+            Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
+
+
+
+            Directory.CreateDirectory(appFolder + "worlds");
+
+            GL.Enable(EnableCap.LineSmooth);
+            GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            GL.Enable(EnableCap.Blend);
+
+            GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
+            GL.Enable(EnableCap.DebugOutput);
+
 
             //Sunlight frame buffer for shadow map
             sunlightDepthMapFBO = GL.GenFramebuffer();
@@ -288,43 +282,8 @@ namespace Vox
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 
             GL.Enable(EnableCap.CullFace);
-            GL.CullFace(OpenTK.Graphics.OpenGL4.CullFaceMode.Back);
-            //------------------------Inventory FrameBuffer---------------------------------
-            //Inventory animation framebuffer
-            ImGuiHelper._inventoryIconFBO = GL.GenFramebuffer();
-            ImGuiHelper._inventoryIconTexture = GL.GenTexture();
-
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, ImGuiHelper._inventoryIconFBO);
-
-            GL.ActiveTexture(TextureUnit.Texture2);
-            GL.BindTexture(TextureTarget.Texture2D, ImGuiHelper._inventoryIconTexture);
-            GL.TexImage2D(
-                TextureTarget.Texture2D,
-                0,
-                PixelInternalFormat.Rgba,
-                256, 256,
-                0,
-                PixelFormat.Rgba,
-                PixelType.UnsignedByte,
-                IntPtr.Zero
-            );
-
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-            //Attach color texture to frame buffer
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, ImGuiHelper._inventoryIconFBO);
-            GL.FramebufferTexture2D(
-                FramebufferTarget.Framebuffer,
-                FramebufferAttachment.ColorAttachment0,
-                TextureTarget.Texture2D,
-                ImGuiHelper._inventoryIconTexture,
-                0
-            );
-
-
+            GL.CullFace(CullFaceMode.Back);
+     
             //========================
             //Matrix unifrom setup
             //========================
@@ -395,24 +354,6 @@ namespace Vox
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
 
-
-            /*======================================
-            Block face Terrain SSBO instancing setup
-            =======================================*/
-
-            // SSBO Size based on nrender distance
-            int blockFacesPerBlock = 6;
-            int maxBlocksPerChunk = (int)Math.Pow(_regionManager.GetChunkBounds(), 3);
-            int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
-            int TerrainSSBOSize =((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
-
-            _ssboManager.AddSSBO(TerrainSSBOSize, 0, SSBO.Terrain);
-
-            /*===================================
-            Inventory animation model SSBO
-            ====================================*/
-            _ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, SSBO.Inventory);
-
             /*===================================
             Render menu screen
             ====================================*/
@@ -422,13 +363,15 @@ namespace Vox
             {
                 c.GenerateRenderData();
             }
-                    
-            //Free resources
-            //_textureLoader.Unbind(texArray);
+
+
+            int iconAtlas = _textureLoader.GenerateIconAtlas();
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
+
+            base.OnRenderFrame(e);
 
             if (_isClosing)
             {
@@ -436,9 +379,6 @@ namespace Vox
                 return;
             }
 
-            base.OnRenderFrame(e);
-
-            
             /*==============================
             Update UI input and config
             ===============================*/
@@ -456,7 +396,7 @@ namespace Vox
 
                 angle += 0.12f * (float) e.Time;
 
-                _shaderManager.GetShaderProgram("Terrain").Bind()
+                _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("isMenuRendered", 1);
 
                 RenderMenu();
@@ -464,7 +404,7 @@ namespace Vox
             else
             {
                
-                _shaderManager.GetShaderProgram("Terrain").Bind()
+                _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("isMenuRendered", 0);
 
                 RenderWorld();
@@ -484,7 +424,7 @@ namespace Vox
 
         public void SetTerrainShaderUniforms()
         {
-            _shaderManager.GetShaderProgram("Terrain").Bind()
+            _shaderManager?.GetShaderProgram("Terrain").Bind()
                 .SetMatrixUniform("projectionMatrix", pMatrix)
                 .SetMatrixUniform("modelMatrix", modelMatricRotate);
 
@@ -492,13 +432,13 @@ namespace Vox
             {
                 modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
                 Matrix4 menuMatrix = modelMatricRotate;
-                _shaderManager.GetShaderProgram("Terrain").Bind()
+                _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetMatrixUniform("modelMatrix", menuMatrix)
                     .SetMatrixUniform("viewMatrix", viewMatrix);
             }
             else
             {
-                _shaderManager.GetShaderProgram("Terrain").Bind()
+                _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureLayerFromTexture(Texture.TARGET))
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
@@ -506,23 +446,23 @@ namespace Vox
                     .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
 
 
-                _shaderManager.GetShaderProgram("Inventory").Bind()
-                    .SetMatrixUniform("projectionMatrix", _inventoryStore!.GetIconProjection())
-                    .SetMatrixUniform("viewMatrix", _inventoryStore.GetIconViewMatrix())
-                    .SetMatrixUniform("modelMatrix", _inventoryStore.GetIconModelMatrix())
+                _shaderManager?.GetShaderProgram("Inventory").Bind()
+                    .SetMatrixUniform("projectionMatrix", _inventoryStore!.GetDisplayProjection())
+                    .SetMatrixUniform("viewMatrix", _inventoryStore.GetDisplayViewMatrix())
+                    .SetMatrixUniform("modelMatrix", _inventoryStore.GetDisplayModelMatrix())
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
 
             }
 
-            _shaderManager.GetShaderProgram("Terrain").Bind()
+            _shaderManager?.GetShaderProgram("Terrain").Bind()
                 .SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection())
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition())
                 .SetIntFloatUniform("renderDistance", _regionManager!.GetRenderDistance())
                 .SetMatrixUniform("chunkModelMatrix", Chunk.GetModelMatrix())
                 .SetIntFloatUniform("isMenuRendered", 1);
 
-            _shaderManager.GetShaderProgram("Inventory").Bind()
+            _shaderManager?.GetShaderProgram("Inventory").Bind()
                 .SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection())
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition());
         }
@@ -534,13 +474,14 @@ namespace Vox
         private static float dirY = 0.0f;
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
+
+            base.OnUpdateFrame(args);
+
             if (_isClosing)
             {
                 RequestClose();
                 return;
             }
-
-            base.OnUpdateFrame(args);
 
             // Update pause status
             if (_imguiHelper?.GetCurrentMenu() == Menu.None)
@@ -576,7 +517,7 @@ namespace Vox
             ambientColor = lightColor * new Vector3(0.2f);
             diffuseColor = lightColor * new Vector3(0.5f);
 
-            _shaderManager.GetShaderProgram("Terrain").Bind()
+            _shaderManager?.GetShaderProgram("Terrain").Bind()
                 .SetVector3Uniform("light.position", sunlightPos)
                 .SetVector3Uniform("light.ambient", ambientColor)
                 .SetVector3Uniform("light.diffuse", diffuseColor)
@@ -599,7 +540,7 @@ namespace Vox
 
             SetTerrainShaderUniforms();
 
-            _shaderManager.GetShaderProgram("Lighting").Bind()
+            _shaderManager?.GetShaderProgram("Lighting").Bind()
                 .SetVector3Uniform("light.position", sunlightPos);
 
             if (_imguiHelper?.GetCurrentMenu() != Menu.Main)
@@ -613,17 +554,17 @@ namespace Vox
             lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
 
 
-            _shaderManager.GetShaderProgram("Lighting").Bind()
+            _shaderManager?.GetShaderProgram("Lighting").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
-            _shaderManager.GetShaderProgram("Terrain").Bind()
+            _shaderManager?.GetShaderProgram("Terrain").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
-            _shaderManager.GetShaderProgram("Inventory").Bind()
+            _shaderManager?.GetShaderProgram("Inventory").Bind()
                 .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
                 .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
@@ -1064,7 +1005,7 @@ namespace Vox
 
 
         public Player GetPlayer() {
-            _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!);
+            _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!, _shaderManager!);
 
             return (Player) _player;
         }

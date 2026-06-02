@@ -19,12 +19,11 @@ namespace Vox.Rendering
             // Override existing SSBO
             if (_ssboList.TryGetValue(name, out StorageBufferObject? value))
             {
-                Logger.Debug("Updating existing SSBO: " + type);
                 _ssboList[name] = new StorageBufferObject(size, bindingIndex, value.Handle);
                 GL.ObjectLabel(ObjectLabelIdentifier.Buffer, _ssboList[name].Handle, name.Length, "SSBO: " + name);
                 return _ssboList[name];
             }
-            Logger.Debug($"Creating new SSBO: {name}");
+
             // Else create new SSBO
             var newBuffer = new StorageBufferObject(size, bindingIndex, GL.GenBuffer());
             _ssboList.Add(name, newBuffer);

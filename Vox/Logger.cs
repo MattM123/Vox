@@ -11,20 +11,26 @@ namespace Vox
             Console.WriteLine("[INFO] " + DateTime.Now + " :: " + message.ToString());
             Console.ResetColor();
         }
-        public static void Error(Exception e, ConsoleColor color = ConsoleColor.White)
+        public static void Success(object message, ConsoleColor color = ConsoleColor.Green)
+        {
+            Console.ForegroundColor = color;
+            Console.WriteLine("[SUCCESS] " + DateTime.Now + " :: " + message.ToString());
+            Console.ResetColor();
+        }
+        public static void Error(Exception e, ConsoleColor color = ConsoleColor.Red)
         {
             Console.ForegroundColor = color;
             Console.WriteLine("[ERROR] " + DateTime.Now + " :: " + e.GetType() + " :: " + e.Message);
             Console.WriteLine(e.StackTrace);
             Console.ResetColor();
         }
-        public static void Error(string e, ConsoleColor color = ConsoleColor.White)
+        public static void Error(string e, ConsoleColor color = ConsoleColor.Red)
         {
             Console.ForegroundColor = color;
             Console.WriteLine("[ERROR] " + e);
             Console.ResetColor();
         }
-        public static void Error(Exception e, string location, ConsoleColor color = ConsoleColor.White)
+        public static void Error(Exception e, string location, ConsoleColor color = ConsoleColor.Red)
         {
             Console.ForegroundColor = color;
             Console.WriteLine("[ERROR] " + DateTime.Now + " :: " + e.GetType() + " :: " + e.Message + " :: " + location);

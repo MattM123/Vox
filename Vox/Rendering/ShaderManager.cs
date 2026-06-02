@@ -4,7 +4,7 @@ using Vox.UI;
 
 namespace Vox.Rendering
 {
-    public class ShaderManager
+    public class ShaderManager : IShaderManager
     {
         private readonly Dictionary<string, ShaderProgram> _shaders = [];
 
