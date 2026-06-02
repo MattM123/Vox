@@ -128,12 +128,6 @@ namespace Vox.Genesis
         /// from 0 to the maximum world height.</returns>
         public short GetGlobalHeightMapValue(int x, int z)
         {
-            long seed;
-            if (Window.IsMainMenuScreenDisplayed())
-                seed = Window.GetMenuSeed();
-            else
-                seed = WORLD_SEED;
-
             //Affects height of terrain. A higher value will result in lower, smoother terrain while a lower value will result in
             // a rougher, raised terrain
             float var1 = 100;
@@ -142,9 +136,9 @@ namespace Vox.Genesis
             //more smooth, spread out hills.
             double var2 = 0.021;
 
-            float f = 1 * OpenSimplex2.Noise2(seed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex2.Noise2(seed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
+            float f = 1 * OpenSimplex2.Noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
+                    + (float)(0.5 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
+                    + (float)(0.25 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
 
             //Normalized the noise value and scale between 0 and WORLD_HEIGHT
             float noise = (f * 0.5f) + 0.5f;

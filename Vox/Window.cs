@@ -290,7 +290,7 @@ namespace Vox
 
             pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
 
-            viewMatrix = Matrix4.LookAt(new Vector3(-10f, 220f, -20f), new Vector3(8f, 200f, 8f), new Vector3(0.0f, 1f, 0.0f));
+            viewMatrix = Matrix4.LookAt(new Vector3(-20f, 280f, -20f), new Vector3(8f, 260f, 8f), new Vector3(0.0f, 1f, 0.0f));
 
             float dist = _regionManager.GetChunkBounds() * _regionManager.GetRenderDistance();
             sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist, dist, -dist, dist, 1f, dist * 2);
@@ -357,13 +357,12 @@ namespace Vox
             /*===================================
             Render menu screen
             ====================================*/
-            menuChunks.Add(_regionManager.GetAndLoadGlobalChunkFromCoords(0, 176, 0));
+            menuChunks.Add(_regionManager.GetAndLoadGlobalChunkFromCoords(0, 224, 0));
 
             foreach (Chunk c in menuChunks)
             {
                 c.GenerateRenderData();
             }
-
 
             int iconAtlas = _textureLoader.GenerateIconAtlas();
         }
@@ -716,7 +715,7 @@ namespace Vox
                      angle = 0.0f;
             
                  angle += 0.1f * time;
-                 _shaderManager.GetShaderProgram("Inventory").Bind();
+                 _shaderManager?.GetShaderProgram("Inventory").Bind();
              }
 
             //============================
@@ -757,7 +756,7 @@ namespace Vox
             {
                 Console.WriteLine($"Framebuffer error: {status}");
             }
-            _shaderManager.GetShaderProgram("Lighting").Bind();
+            _shaderManager?.GetShaderProgram("Lighting").Bind();
             GL.BindVertexArray(_menuVAO);
 
             GL.DrawArraysInstanced(
@@ -779,7 +778,7 @@ namespace Vox
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            _shaderManager.GetShaderProgram("Terrain").Bind();
+            _shaderManager?.GetShaderProgram("Terrain").Bind();
 
 
 
