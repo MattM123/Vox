@@ -216,6 +216,7 @@ namespace Vox.Rendering
 
         public int GenerateIconAtlas()
         {
+            int atlasSize = 4096;
 
             //Save current state
             int prevTex = GL.GetInteger(GetPName.TextureBinding2D);
@@ -235,7 +236,10 @@ namespace Vox.Rendering
             // 
             Matrix4 modelMatrix = Matrix4.Identity *                                                                                  // Standard Identity
                                   Matrix4.CreateTranslation(-0.5f, -0.5f, -0.5f) *                                                    // Position block model center on the origin
-                                  Matrix4.CreateFromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(Window.GetAngle() * 150));   // Rotated model around Y Axis
+                                  Matrix4.CreateFromAxisAngle(Vector3.UnitY, MathHelper.DegreesToRadians(Window.GetAngle() * 150)) *  // Rotated model around Y Axis
+                                  Matrix4.CreateRotationX(MathHelper.DegreesToRadians(180));                                          // Make block model right side up instead of up side down
+
+
 
             float distance = 1.5f;
             Matrix4 viewMatrix = Matrix4.LookAt(
@@ -247,7 +251,7 @@ namespace Vox.Rendering
             _shaderManager?.GetShaderProgram("Inventory").Bind()
                 .SetMatrixUniform("projectionMatrix", _inventoryStore!.GetDisplayProjection())
                 .SetMatrixUniform("viewMatrix", _inventoryStore.GetDisplayViewMatrix())
-                .SetMatrixUniform("modelMatrix", _inventoryStore.GetDisplayModelMatrix());
+                .SetMatrixUniform("modelMatrix", modelMatrix);
 
             // Bind frame buffer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryStore!.GetInventoryIconSlotFBO());
@@ -270,7 +274,7 @@ namespace Vox.Rendering
                 if (type == BlockType.AIR)
                     continue;
 
-                int cols = 1024 / viewportSize;
+                int cols = atlasSize / viewportSize;
 
                 // i - 1 to account for air being skipped, so that we start at the
                 // top left of the atlas and fill in row by row

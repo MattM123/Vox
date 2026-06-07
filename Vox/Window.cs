@@ -819,29 +819,29 @@ namespace Vox
             int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
 
             //If SSBO size changed (i.e render distance was increased or decreased) 
-            if (Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) != _ssboManager!.GetSSBO(SSBO.Terrain).Size)
-            {
-                Console.WriteLine("Size Change");
-
-                int SSBOResize = Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock);
-                _ssboManager!.AddSSBO(SSBOResize, 0, SSBO.Terrain);
-                //Creates ssbo buffer
-                // GL.BufferStorage(BufferTarget.ShaderStorageBuffer, SSBOSize, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
-                //
-                // //Map binding for shader to use
-                // GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, SSBOhandle);
-                //
-                // //Creates pointer to SSBO buffer
-                // SSBOPtr = GL.MapBufferRange(
-                //     BufferTarget.ShaderStorageBuffer,
-                //     IntPtr.Zero,
-                //     SSBOSize,
-                //     BufferAccessMask.MapWriteBit |
-                //     BufferAccessMask.MapPersistentBit |
-                //     BufferAccessMask.MapCoherentBit
-                // );
-
-            }
+            //if (Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) != _ssboManager!.GetSSBO(SSBO.Terrain).Size)
+            //{
+            //    Console.WriteLine("Size Change");
+            //
+            //    int SSBOResize = Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock);
+            //    _ssboManager!.AddSSBO(SSBOResize, 0, SSBO.Terrain);
+            //    //Creates ssbo buffer
+            //    // GL.BufferStorage(BufferTarget.ShaderStorageBuffer, SSBOSize, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
+            //    //
+            //    // //Map binding for shader to use
+            //    // GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, SSBOhandle);
+            //    //
+            //    // //Creates pointer to SSBO buffer
+            //    // SSBOPtr = GL.MapBufferRange(
+            //    //     BufferTarget.ShaderStorageBuffer,
+            //    //     IntPtr.Zero,
+            //    //     SSBOSize,
+            //    //     BufferAccessMask.MapWriteBit |
+            //    //     BufferAccessMask.MapPersistentBit |
+            //    //     BufferAccessMask.MapCoherentBit
+            //    // );
+            //
+            //}
 
 
             /*====================================

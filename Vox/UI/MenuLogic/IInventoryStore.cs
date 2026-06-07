@@ -18,5 +18,10 @@ namespace Vox.UI.MenuLogic
         int GetInventoryDisplayFBO();
         int GetInventoryIconAtlas();
         int GetInventoryIconSlotFBO();
+        void SetDraggedSlot(KeyValuePair<int, KeyValuePair<BlockType, int>> slot);
+        KeyValuePair<int, KeyValuePair<BlockType, int>> GetDraggedSlot();
+        bool IsItemBeingDragged();
+        void SetHoveredSlotIndex(int index);
+        int GetHoveredSlotIndex();
     }
 }

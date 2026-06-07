@@ -134,7 +134,7 @@ namespace Vox.Genesis
 
             //Affects coalescence of terrain. A higher value will result in more condensed, sharp peaks and a lower value will result in
             //more smooth, spread out hills.
-            double var2 = 0.021;
+            double var2 = 0.011;
 
             float f = 1 * OpenSimplex2.Noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
                     + (float)(0.5 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2

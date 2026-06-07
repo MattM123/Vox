@@ -22,18 +22,14 @@ namespace Vox.Assets
             { Texture.TARGET, 7 }
         };
 
-        private readonly Dictionary<BlockType, Vector2> BlockTypeToIconUV = new()
+        private readonly Dictionary<BlockType, Tuple<Vector2, Vector2>> BlockTypeToIconUV = new()
         {
-
-        };
-        private readonly Dictionary<BlockType, string> BlockTypeToIconFile = new()
-        {
-            {BlockType.DIRT_BLOCK, "dirt.png" },
-            {BlockType.GRASS_BLOCK, "grass_side.png" },
-            {BlockType.LAMP_BLOCK, "lamp.png" },
-            {BlockType.STONE_BLOCK, "stone.png" },
-            {BlockType.TEST_BLOCK, "test.png" },
-            {BlockType.TARGET_BLOCK, "target.png" }
+            { BlockType.DIRT_BLOCK, new(new(0f, 0f), new(0.03125f, 0.03125f)) },
+            { BlockType.GRASS_BLOCK, new(new(0.03125f, 0f), new(0.0625f, 0.03125f)) },
+            { BlockType.STONE_BLOCK, new(new(0.0625f, 0f), new(0.09375f, 0.03125f)) },
+            { BlockType.LAMP_BLOCK, new(new(0.09375f, 0f), new(0.12500f, 0.03125f)) },
+            { BlockType.TEST_BLOCK, new(new(0.12500f, 0f), new(0.15625f, 0.03125f)) },
+            { BlockType.TARGET_BLOCK, new(new(0.15625f, 0f), new(0.18750f, 0.03125f)) }
         };
 
         public static readonly Dictionary<BlockType, BlockFlags> BlockFlagMapping = new()
@@ -109,6 +105,12 @@ namespace Vox.Assets
         public bool IsNatural(BlockType type)
             => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.NATURAL);
 
+        public Tuple<Vector2, Vector2> GetUVFromBlockType(BlockType blockType)
+        {
+            if (BlockTypeToIconUV.TryGetValue(blockType, out Tuple<Vector2, Vector2> uvs))
+                return uvs;
+            return new Tuple<Vector2, Vector2>(Vector2.Zero, Vector2.Zero);
+        }
 
         public int GetTextureLayerFromTexture(Texture texture)
         {
@@ -116,12 +118,6 @@ namespace Vox.Assets
             if (TextureToTextureLayer.TryGetValue(texture, out int layer))
                 return layer - 1;
             return 0;
-        }
-        public string GetFileFromBlockType(BlockType blockType)
-        {
-            if (BlockTypeToIconFile.TryGetValue(blockType, out string filename))
-                return filename;
-            return "";
         }
         
         public List<BlockType> GetNaturalBlockTypes()

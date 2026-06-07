@@ -5,7 +5,9 @@ using System.Diagnostics;
 using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using Vox.Enums;
 using Vox.Genesis;
+using Vox.UI.MenuLogic;
 
 namespace Vox
 {
@@ -164,30 +166,44 @@ namespace Vox
 
             return ImGui.Button(label, buttonSize);
         }
-        public static void WrappedButton(string label, System.Numerics.Vector2 size)
+        public static void DetectItemDragNDrop(InventoryStore inventoryStore, System.Numerics.Vector2 inventorySlotSize, ImDrawListPtr drawList, int slot, BlockType slotType, int slotQuantity)
         {
-            System.Numerics.Vector2 pos = ImGui.GetCursorScreenPos();
+            bool isBeingDragged = inventoryStore.IsItemBeingDragged();
+            int hoveredSlot = inventoryStore.GetHoveredSlotIndex();
+            KeyValuePair<int, KeyValuePair<BlockType, int>> draggedSlot = inventoryStore.GetDraggedSlot();
 
-            // 1. Create the interaction area
-            if (ImGui.InvisibleButton(label + "##inv", size))
+            /*==================================================================================
+            * Detecting item movement from one slot to another with mouse drag and drop
+            *==================================================================================*/
+            if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
             {
-                // Handle click logic here
+                inventoryStore.SetIsItemBeingDragged(false);
+                inventoryStore.SetDraggedSlot(new(slot, new(slotType, slotQuantity)));
+
             }
+            // If item is being dragged, draw the display animation as its being dragged
+            if (ImGui.IsMouseDragging(ImGuiMouseButton.Left))
+            {
+                inventoryStore.SetIsItemBeingDragged(true);
+                System.Numerics.Vector2 imagePosMin = ImGui.GetMousePos() - new System.Numerics.Vector2(inventorySlotSize.X / 2f, inventorySlotSize.Y / 2f);
+                System.Numerics.Vector2 imagePosMax = imagePosMin + inventorySlotSize;
 
-            // 2. Determine button state for visual feedback
-            bool isHovered = ImGui.IsItemHovered();
-            bool isActive = ImGui.IsItemActive();
-            uint color = isActive ? ImGui.GetColorU32(ImGuiCol.ButtonActive) :
-                         isHovered ? ImGui.GetColorU32(ImGuiCol.ButtonHovered) :
-                         ImGui.GetColorU32(ImGuiCol.Button);
+                if (draggedSlot.Value.Key != BlockType.AIR)
+                    drawList.AddImage(inventoryStore.GetInventoryDisplayTexture(), imagePosMin, imagePosMax);
+            }
+            // Move the item to another slot
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) && hoveredSlot != -1 && isBeingDragged)
+            {
+                // Make sure the slot does not alreay have an item in it
+                if (inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.AIR)
+                {
+                    inventoryStore.SetSlot(hoveredSlot, draggedSlot.Value.Key, draggedSlot.Value.Value);
+                    inventoryStore.SetSlot(inventoryStore.GetDraggedSlot().Key, BlockType.AIR, 0);
 
-            // 3. Manually draw the background and wrapped text
-            ImGui.GetWindowDrawList().AddRectFilled(pos, pos + size, color, ImGui.GetStyle().FrameRounding);
-
-            ImGui.SetCursorScreenPos(pos + ImGui.GetStyle().FramePadding);
-            ImGui.PushTextWrapPos(pos.X + size.X - ImGui.GetStyle().FramePadding.X);
-            ImGui.TextUnformatted(label);
-            ImGui.PopTextWrapPos();
+                    inventoryStore.SetDraggedSlot(new(-1, new(BlockType.AIR, 0)));
+                    inventoryStore.SetIsItemBeingDragged(false);
+                }
+            }
         }
 
     }

@@ -24,6 +24,9 @@ namespace Vox.UI.MenuLogic
         private readonly int _inventoryIconSlotFBO;
         private readonly int _inventoryIconAtlas;
 
+        private KeyValuePair<int, KeyValuePair<BlockType, int>> draggedSlot = new(-1, new(BlockType.AIR, 0));
+        private bool isDragging = false;
+        private int hoveredSlotIndex = -1;
 
         /// <summary>
         /// Initializes a new instance of the InventoryStore class with the specified SSBO manager.
@@ -100,7 +103,7 @@ namespace Vox.UI.MenuLogic
                 TextureTarget.Texture2D,
                 0,
                 PixelInternalFormat.Rgba,
-                1024, 1024,
+                4096, 4096,
                 0,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,
@@ -188,7 +191,7 @@ namespace Vox.UI.MenuLogic
         {
             return Matrix4.CreatePerspectiveFieldOfView(
                 MathHelper.DegreesToRadians(45f),
-                1.0f,   
+                1.0f,
                 0.1f,
                 100.0f
             );
@@ -344,6 +347,30 @@ namespace Vox.UI.MenuLogic
         public int GetInventoryIconSlotFBO()
         {
             return _inventoryIconSlotFBO;
+        }
+        public KeyValuePair<int, KeyValuePair<BlockType, int>> GetDraggedSlot()
+        {
+            return draggedSlot;
+        }
+        public bool IsItemBeingDragged()
+        {
+            return isDragging;
+        }
+        public void SetDraggedSlot(KeyValuePair<int, KeyValuePair<BlockType, int>> slot)
+        {
+            draggedSlot = slot;
+        }
+        public void SetIsItemBeingDragged(bool isBeingDragged)
+        {
+            isDragging = isBeingDragged;
+        }
+        public int GetHoveredSlotIndex()
+        {
+            return hoveredSlotIndex;
+        }
+        public void SetHoveredSlotIndex(int index)
+        {
+            hoveredSlotIndex = index;
         }
     }
 }

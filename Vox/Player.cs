@@ -1,10 +1,4 @@
-﻿
-using System;
-using System.Drawing;
-using System.Reflection;
-using System.Threading.Tasks.Dataflow;
-using OpenTK.Graphics.OpenGL;
-using OpenTK.Mathematics;
+﻿using OpenTK.Mathematics;
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
@@ -45,7 +39,7 @@ namespace Vox
         public TerrainVertex[] viewTarget = [];
         private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
 
-        private static readonly float gravity = 0f; //9.8f;      // Gravity constant
+        private static readonly float gravity = 9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
@@ -256,7 +250,7 @@ namespace Vox
 
         private void CheckChunkCollision(float deltaTime)
         {
-            int collisionIterations = 1;
+            int collisionIterations = 5;
 
             Vector3 totalNormal = Vector3.Zero;
             float highestVoxelMaxY = float.MinValue; // Track the highest voxel max Y
@@ -278,7 +272,7 @@ namespace Vox
                 if (collisionNormal.LengthSquared > 0)
                 {
                     // Calculate overlaps for each axis
-                    Vector3 overlap = new Vector3(
+                    Vector3 overlap = new(
                         Math.Min(playerMax.X, voxelMax.X) - Math.Max(playerMin.X, voxelMin.X),
                         Math.Min(playerMax.Y, voxelMax.Y) - Math.Max(playerMin.Y, voxelMin.Y),
                         Math.Min(playerMax.Z, voxelMax.Z) - Math.Max(playerMin.Z, voxelMin.Z)
@@ -298,67 +292,30 @@ namespace Vox
 
             if (highestNormal != Vector3.Zero)
             {
-
                 highestNormal.Normalize();
-                if (highestNormal.Y > 0.7f || Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.X) && Math.Abs(highestNormal.Y) > Math.Abs(highestNormal.Z))
-                {
-                    IsGrounded = true;   // Set the grounded flag
-                    velocity.Y = 0;      // Stop vertical movement (falling)
-                    blockedDirection.Y = Math.Sign(highestNormal.Y);
-                }
-
-                // Stop movement along the wall's axis
-                if (Math.Abs(highestNormal.X) > 0.8f || (Math.Abs(highestNormal.X) > Math.Abs(highestNormal.Y) && Math.Abs(highestNormal.X) > Math.Abs(highestNormal.Z)))
-                {
-
-                    // Block movement only in the direction of the wall (positive or negative X)
-                    if (Math.Abs(highestNormal.X) > 0.8f && velocity.X > 0) velocity.X = 0; // Block positive X movement
-
-                    // Set blocked direction to the wall's side
-                    blockedDirection.X = Math.Sign(highestNormal.X);
-
-                }
-
-                if (Math.Abs(highestNormal.Z) > 0.8f || (Math.Abs(highestNormal.Z) > Math.Abs(highestNormal.Y) && Math.Abs(highestNormal.Z) > Math.Abs(highestNormal.X)))
-                {
-                    // Block movement only in the direction of the wall (positive or negative Z)
-                    if (Math.Abs(highestNormal.Z) > 0.8f && velocity.Z > 0) velocity.Z = 0; // Block positive Z movement
-
-                    // Set blocked direction to the wall's side
-                    blockedDirection.Z = Math.Sign(highestNormal.Z);
-                }
-
                 Vector3 correction = new Vector3(
                     highestNormal.X != 0 ? highestOverlap.X : 0,
                     highestNormal.Y != 0 ? highestOverlap.Y : 0,
                     highestNormal.Z != 0 ? highestOverlap.Z : 0
                 );
 
-                // Move the player out of the wall
-                position.Y -= correction.Y * velocity.Y;// * velocity * deltaTime;
+                if (highestNormal.X != 0)
+                {
+                    position.X += highestOverlap.X * correction.X;
+                    velocity.X = 0;
+                }
 
-                //Get the direction behind the player in X and Z directions and use it to update position
-                //on collision with X and Z walls
-                float behindPlayerX = Vector3.Normalize(GetViewMatrix().Column2.Xyz).X * -1f;
-                float behindPlayerZ = Vector3.Normalize(GetViewMatrix().Column2.Xyz).Z * -1f;
+                if (highestNormal.Y != 0)
+                {
+                    position.Y += highestOverlap.Y * correction.Y;
+                    velocity.Y = 0;
+                }
 
-                //If player walk into wall
-                //if (Math.Sign(GetForwardDirection().X) == Math.Sign(blockedDirection.X)
-                //    || Math.Sign(GetForwardDirection().Y) == Math.Sign(blockedDirection.Y)
-                //    || Math.Sign(GetForwardDirection().Z) == Math.Sign(blockedDirection.Z))
-                //{
-                //    position.X -= correction.X * behindPlayerX * deltaTime;
-                //    position.Z -= correction.Z * behindPlayerZ * deltaTime;
-                //}
-                //
-                ////if player backs up into wall
-                //if (Math.Sign(-GetForwardDirection().X) == Math.Sign(blockedDirection.X)
-                //    || Math.Sign(-GetForwardDirection().Y) == Math.Sign(blockedDirection.Y)
-                //    || Math.Sign(-GetForwardDirection().Z) == Math.Sign(blockedDirection.Z))
-                //{
-                //    position.X += correction.X * behindPlayerX * deltaTime;
-                //    position.Z += correction.Z * behindPlayerZ * deltaTime;
-                //}
+                if (highestNormal.Z != 0)
+                {
+                    position.Z += highestOverlap.Z * correction.Z;
+                    velocity.Z = 0;
+                }
 
                 // Update position based on the corrected velocity
                 position.Y += velocity.Y * deltaTime;
@@ -446,11 +403,11 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-            //CheckChunkCollision(deltaTime);
+            CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change
-            UpdateVelocity(deltaTime);
+           // UpdateVelocity(deltaTime);
 
             // Apply friction or damping to velocity
             ApplyFriction(deltaTime);
@@ -463,7 +420,6 @@ namespace Vox
 
         public void UpdateVelocity(float deltaTime)
         {
-
             if (desiredMovement != lastDesiredMovement)
             {
                 // Only normalize desiredMovement if it has a non-zero length
@@ -483,7 +439,7 @@ namespace Vox
                 }
                 if (blockedDirection.Y != 0 && Math.Sign(desiredMovement.Y) == Math.Sign(blockedDirection.Y))
                 {
-                    inputDirection.Y = 0; // Prevent movement along the blocked Z axis
+                    inputDirection.Y = 0; // Prevent movement along the blocked Y axis
                 }
 
                 // Apply the input direction to velocity if movement is allowed
@@ -518,9 +474,19 @@ namespace Vox
         {
             return velocity;
         }
+
+        /// <summary>
+        /// Applies friction to the player's velocity, simulating resistance and preventing perpetual motion. 
+        /// The friction is applied as a damping factor that reduces the velocity over time, creating a more realistic movement experience. 
+        /// Adjust the friction value as needed to achieve the desired feel for player movement.
+        /// 
+        /// A higher value will result in a floating movement feel, while a lower value will allow for more momentum and sliding. 
+        /// The friction is applied proportionally to the deltaTime to ensure consistent behavior regardless of frame rate.
+        /// </summary>
+        /// <param name="deltaTime"></param>
         private void ApplyFriction(float deltaTime)
         {
-            float friction = 0.9f; // Damping factor, adjust as needed
+            float friction = 0.5f;
             velocity *= (1 - friction * deltaTime);
         }
         public void MoveForward(float inc)

@@ -20,8 +20,6 @@ namespace Vox.UI
 {
     public class ImGuiHelper : IImGuiHelper
     {
-        private static int rotationAngle = 0;
-
         private Menu _currentMenu;
 
         private readonly ImFontPtr PtFont18;
@@ -360,10 +358,6 @@ namespace Vox.UI
             float hotbarSpacing = _guiScale / 3.5f;
             System.Numerics.Vector2 inventorySlotSize = new(slotSize - (slotPadding * 3f), slotSize - (slotPadding * 3.5f));
 
-            rotationAngle += 1;
-            if (rotationAngle > 360)
-                rotationAngle = 0;
-
             //Main window sizing and position
             System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
             ImGui.SetNextWindowPos(new(center.X - (menuWidth / 2), center.Y - (menuHeight / 2)), ImGuiCond.Always);
@@ -403,10 +397,11 @@ namespace Vox.UI
 
             //Populate inventory slots
             Dictionary<int, KeyValuePair<BlockType, int>> inventorySlots = inventoryStore.GetSlots();
-            for (int i = 0; i < inventorySlots.Count; i++)
+            for (int i = 0; i < inventorySlots.Count - 1; i++)
             {
                 ImGui.PushID(i);
                 BlockType currentSlotType = inventorySlots[i].Key;
+                int currentSlotQuantity = inventorySlots[i].Value;
 
                 // Calculate button position and size before drawing
                 var cursorPos = ImGui.GetCursorScreenPos();
@@ -417,58 +412,72 @@ namespace Vox.UI
                 // Determine hover state by manual check *before* drawing
                 bool isHovered = mousePos.X >= buttonRectMin.X && mousePos.X <= buttonRectMax.X &&
                                  mousePos.Y >= buttonRectMin.Y && mousePos.Y <= buttonRectMax.Y;
+         
+                ImDrawListPtr drawList = ImGui.GetWindowDrawList();
 
-                if (currentSlotType != BlockType.AIR)
+                Tuple<System.Numerics.Vector2, System.Numerics.Vector2> slotIconUV = _assetLookup!.GetUVFromBlockType(inventorySlots[i].Key);
+
+                // Show animation on hover and set tooltip
+                if (isHovered && !inventoryStore.IsItemBeingDragged())
                 {
-                    if (isHovered)
+                    selectedBlock = inventorySlots[i].Key;
+
+                    if (currentSlotType != BlockType.AIR)
                     {
-                        selectedBlock = inventorySlots[i].Key;
-                        ImGui.SetTooltip($"{selectedBlock}\nQuantity: {inventorySlots[i].Value}");
+                        ImGui.SetTooltip($"{selectedBlock}\nQuantity: {currentSlotQuantity}");
                         ImGui.ImageButton("##" + i, inventoryStore.GetInventoryDisplayTexture(), inventorySlotSize);
-                    }
-                    else
+                        if (ImGui.IsItemHovered())
+                            inventoryStore.SetHoveredSlotIndex(i);
+                    } else
                     {
-
-                        //Render the test texture for a slot with an item
-                        if (inventorySlots[i].Key != BlockType.AIR)
-                        {
-                            ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, new(0.125f, 0), new(0.250f, 0.125f));
-                        }
-
-                        //Render an empty slot if theres no item
-                        else
-                        {
-                            //Create empty inventory slot
-                            System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
-                            System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
-                            ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
-                        }
+                        //Create empty inventory slot
+                        System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
+                        System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
+                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                     }
-                    // Draw rectangle around the button
-                    System.Numerics.Vector2 min = ImGui.GetItemRectMin();
-                    System.Numerics.Vector2 max = ImGui.GetItemRectMax();
-
-                    var drawList = ImGui.GetWindowDrawList();
-
-                    uint color = isHovered ? ImGui.GetColorU32(new System.Numerics.Vector4(0, 0, 1, 1)) // blue if hovered
-                                         : ImGui.GetColorU32(new System.Numerics.Vector4(1, 1, 1, 1)); // white if not hovered
-
-                  //  drawList.AddRect(min, max, color, rounding: 3.0f, ImDrawFlags.None, thickness: 2.0f);
-
-                    // Show item quantity in top left corner
-                    drawList.AddText(ImGui.GetFont(), 15, min + new System.Numerics.Vector2(5, 5), color,
-                        _player.GetInventory().GetSlots()[i].Value.ToString());
 
                 }
+                // Show still icon of 3D block if not hovered
                 else
                 {
-               //     selectedBlock = BlockType.AIR;
 
-                    //Create empty inventory slot
-                    System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
-                    System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
-                    ImGui.ImageButton("##" + i, textureToUse, inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                    if (currentSlotType != BlockType.AIR)
+                    {
+                        ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, slotIconUV.Item1, slotIconUV.Item2);
+                    }
+
+                    //Render an empty slot if theres no item
+                    else
+                    {
+                        //Create empty inventory slot
+                        System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
+                        System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
+                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                    }
+                    if (ImGui.IsItemHovered())
+                        inventoryStore.SetHoveredSlotIndex(i);
                 }
+
+                // Draw rectangle around the button
+                System.Numerics.Vector2 min = ImGui.GetItemRectMin();
+                System.Numerics.Vector2 max = ImGui.GetItemRectMax();
+
+                uint color = isHovered ? ImGui.GetColorU32(new System.Numerics.Vector4(0, 0, 1, 1)) // blue if hovered
+                                     : ImGui.GetColorU32(new System.Numerics.Vector4(1, 1, 1, 1)); // white if not hovered
+
+                bool isBeingDragged = inventoryStore.IsItemBeingDragged();
+                int hoveredSlot = inventoryStore.GetHoveredSlotIndex();
+                KeyValuePair<int, KeyValuePair<BlockType, int>> draggedSlot = inventoryStore.GetDraggedSlot();
+
+                // Show item quantity in top left corner
+                if (inventorySlots[i].Value > 0)
+                {
+                    drawList.AddText(ImGui.GetFont(), 15, min + new System.Numerics.Vector2(5, 5), color,
+                        _player.GetInventory().GetSlots()[i].Value.ToString());
+                }
+
+                Utils.DetectItemDragNDrop(inventoryStore, inventorySlotSize, drawList, i, currentSlotType, currentSlotQuantity);
+
                 ImGui.PopID();
 
                 //Splits first 36 slots into rows of 9
@@ -478,8 +487,6 @@ namespace Vox.UI
                 //Spacing between hotbar and inventory rows                
                 if (i == 26)
                     ImGui.Dummy(new(0, hotbarSpacing));
-
-
             }
 
             ImGui.PopStyleVar(2);
