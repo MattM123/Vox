@@ -24,9 +24,10 @@ namespace Vox.UI.MenuLogic
         private readonly int _inventoryIconSlotFBO;
         private readonly int _inventoryIconAtlas;
 
-        private KeyValuePair<int, KeyValuePair<BlockType, int>> draggedSlot = new(-1, new(BlockType.AIR, 0));
-        private bool isDragging = false;
+        private KeyValuePair<BlockType, int> movedSlot = new(BlockType.AIR, 0);
+        private bool isMoving = false;
         private int hoveredSlotIndex = -1;
+        private bool pickupToggle = false;
 
         /// <summary>
         /// Initializes a new instance of the InventoryStore class with the specified SSBO manager.
@@ -40,9 +41,6 @@ namespace Vox.UI.MenuLogic
 
             for (int i = 0; i < 36; i++)
                 slots.Add(i, new(BlockType.AIR, 0));
-
-
-
 
             //------------------------Inventory Block Display---------------------------------
             //Inventory animation framebuffer
@@ -89,7 +87,7 @@ namespace Vox.UI.MenuLogic
             //Inventory icon framebuffer
             _inventoryIconSlotFBO = GL.GenFramebuffer();
             _inventoryIconAtlas = GL.GenTexture();
-            Console.WriteLine("Atlas: " + _inventoryIconAtlas);
+
             string iconSlotFBOName = "FrameBuffer: Inventory Icon";
             GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryIconSlotFBO, iconSlotFBOName.Length, iconSlotFBOName);
 
@@ -128,7 +126,7 @@ namespace Vox.UI.MenuLogic
         }
 
         /// <summary>
-        /// Sets the block _type and quantity for the slot at the specified index.
+        /// Sets the block type and quantity for the slot at the specified index.
         /// </summary>
         /// <param displayName="index">The zero-based index of the slot to update.</param>
         /// <param displayName="blockType">The _type of block to assign to the slot.</param>
@@ -348,21 +346,21 @@ namespace Vox.UI.MenuLogic
         {
             return _inventoryIconSlotFBO;
         }
-        public KeyValuePair<int, KeyValuePair<BlockType, int>> GetDraggedSlot()
+        public KeyValuePair<BlockType, int> GetHandItem()
         {
-            return draggedSlot;
+            return movedSlot;
         }
-        public bool IsItemBeingDragged()
+        public bool IsItemBeingMoved()
         {
-            return isDragging;
+            return isMoving;
         }
-        public void SetDraggedSlot(KeyValuePair<int, KeyValuePair<BlockType, int>> slot)
+        public void SetHandItem(KeyValuePair<BlockType, int> slot)
         {
-            draggedSlot = slot;
+            movedSlot = slot;
         }
-        public void SetIsItemBeingDragged(bool isBeingDragged)
+        public void SetIsItemBeingMoved(bool isBeingMoved)
         {
-            isDragging = isBeingDragged;
+            isMoving = isBeingMoved;
         }
         public int GetHoveredSlotIndex()
         {
@@ -371,6 +369,14 @@ namespace Vox.UI.MenuLogic
         public void SetHoveredSlotIndex(int index)
         {
             hoveredSlotIndex = index;
+        }
+        public bool GetPickupToggle()
+        {
+            return pickupToggle;
+        }
+        public void SetPickupToggle(bool toggle)
+        {
+            pickupToggle = toggle;
         }
     }
 }

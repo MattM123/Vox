@@ -166,42 +166,63 @@ namespace Vox
 
             return ImGui.Button(label, buttonSize);
         }
-        public static void DetectItemDragNDrop(InventoryStore inventoryStore, System.Numerics.Vector2 inventorySlotSize, ImDrawListPtr drawList, int slot, BlockType slotType, int slotQuantity)
+        public static void DetectItemMove(InventoryStore inventoryStore, System.Numerics.Vector2 inventorySlotSize, ImDrawListPtr drawList, int slot, BlockType slotType, int slotQuantity)
         {
-            bool isBeingDragged = inventoryStore.IsItemBeingDragged();
             int hoveredSlot = inventoryStore.GetHoveredSlotIndex();
-            KeyValuePair<int, KeyValuePair<BlockType, int>> draggedSlot = inventoryStore.GetDraggedSlot();
+            KeyValuePair<BlockType, int> cursorItem = inventoryStore.GetHandItem();
 
             /*==================================================================================
             * Detecting item movement from one slot to another with mouse drag and drop
             *==================================================================================*/
-            if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-            {
-                inventoryStore.SetIsItemBeingDragged(false);
-                inventoryStore.SetDraggedSlot(new(slot, new(slotType, slotQuantity)));
+            System.Numerics.Vector2 imagePosMin = ImGui.GetMousePos() - new System.Numerics.Vector2(inventorySlotSize.X / 2f, inventorySlotSize.Y / 2f);
+            System.Numerics.Vector2 imagePosMax = imagePosMin + inventorySlotSize;
 
-            }
-            // If item is being dragged, draw the display animation as its being dragged
-            if (ImGui.IsMouseDragging(ImGuiMouseButton.Left))
-            {
-                inventoryStore.SetIsItemBeingDragged(true);
-                System.Numerics.Vector2 imagePosMin = ImGui.GetMousePos() - new System.Numerics.Vector2(inventorySlotSize.X / 2f, inventorySlotSize.Y / 2f);
-                System.Numerics.Vector2 imagePosMax = imagePosMin + inventorySlotSize;
 
-                if (draggedSlot.Value.Key != BlockType.AIR)
-                    drawList.AddImage(inventoryStore.GetInventoryDisplayTexture(), imagePosMin, imagePosMax);
-            }
-            // Move the item to another slot
-            if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) && hoveredSlot != -1 && isBeingDragged)
+            // Pick up item 
+            if (ImGui.IsItemClicked(ImGuiMouseButton.Left) 
+               
+                && inventoryStore.GetSlots()[slot].Key != BlockType.AIR)
             {
+      //          inventoryStore.SetPickupToggle(!inventoryStore.GetPickupToggle());
+                bool toggle = inventoryStore.GetPickupToggle();
+                //pickup
+                if (!inventoryStore.GetPickupToggle())
+                {
+                    inventoryStore.SetIsItemBeingMoved(true);
+                    inventoryStore.SetHandItem(new(slotType, slotQuantity));
+                    inventoryStore.SetSlot(hoveredSlot, BlockType.AIR, 0);  
+                   // inventoryStore.SetPickupToggle(true);
+                }
+                //drop
+                else if (inventoryStore.GetPickupToggle()
+                    && inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.AIR 
+                    && cursorItem.Key != BlockType.AIR)
+                {
+                    inventoryStore.SetIsItemBeingMoved(false);
+                    inventoryStore.SetSlot(hoveredSlot, slotType, slotQuantity);
+                    inventoryStore.SetHandItem(new(BlockType.AIR, 0));
+                   // inventoryStore.SetPickupToggle(false);
+                }
+            }
+
+            // Draw the icon on item pickup
+            if (inventoryStore.GetHandItem().Key != BlockType.AIR)
+                drawList.AddImage(inventoryStore.GetInventoryDisplayTexture(), imagePosMin, imagePosMax);
+
+            // Move the item to another slot if dragged or clicked and released on another slot
+            if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) 
+                && hoveredSlot != -1 
+                && cursorItem.Key != BlockType.AIR
+                && !inventoryStore.GetPickupToggle())
+            {
+
                 // Make sure the slot does not alreay have an item in it
                 if (inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.AIR)
-                {
-                    inventoryStore.SetSlot(hoveredSlot, draggedSlot.Value.Key, draggedSlot.Value.Value);
-                    inventoryStore.SetSlot(inventoryStore.GetDraggedSlot().Key, BlockType.AIR, 0);
+                {                 
+                    inventoryStore.SetSlot(hoveredSlot, cursorItem.Key, cursorItem.Value);
+                    inventoryStore.SetHandItem(new(BlockType.AIR, 0));
+                    inventoryStore.SetIsItemBeingMoved(false);
 
-                    inventoryStore.SetDraggedSlot(new(-1, new(BlockType.AIR, 0)));
-                    inventoryStore.SetIsItemBeingDragged(false);
                 }
             }
         }

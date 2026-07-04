@@ -39,7 +39,7 @@ namespace Vox
         public TerrainVertex[] viewTarget = [];
         private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
 
-        private static readonly float gravity = 9.8f;      // Gravity constant
+        private static readonly float gravity = 0f;//9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
@@ -564,7 +564,7 @@ namespace Vox
             return Vector3.Normalize(viewMatrix.Column0.Xyz);
         }
 
-        public void UpdateBoundingBox()
+        private void UpdateBoundingBox()
         {
             //playerMin = new Vector3(position.X, position.Y, position.Z);
             //playerMax = new Vector3(position.X + 1, position.Y + 2, position.Z + 1);

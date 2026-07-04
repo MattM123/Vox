@@ -18,7 +18,13 @@ namespace Vox.Rendering
         private static int maxLightValue = 15;
         private static int maxLightSpread = 15;
 
-        public LightHelper() { }
+        private ISSBOManager _ssboManager;
+
+        public LightHelper(ISSBOManager ssboManager)
+        {
+            _ssboManager = ssboManager;
+        }   
+
         public int GetMaxLightSpread()
         {
             return maxLightSpread;
@@ -92,6 +98,7 @@ namespace Vox.Rendering
                 return;
             }
 
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
 
             if (chunk.SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
@@ -102,12 +109,17 @@ namespace Vox.Rendering
                 chunk.SSBOdata[key] = existingFace;
 
                 //Update data for GPU
-                chunk.AddOrUpdateFaceInMemory(chunk.SSBOdata[key]);
+                chunk.AddOrUpdateFaceInMemory(existingFace);
             }
+            // If no existing face, assign the face an index and add to the SSBO data
             else
             {
-                chunk.SSBOdata.TryAdd(key, new BlockFaceInstance(facePos, faceDir, 0, Window.GetAndIncrementNextFaceIndex(), lighting));
-            }
+                int idx = terrainSSBO.AllocateIndex();
+                chunk.SSBOdata[key] = new(facePos, faceDir, 0, idx, lighting);
+
+                //Update data for GPU
+                chunk.AddOrUpdateFaceInMemory(chunk.SSBOdata[key]);
+            }   
         }
 
 

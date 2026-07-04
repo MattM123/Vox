@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Assets;
-using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
@@ -52,12 +51,15 @@ namespace Vox.Genesis
         [IgnoreMember]
         public bool IsInitialized = false;
 
+        [IgnoreMember]
+        public bool isCached = false;
+
         [Key(0)]
         public float xLoc;
- 
+
         [Key(1)]
         public float zLoc;
- 
+
         [Key(2)]
         public float yLoc;
 
@@ -147,7 +149,7 @@ namespace Vox.Genesis
                     }
                 }
                 IsInitialized = true;
-            
+
             }
 
 
@@ -178,6 +180,7 @@ namespace Vox.Genesis
             _ssboManager = ssboManager;
             _regionManager = regionManager;
             _chunkBounds = _regionManager.GetChunkBounds();
+            isCached = false;
 
         }
         public void GenerateRenderData()
@@ -258,49 +261,61 @@ namespace Vox.Genesis
          */
         public void AddOrUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir)
         {
-
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
             Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
-            
-            //Look for existing face to update
+
+
+
+            //Look for existing face to update 
             if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
                 //Update Texture
                 existingFace.textureLayer = texLayer;
-   
+
                 //Update entire instance
                 SSBOdata[key] = existingFace;
-           
+
+                //Update data for GPU
+                AddOrUpdateFaceInMemory(existingFace);
             }
+            // If no existing face, assign the face an index and add to the SSBO data
             else
-                //Add instance if it doesnt exist
-                SSBOdata.TryAdd(key, new(facePos, faceDir, texLayer, Window.GetAndIncrementNextFaceIndex(), 0));
-            
-            //Update data for GPU
-            AddOrUpdateFaceInMemory(SSBOdata[key]);
+            {
+                int idx = terrainSSBO.AllocateIndex();
+                SSBOdata[key] = new(facePos, faceDir, texLayer, idx, 0);
+
+                //Update data for GPU
+                AddOrUpdateFaceInMemory(SSBOdata[key]);
+            }
         }
 
         /**
          * Uploads a single block face to the SSBO for rendering.
          * If the index is already present, updates the face data.
          */
-
         public void AddOrUpdateFaceInMemory(BlockFaceInstance face)
         {
-
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
             //Write face directly to SSBO
             unsafe
             {
                 int offset = face.index * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)_ssboManager!.GetSSBO(SSBO.Terrain).Pointer;
+                byte* basePtr = (byte*)terrainSSBO.Pointer;
 
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
-                if (offset + instanceSize > _ssboManager!.GetSSBO(SSBO.Terrain).Size)
-                    throw new InvalidOperationException("SSBO overflow");
-
                 *instancePtr = face;
+            }
+
+            if (face.textureLayer == (int)Texture.AIR)
+            {
+
+                terrainSSBO.FreeIndex(face.index);
+
+                Vector4 key = new(face.facePosition.X, face.facePosition.Y, face.facePosition.Z, face.faceDirection);
+                SSBOdata.TryRemove(key, out _);
             }
         }
 
@@ -351,13 +366,29 @@ namespace Vox.Genesis
             return false;
         }
         /**
-         * Flags chunk to regenerate next frame.
+         * Frees memory taken by SSBO indcies to be used with other block faces.
+         * Returns the size in bytes of the freed memory.
          */
-        public void Reset()
+        public int FreeShaderMemory()
         {
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
             blockFacesInChunk = 0;
             isGenerated = false;
+            int size = SSBOdata.Count;
+
+            foreach (var face in SSBOdata.Values)
+            {
+                terrainSSBO.FreeIndex(face.index);
+            }
+
             SSBOdata.Clear();
+
+            return size * Marshal.SizeOf<BlockFaceInstance>();
+
+        }
+        public void SetCached(bool cached)
+        {
+            isCached = cached;
         }
     }
 }

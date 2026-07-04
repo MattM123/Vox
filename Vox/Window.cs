@@ -11,8 +11,8 @@ using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Vox.Assets;
-using Vox.Assets.Models;
 using Vox.Enums;
+using Vox.Events;
 using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
@@ -70,12 +70,16 @@ namespace Vox
         private ChunkCache? _chunkCache;
         private LightHelper? _lightHelper;
         private SettingsStore? _settings;
-        public ShaderManager? _shaderManager;
+        private ShaderManager? _shaderManager;
+
+        private CacheEventHandler? _cacheEventHandler;
+
 
         private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
         private static bool _isClosing = false;
 
         private readonly Action _close;
+        private static int SSBOTerrainSize = 0;
 
         private static bool isAnyMenuShowing = false;
         private static bool renderMenu = true;
@@ -98,8 +102,6 @@ namespace Vox
         private Matrix4 sunlightProjectionMatrix;
         private Matrix4 sunlightViewMatrix;
         private static Matrix4 lightSpaceMatrix;
-        private static int _nextFaceIndex;
-
         private static int _menuVAO;
         private static int _terrainVAO;
 
@@ -132,6 +134,7 @@ namespace Vox
             Console.ResetColor();
 
             //-----------------------Terrain shaders---------------------------------            
+
             string vertexTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Vertex\\VertexTerrainShader.glsl");
             string fragmentTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Fragment\\FragTerrainShader.glsl");
 
@@ -176,15 +179,17 @@ namespace Vox
             _terrainVAO = GL.GenVertexArray();
             _menuVAO = GL.GenVertexArray();
 
+            _cacheEventHandler = new CacheEventHandler();
+
             _settings = new SettingsStore(appFolder);
             _assetLookup = new AssetLookup();
             _ssboManager = new SSBOManager();
-            _lightHelper = new LightHelper();
+            _lightHelper = new LightHelper(_ssboManager);
 
             _inventoryStore = new InventoryStore(_ssboManager, _assetLookup);
             _textureLoader = new TextureLoader("..\\..\\..\\Assets\\Textures\\", _assetLookup, _inventoryStore, _shaderManager);
             _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
-            _chunkCache = new ChunkCache(null, _regionManager!);
+            _chunkCache = new ChunkCache(null, _regionManager!, _cacheEventHandler);
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache, _shaderManager);
 
 
@@ -203,9 +208,9 @@ namespace Vox
             int blockFacesPerBlock = 6;
             int maxBlocksPerChunk = (int)Math.Pow(_regionManager.GetChunkBounds(), 3);
             int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
-            int TerrainSSBOSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
+            SSBOTerrainSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
 
-            _ssboManager.AddSSBO(TerrainSSBOSize, 0, SSBO.Terrain);
+            _ssboManager.AddSSBO(SSBOTerrainSize, 0, SSBO.Terrain);
             _ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, SSBO.Inventory);
 
             _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose, _shaderManager);
@@ -701,7 +706,7 @@ namespace Vox
             }
             else
             {
-                //_imguiHelper!.CreateDebugMenu();
+                _imguiHelper!.CreateDebugMenu();
             }
 
             KeyboardState current = KeyboardState.GetSnapshot();
@@ -740,6 +745,9 @@ namespace Vox
     
         private void RenderMenu()
         {
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
+            int max = terrainSSBO.Size / Marshal.SizeOf<BlockFaceInstance>();
+
             /*==========================================
              * DEPTH RENDERING PRE-PASS
              * ========================================*/
@@ -760,10 +768,10 @@ namespace Vox
             GL.BindVertexArray(_menuVAO);
 
             GL.DrawArraysInstanced(
-                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
-                0,                            // Start from the first vertex in the base geometry
-                4,                            // 4 vertices per face (for triangle strip)
-                _nextFaceIndex                // Instance count (number of faces to draw)
+                PrimitiveType.TriangleStrip,        // Drawing a triangle strip
+                0,                                  // Start from the first vertex in the base geometry
+                4,                                  // 4 vertices per face (for triangle strip)
+                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
 
@@ -786,10 +794,10 @@ namespace Vox
             Drawing
             ====================================*/
             GL.DrawArraysInstanced(
-                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
-                0,                            // Start from the first vertex in the base geometry
-                4,                            // 4 vertices per face (for triangle strip)
-                _nextFaceIndex                // Instance count (number of faces to draw)
+                PrimitiveType.TriangleStrip,        // Drawing a triangle strip
+                0,                                  // Start from the first vertex in the base geometry
+                4,                                  // 4 vertices per face (for triangle strip)
+                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
             //-------------------------Render and Draw Terrain---------------------------------------
@@ -810,6 +818,9 @@ namespace Vox
         }
         private void RenderWorld()
         {
+            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
+            int max = terrainSSBO.Size / Marshal.SizeOf<BlockFaceInstance>();
+
             //Remeber to clear cache each frame 
             _chunkCache!.ClearChunkCache();
 
@@ -920,10 +931,10 @@ namespace Vox
             GL.BindBufferBase(OpenTK.Graphics.OpenGL4.BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
 
             GL.DrawArraysInstanced(
-                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
-                0,                            // Start from the first vertex in the base geometry
-                4,                            // 4 vertices per face (for triangle strip)
-                _nextFaceIndex                // Instance count (number of faces to draw)
+                PrimitiveType.TriangleStrip,        // Drawing a triangle strip
+                0,                                  // Start from the first vertex in the base geometry
+                4,                                  // 4 vertices per face (for triangle strip)
+                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
 
@@ -945,10 +956,10 @@ namespace Vox
             Render and Draw Terrain
             ====================================*/
             GL.DrawArraysInstanced(
-                PrimitiveType.TriangleStrip,  // Drawing a triangle strip
-                0,                            // Start from the first vertex in the base geometry
-                4,                            // 4 vertices per face (for triangle strip)
-                _nextFaceIndex                // Instance count (number of faces to draw)
+                PrimitiveType.TriangleStrip,        // Drawing a triangle strip
+                0,                                  // Start from the first vertex in the base geometry
+                4,                                  // 4 vertices per face (for triangle strip)
+                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
             GL.BindVertexArray(0);
@@ -1056,11 +1067,6 @@ namespace Vox
             return sb.ToString();
         }
 
-        public static int GetAndIncrementNextFaceIndex()
-        {
-            return Interlocked.Increment(ref _nextFaceIndex) - 1;
-        }
-
         public static float GetAngle() { 
             return angle;
         }
@@ -1069,8 +1075,9 @@ namespace Vox
             return _assets;
         }
 
-        public static void IncrementAngle(float inc) { 
-            angle += inc;
+        public static int GetTerrainSSBOSize()
+        {
+            return SSBOTerrainSize;
         }
         static void Main()
         {

@@ -1,4 +1,5 @@
-﻿using OpenTK.Graphics.OpenGL4;
+﻿using System.Runtime.InteropServices;
+using OpenTK.Graphics.OpenGL4;
 
 namespace Vox.Model
 {
@@ -8,6 +9,10 @@ namespace Vox.Model
         public readonly int Size;
         public readonly int Handle;
         public readonly int BindingIndex;
+        private readonly List<int> freeIndices = [];
+        private int nextIndex = 0;
+        public int FreeIndexCount => freeIndices.Count;
+        private readonly object _lock = new();
 
         public StorageBufferObject(int sizeInBytes, int bindingIndex, int ssboHandle)
         {
@@ -34,6 +39,40 @@ namespace Vox.Model
                 BufferAccessMask.MapPersistentBit |
                 BufferAccessMask.MapCoherentBit
             );
+        }
+
+        /// <summary>
+        ///  Gets the next free index or allocates a new one for use. 
+        ///  If a free index exists, removes it from the free 
+        ///  indicies list and returns it so it can be reused, 
+        ///  else allocates a new index and returns it.
+        /// </summary>
+        /// <returns>The SSBO index</returns>
+        public int AllocateIndex()
+        {
+            lock (_lock)
+            {
+                int max = Size / Marshal.SizeOf<BlockFaceInstance>();
+
+                // Get and reuse first free index if one exists,
+                // else allocate a new index
+                if (freeIndices.Count > 0)
+                {
+                    int last = freeIndices[^1];
+                    freeIndices.RemoveAt(freeIndices.Count - 1);
+                    return last;
+                }
+
+                if (nextIndex >= max)
+                    throw new InvalidOperationException($"Max: {max} CRASH INDEX: {nextIndex}");
+
+                return nextIndex++;
+            }
+        }
+        //Never gets called
+        public void FreeIndex(int index)
+        {
+            freeIndices.Add(index);
         }
     }
 }
