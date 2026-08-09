@@ -203,14 +203,14 @@ namespace Vox.Genesis
                                 //Positive Y (UP)
                                 if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.UP);
                                     BlockFace faceDir = BlockFace.UP;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
                                 // Positive X (EAST)
                                 if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.EAST);
                                     BlockFace faceDir = BlockFace.EAST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -219,7 +219,7 @@ namespace Vox.Genesis
                                 //Negative X (WEST)
                                 if (x - 1 < 0 || _blockData[x - 1, y, z] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.WEST);
                                     BlockFace faceDir = BlockFace.WEST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -227,7 +227,7 @@ namespace Vox.Genesis
                                 //Negative Y (DOWN)
                                 if (y - 1 < 0 || _blockData[x, y - 1, z] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                                     BlockFace faceDir = BlockFace.DOWN;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -235,7 +235,7 @@ namespace Vox.Genesis
                                 //Positive Z (NORTH)
                                 if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                                     BlockFace faceDir = BlockFace.NORTH;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -243,7 +243,7 @@ namespace Vox.Genesis
                                 //Negative Z (SOUTH)
                                 if (z - 1 < 0 || _blockData[x, y, z - 1] == 0)
                                 {
-                                    int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
+                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                                     BlockFace faceDir = BlockFace.SOUTH;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
@@ -389,6 +389,27 @@ namespace Vox.Genesis
         public void SetCached(bool cached)
         {
             isCached = cached;
+        }
+
+        public bool Intersects(Vector3 point)
+        {
+            // Convert world-space to a local chunk index
+            Vector3i index = new(
+                (int)MathF.Floor(point.X - xLoc),
+                (int)MathF.Floor(point.Y - yLoc),
+                (int)MathF.Floor(point.Z - zLoc)
+            );
+
+            // Check if the local chunk index is within the chunk bounds
+            if (index.X < 0 || index.X >= _blockData!.GetLength(0) ||
+                index.Y < 0 || index.Y >= _blockData!.GetLength(1) ||
+                index.Z < 0 || index.Z >= _blockData!.GetLength(2))
+            {
+                return false;
+            }
+
+            // A non-air block means the point intersects terrain
+            return _blockData[index.X, index.Y, index.Z] != (int)BlockType.AIR;
         }
     }
 }

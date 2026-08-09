@@ -114,6 +114,7 @@ namespace Vox
         {
             //======================
             //Chevyshev distance
+            //======================
             //return (int) Math.Max(Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)), Math.Abs(a.Z - b.Z));
 
             //======================

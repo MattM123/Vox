@@ -209,7 +209,7 @@ void main()
     }
  
     else 
-        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0); 
+        applyTex = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer)) * vec4(result, 1.0);
 
      color = pow(applyTex, vec4(gamma));
 

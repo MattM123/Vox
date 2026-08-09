@@ -31,7 +31,7 @@ namespace Vox
         void SetLookDir(float x, float y);
         Vector2 GetLookDir();
         Vector3 GetRightDirection();
-        List<Vector3> GetBoundingBox();
+        Box3 GetBoundingBox();
         Matrix4 GetViewMatrix();
         void RotateYaw(float deltaYaw);
         Vector3 GetBlockedDirection();

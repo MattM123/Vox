@@ -69,7 +69,6 @@ namespace Vox.Model
                 return nextIndex++;
             }
         }
-        //Never gets called
         public void FreeIndex(int index)
         {
             freeIndices.Add(index);

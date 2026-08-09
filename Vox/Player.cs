@@ -21,8 +21,8 @@ namespace Vox
         public static Vector3 position = Vector3.Zero;
         private static float yaw = 0f;
         private static float pitch = 0f;
-        private static readonly float halfWidth = 0.5f;
-        private static readonly float halfDepth = 0.5f;
+        private static readonly float halfWidth = 1f;
+        private static readonly float halfDepth = 1f;
         private static readonly float playerHeight = 2f;
         private static Vector3 prevPos = Vector3.Zero;
         public static Vector3 playerMin;
@@ -39,7 +39,7 @@ namespace Vox
         public TerrainVertex[] viewTarget = [];
         private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
 
-        private static readonly float gravity = 0f;//9.8f;      // Gravity constant
+        private static readonly float gravity = 0.0f;//9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
@@ -205,10 +205,13 @@ namespace Vox
             return new Vector2(forward, right);
         }
 
-        /**
-         * A collection of vertices that form a voxel mesh surrounding the player,
-         * used for collision detection with the world
-         */
+        /// <summary>
+        /// Generates a list of Vector3 positions representing the player's collision mesh. This mesh includes the player's current position, 
+        /// the block at the player's feet, and surrounding blocks in all directions (including above and below). 
+        /// The method calculates the player's position based on their current coordinates and the global height 
+        /// map value from the region manager. The resulting list can be used for collision detection and physics calculations in the game world.
+        /// </summary>
+        /// <returns></returns>
         public List<Vector3> GetPlayerCollisionMesh()
         {
             Vector3 playerPos = new((float)Math.Floor(position.X),
@@ -248,83 +251,99 @@ namespace Vox
 
         }
 
+        /// <summary>
+        /// Checks for collisions between the player and the surrounding chunks based on the player's current position and velocity.
+        /// </summary>
+        /// <param name="deltaTime"></param>
         private void CheckChunkCollision(float deltaTime)
         {
-            int collisionIterations = 5;
+            //   int collisionIterations = 5;
 
             Vector3 totalNormal = Vector3.Zero;
-            float highestVoxelMaxY = float.MinValue; // Track the highest voxel max Y
+            //    float highestVoxelMaxY = float.MinValue; // Track the highest voxel max Y
             List<Vector3> collMesh = GetPlayerCollisionMesh();
 
             // Store the min and max of the last voxel that caused a collision
             Vector3 highestOverlap = Vector3.Zero;
             Vector3 highestNormal = Vector3.Zero;
 
-            for (int i = 0; i < collMesh.Count; i++)
+
+            Chunk playerChunk = GetChunkWithPlayer();
+            Vector3 blockAlignedPos = new((float)Math.Floor(position.X), (float)Math.Floor(position.Y), (float)Math.Floor(position.Z));
+
+            if (playerChunk.Intersects(blockAlignedPos))
             {
+                velocity.Y = 0;
+                
 
-                // Get bounding box of voxel;
-                Vector3 voxelMin = collMesh.ElementAt(i);
-                Vector3 voxelMax = collMesh.ElementAt(i) + Vector3.One;
-                Vector3 collisionNormal = HandleCollision(playerMin, playerMax, voxelMin, voxelMax);
-
-                // If no collision, Vector3.Zero is returned
-                if (collisionNormal.LengthSquared > 0)
-                {
-                    // Calculate overlaps for each axis
-                    Vector3 overlap = new(
-                        Math.Min(playerMax.X, voxelMax.X) - Math.Max(playerMin.X, voxelMin.X),
-                        Math.Min(playerMax.Y, voxelMax.Y) - Math.Max(playerMin.Y, voxelMin.Y),
-                        Math.Min(playerMax.Z, voxelMax.Z) - Math.Max(playerMin.Z, voxelMin.Z)
-                    );
-
-                    // Only keep the collision normal if the overlap is greater than the previous highest overlap
-                    if (overlap.LengthSquared > highestOverlap.LengthSquared)
-                    {
-                        highestOverlap = overlap;
-                        highestNormal = collisionNormal;
-                    }
-                    // Logger.Debug("Collision with " + collMesh.ElementAt(i));
-                    totalNormal += collisionNormal;
-
-                }
+                //  for (int i = 0; i < collMesh.Count; i++)
+                //  {
+                //
+                //      // Get bounding box of voxel;
+                //      Box3 playerBoundingBox = GetBoundingBox();
+                //      Vector3 voxelMin = collMesh.ElementAt(i);
+                //     // Vector3 voxelMax = collMesh.ElementAt(i) + Vector3.One;
+                //      Vector3 collisionNormal = HandleCollision(playerBoundingBox.Min, playerBoundingBox.Max, playerBoundingBox.Min, playerBoundingBox.Max);
+                //
+                //      // If no collision, Vector3.Zero is returned
+                //      if (collisionNormal.LengthSquared > 0)
+                //      {
+                //          // Calculate overlaps for each axis
+                //          Vector3 overlap = new(
+                //              Math.Min(playerBoundingBox.Max.X, playerBoundingBox.Max.X) - Math.Max(playerBoundingBox.Min.X, playerBoundingBox.Min.X),
+                //              Math.Min(playerBoundingBox.Max.Y, playerBoundingBox.Max.Y) - Math.Max(playerBoundingBox.Min.Y, playerBoundingBox.Min.Y),
+                //              Math.Min(playerBoundingBox.Max.Z, playerBoundingBox.Max.Z) - Math.Max(playerBoundingBox.Min.Z, playerBoundingBox.Min.Z)
+                //          );
+                //
+                //          // Only keep the collision normal if the overlap is greater than the previous highest overlap
+                //          if (overlap.LengthSquared > highestOverlap.LengthSquared)
+                //          {
+                //              highestOverlap = overlap;
+                //              highestNormal = collisionNormal;
+                //          }
+                //          // Logger.Debug("Collision with " + collMesh.ElementAt(i));
+                //          totalNormal += collisionNormal;
+                //
+                //      }
+                //  }
+                //
+                //  if (highestNormal != Vector3.Zero)
+                //  {
+                //      highestNormal.Normalize();
+                //      Vector3 correction = new Vector3(
+                //          highestNormal.X != 0 ? highestOverlap.X : 0,
+                //          highestNormal.Y != 0 ? highestOverlap.Y : 0,
+                //          highestNormal.Z != 0 ? highestOverlap.Z : 0
+                //      );
+                //
+                //      if (highestNormal.X != 0)
+                //      {
+                //          position.X += highestOverlap.X * correction.X;
+                //          velocity.X = 0;
+                //      }
+                //
+                //      if (highestNormal.Y != 0)
+                //      {
+                //          position.Y += highestOverlap.Y * correction.Y;
+                //          velocity.Y = 0;
+                //      }
+                //
+                //      if (highestNormal.Z != 0)
+                //      {
+                //          position.Z += highestOverlap.Z * correction.Z;
+                //          velocity.Z = 0;
+                //      }
+                //
+                //      // Update position based on the corrected velocity
+                //      position.Y += velocity.Y * deltaTime;
+                //  }
+                //  else
+                //  {
+                //      IsGrounded = false; // If no collision, the player is in the air
+                //  }
+                //  blockedDirection = Vector3.Zero;
+                
             }
-
-            if (highestNormal != Vector3.Zero)
-            {
-                highestNormal.Normalize();
-                Vector3 correction = new Vector3(
-                    highestNormal.X != 0 ? highestOverlap.X : 0,
-                    highestNormal.Y != 0 ? highestOverlap.Y : 0,
-                    highestNormal.Z != 0 ? highestOverlap.Z : 0
-                );
-
-                if (highestNormal.X != 0)
-                {
-                    position.X += highestOverlap.X * correction.X;
-                    velocity.X = 0;
-                }
-
-                if (highestNormal.Y != 0)
-                {
-                    position.Y += highestOverlap.Y * correction.Y;
-                    velocity.Y = 0;
-                }
-
-                if (highestNormal.Z != 0)
-                {
-                    position.Z += highestOverlap.Z * correction.Z;
-                    velocity.Z = 0;
-                }
-
-                // Update position based on the corrected velocity
-                position.Y += velocity.Y * deltaTime;
-            }
-            else
-            {
-                IsGrounded = false; // If no collision, the player is in the air
-            }
-            //  blockedDirection = Vector3.Zero;
         }
 
         /**
@@ -403,7 +422,7 @@ namespace Vox
             UpdateBoundingBox();
 
             // Update the player's state in the game world, like checking for collisions
-            CheckChunkCollision(deltaTime);
+            //CheckChunkCollision(deltaTime);
 
 
             // Calculate new velocity based on position change
@@ -581,9 +600,9 @@ namespace Vox
             );
         }
 
-        public List<Vector3> GetBoundingBox()
+        public Box3 GetBoundingBox()
         {
-            return [playerMin, playerMax];
+            return new Box3(playerMin, playerMax);
         }
         private void GetTransformationMatrix(out Matrix4 matrix)
         {

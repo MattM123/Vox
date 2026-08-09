@@ -445,8 +445,8 @@ namespace Vox
                 _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureLayerFromTexture(Texture.TARGET))
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
-                    .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
-                    .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1])
+                    .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox().Min)
+                    .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox().Max)
                     .SetMatrixUniform("viewMatrix", GetPlayer().GetViewMatrix());
 
 
@@ -454,8 +454,8 @@ namespace Vox
                     .SetMatrixUniform("projectionMatrix", _inventoryStore!.GetDisplayProjection())
                     .SetMatrixUniform("viewMatrix", _inventoryStore.GetDisplayViewMatrix())
                     .SetMatrixUniform("modelMatrix", _inventoryStore.GetDisplayModelMatrix())
-                    .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox()[0])
-                    .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox()[1]);
+                    .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox().Min)
+                    .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox().Max);
 
             }
 
