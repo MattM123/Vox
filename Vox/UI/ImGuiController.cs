@@ -121,7 +121,7 @@ namespace Vox.UI
                     color = in_color;
                     texCoord = in_texCoord;
                 }";
-            string FragmentSource = @"#version 430 core
+            string fragmentSource = @"#version 430 core
 
                 uniform sampler2D in_fontTexture;
 
@@ -135,7 +135,7 @@ namespace Vox.UI
                     outputColor = color * texture(in_fontTexture, texCoord);
                 }";
 
-            _shader = CreateProgram("ImGui", VertexSource, FragmentSource);
+            _shader = CreateProgram("ImGui", VertexSource, fragmentSource);
 
             _shaderProjectionMatrixLocation = GL.GetUniformLocation(_shader, "projection_matrix");
             _shaderFontTextureLocation = GL.GetUniformLocation(_shader, "in_fontTexture");

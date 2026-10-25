@@ -109,23 +109,18 @@ namespace Vox.Genesis
                 int xCount = 0;
                 int zCount = 0;
 
-                for (int x1 = (int)x; x1 < x + _regionManager?.GetChunkBounds(); x1++)
+                int bounds = _regionManager!.GetChunkBounds();
+
+                for (int localX = 0; localX < bounds; localX++)
                 {
-                    for (int z1 = (int)z; z1 < z + _regionManager?.GetChunkBounds(); z1++)
+                    for (int localZ = 0; localZ < bounds; localZ++)
                     {
-                        short elevation = _regionManager!.GetGlobalHeightMapValue(x1, z1);
+                        int worldX = (int)x + localX;
+                        int worldZ = (int)z + localZ;
 
-
-                        _heightMap![zCount, xCount] = elevation;
-
-                        zCount++;
-                        if (zCount > _regionManager.GetChunkBounds() - 1)
-                            zCount = 0;
-
+                        _heightMap![localZ, localX] =
+                            _regionManager.GetGlobalHeightMapValue(worldX, worldZ);
                     }
-                    xCount++;
-                    if (xCount > _regionManager?.GetChunkBounds() - 1)
-                        xCount = 0;
                 }
                 for (int x1 = 0; x1 < _regionManager?.GetChunkBounds(); x1++)
                 {
@@ -143,7 +138,7 @@ namespace Vox.Genesis
                             if (worldY <= elevation)
                             {
                                 _blockData![x1, y1, z1] =
-                                    (short)_regionManager.GetGlobalBlockType(worldX, worldY, worldZ);
+                                    (short)_regionManager.GetGeneratedBlockType(worldX, worldY, worldZ);
                             }
                         }
                     }
@@ -158,17 +153,16 @@ namespace Vox.Genesis
 
 
         /// <summary>
-        /// Re-Initializes the chunk with the given dependencies. 
+        /// Re-initializes the chunk with the given dependencies. 
         /// This is used when deserializing a region from file, as the region manager and SSBO manager
         /// is not serialized with the region.
         /// </summary>
-        /// <param name="ssboManager"></param>
-        /// <param name="assetLookup"></param>
-        /// <param name="regionManager"></param>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="z"></param>
-        /// <exception cref="Exception"></exception>
+        /// <param name="ssboManager">The SSBO manager for rendering the chunk</param>
+        /// <param name="assetLookup">The asset manager used for texture and model lookups</param>
+        /// <param name="regionManager">The top level world this chunk inhabits</param>
+        /// <param name="x">X coordinate of the chunk</param>
+        /// <param name="y">Y coordinate of the chunk</param>
+        /// <param name="z">Z coordinate of the chunk</param>
         public void Initialize(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup, float x, float y, float z)
         {
             xLoc = x;
@@ -214,8 +208,6 @@ namespace Vox.Genesis
                                     BlockFace faceDir = BlockFace.EAST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
-
-
                                 //Negative X (WEST)
                                 if (x - 1 < 0 || _blockData[x - 1, y, z] == 0)
                                 {
@@ -223,7 +215,6 @@ namespace Vox.Genesis
                                     BlockFace faceDir = BlockFace.WEST;
                                     AddOrUpdateBlockFace(facePos, texLayer, faceDir);
                                 }
-
                                 //Negative Y (DOWN)
                                 if (y - 1 < 0 || _blockData[x, y - 1, z] == 0)
                                 {

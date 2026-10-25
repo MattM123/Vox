@@ -422,6 +422,7 @@ Vox/Rendering/lygia/*.*
 
 # Only track used files and folders
 !Vox/Rendering/lygia/lighting/shadingData/
+!Vox/Rendering/lygia/lighting/ior/*
 !Vox/Rendering/lygia/lighting/reflection.glsl
 !Vox/Rendering/lygia/lighting/common/perceptual2linearRoughness.glsl
 !Vox/Rendering/lygia/lighting/common/schlick.glsl

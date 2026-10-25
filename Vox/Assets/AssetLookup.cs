@@ -1,8 +1,5 @@
 ﻿using System.Numerics;
-using System.Reflection;
-using System.Reflection.Emit;
 using Newtonsoft.Json.Linq;
-using OpenTK.Graphics.OpenGL;
 using Vox.Assets.Models;
 using Vox.Enums;
 
@@ -10,7 +7,7 @@ namespace Vox.Assets
 {
     public class AssetLookup : IAssetLookup
     {
-        private readonly Dictionary<Texture, int> TextureToTextureLayer = new()
+        private readonly Dictionary<Texture, int> _textureToTextureLayer = new()
         {   
             { Texture.AIR, 0 },
             { Texture.TEST, 1 },
@@ -22,7 +19,7 @@ namespace Vox.Assets
             { Texture.TARGET, 7 }
         };
 
-        private readonly Dictionary<BlockType, Tuple<Vector2, Vector2>> BlockTypeToIconUV = new()
+        private readonly Dictionary<BlockType, Tuple<Vector2, Vector2>?> _blockTypeToIconUv = new()
         {
             { BlockType.DIRT_BLOCK, new(new(0f, 0f), new(0.03125f, 0.03125f)) },
             { BlockType.GRASS_BLOCK, new(new(0.03125f, 0f), new(0.0625f, 0.03125f)) },
@@ -32,7 +29,7 @@ namespace Vox.Assets
             { BlockType.TARGET_BLOCK, new(new(0.15625f, 0f), new(0.18750f, 0.03125f)) }
         };
 
-        public static readonly Dictionary<BlockType, BlockFlags> BlockFlagMapping = new()
+        private static readonly Dictionary<BlockType, BlockFlags> BlockFlagMapping = new()
         {
             { BlockType.GRASS_BLOCK, BlockFlags.NATURAL },
             { BlockType.DIRT_BLOCK, BlockFlags.NATURAL },
@@ -44,7 +41,7 @@ namespace Vox.Assets
             { BlockType.AIR, BlockFlags.NONE }
         };
 
-        public static readonly Dictionary<Texture, TextureFlags> TextureFlagMapping = new()
+        private static readonly Dictionary<Texture, TextureFlags> TextureFlagMapping = new()
         {
             { Texture.AIR, TextureFlags.NONE },
             { Texture.STONE, TextureFlags.HasLayer },
@@ -62,8 +59,6 @@ namespace Vox.Assets
         private readonly Dictionary<BlockType, BlockModel> _models = [];
 
 
-
-
         public AssetLookup() {
             _naturalBlocks = [.. BlockFlagMapping
                 .Where(kvp => kvp.Value.HasFlag(BlockFlags.NATURAL))
@@ -78,44 +73,57 @@ namespace Vox.Assets
 
         private void LoadModels()
         {
-            string _assets = Window.GetAssetPath();
-            Directory.CreateDirectory(_assets + "BlockModels");
+            string assets = Window.GetAssetPath();
+            Directory.CreateDirectory(Path.Combine(assets + Path.AltDirectorySeparatorChar, "BlockModels"));
 
-            //Copies block _models into foler if not present
-            string[] fileModels = Directory.EnumerateFiles(Path.Combine(_assets, "BlockModels")).ToArray();
-            string[] projmodels = Directory.EnumerateFiles("..\\..\\..\\Assets\\Models\\BlockModels").ToArray();
-            if (fileModels.Length != projmodels.Length)
+            string blockModelsPath = Path.Combine(assets, "BlockModels");
+            string projectModelsPath = Path.Combine("..", "..", "..", "Assets", "Models", "BlockModels");
+            
+            //Copies block _models into folder if not present
+            string[] fileModels = Directory.GetFiles(blockModelsPath);
+            string[] projModels = Directory.GetFiles(projectModelsPath);
+
+            if (fileModels.Length != projModels.Length)
             {
-                Logger.Info("Reloading block _models");
-                for (int i = 0; i < projmodels.Length; i++)
+
+
+                foreach (string sourceFile in projModels)
                 {
-                    File.Copy(projmodels[i], _assets + "BlockModels\\" + Path.GetFileName(projmodels[i]), true);
-                    Logger.Debug($"Loaded model {Path.GetFileName(projmodels[i])}");
+                    string destinationFile = Path.Combine(
+                        blockModelsPath,
+                        Path.GetFileName(sourceFile)
+                    );
+
+                    File.Copy(sourceFile, destinationFile, true);
+
+                    Logger.Debug($"Loaded model {Path.GetFileName(sourceFile)}");
                 }
+
             }
 
             //Populate _models to store in memory
-            _models.Add(BlockType.GRASS_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\grass.json")), BlockType.GRASS_BLOCK, this));
-            _models.Add(BlockType.DIRT_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\dirt.json")), BlockType.DIRT_BLOCK, this));
-            _models.Add(BlockType.STONE_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\stone.json")), BlockType.STONE_BLOCK, this));
-            _models.Add(BlockType.TEST_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\testblock.json")), BlockType.TEST_BLOCK, this));
-            _models.Add(BlockType.TARGET_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\target.json")), BlockType.TARGET_BLOCK, this));
-            _models.Add(BlockType.LAMP_BLOCK, new(JObject.Parse(File.ReadAllText(_assets + "BlockModels\\lamp.json")), BlockType.LAMP_BLOCK, this));
+            _models.Add(BlockType.GRASS_BLOCK,  new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "grass.json"))),      BlockType.GRASS_BLOCK, this));
+            _models.Add(BlockType.DIRT_BLOCK,   new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "dirt.json"))),       BlockType.DIRT_BLOCK, this));
+            _models.Add(BlockType.STONE_BLOCK,  new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "stone.json"))),      BlockType.STONE_BLOCK, this));
+            _models.Add(BlockType.TEST_BLOCK,   new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "testblock.json"))),  BlockType.TEST_BLOCK, this));
+            _models.Add(BlockType.TARGET_BLOCK, new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "target.json"))),     BlockType.TARGET_BLOCK, this));
+            _models.Add(BlockType.LAMP_BLOCK,   new(JObject.Parse(File.ReadAllText(Path.Combine(assets,"BlockModels", "lamp.json"))),        BlockType.LAMP_BLOCK, this));
         }
         public bool IsNatural(BlockType type)
             => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.NATURAL);
 
         public Tuple<Vector2, Vector2> GetUVFromBlockType(BlockType blockType)
         {
-            if (BlockTypeToIconUV.TryGetValue(blockType, out Tuple<Vector2, Vector2> uvs))
+            if (_blockTypeToIconUv.TryGetValue(blockType, out Tuple<Vector2, Vector2>? uvs) && uvs != null)
                 return uvs;
+            
             return new Tuple<Vector2, Vector2>(Vector2.Zero, Vector2.Zero);
         }
 
         public int GetTextureLayerFromTexture(Texture texture)
         {
             //Subtract by 1 to account for AIR texture
-            if (TextureToTextureLayer.TryGetValue(texture, out int layer))
+            if (_textureToTextureLayer.TryGetValue(texture, out int layer))
                 return layer - 1;
             return 0;
         }

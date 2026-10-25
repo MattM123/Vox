@@ -3,10 +3,10 @@
 
 struct BlockFaceInstance
 {
-    vec3 facePosition;  
-    int faceDirection;   
-    int textureLayer;       
-    int index; 
+    vec3 facePosition;
+    int faceDirection;
+    int textureLayer;
+    int index;
     uint16_t lighting;      // 4 bytes (contains 2-byte C# ushort lighting + 2-byte C# ushort _pad1)
     uint16_t _pad1;         // 2 bytes
     uint _pad2;             // 4 bytes

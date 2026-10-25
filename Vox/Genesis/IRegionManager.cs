@@ -11,10 +11,11 @@ namespace Vox.Genesis
         void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight);
         void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight, bool colorOverride);
         short GetGlobalHeightMapValue(int x, int z);
-        BlockType GetGlobalBlockType(int x, int y, int z);
+        BlockType GetGeneratedBlockType(int x, int y, int z);
         int PollChunkMemory();
         int GetRenderDistance();
         public Chunk GetAndLoadGlobalChunkFromCoords(Vector3 v);
+        BlockType GetBlockTypeAtCoords(float x, float y, float z);
         Chunk GetAndLoadGlobalChunkFromCoords(int x, int y, int z);
         Dictionary<string, Region> GetVisibleRegions();
         Region EnterRegion(string rIndex);

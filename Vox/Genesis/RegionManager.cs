@@ -155,9 +155,9 @@ namespace Vox.Genesis
         public Vector3i GetChunkRelativeCoordinates(Vector3 v)
         {
             return new Vector3i(
-                (int)Math.Abs(v.X % CHUNK_BOUNDS),
-                (int)Math.Abs(v.Y % CHUNK_BOUNDS),
-                (int)Math.Abs(v.Z % CHUNK_BOUNDS)
+                (int)(v.X - MathF.Floor(v.X / CHUNK_BOUNDS) * CHUNK_BOUNDS),
+                (int)(v.Y - MathF.Floor(v.Y / CHUNK_BOUNDS) * CHUNK_BOUNDS),
+                (int)(v.Z - MathF.Floor(v.Z / CHUNK_BOUNDS) * CHUNK_BOUNDS)
             );
         }
 
@@ -172,7 +172,7 @@ namespace Vox.Genesis
         /// <param name="y">The Y coordinate in world space</param>
         /// <param name="z">The Z coordinate in world space</param>
         /// <returns>A <see cref="BlockType"/> enumeration representing the block _type at the given coordinates.</returns>
-        public BlockType GetGlobalBlockType(int x, int y, int z)
+        public BlockType GetGeneratedBlockType(int x, int y, int z)
         {
             long seed;
             if (Window.IsMainMenuScreenDisplayed())
@@ -206,6 +206,24 @@ namespace Vox.Genesis
         }
 
 
+        /// <summary>
+        /// Retrieves the type of block at the specified global world coordinates.
+        /// Loads the corresponding chunk if it is not already loaded, converts the global
+        /// coordinates to chunk-relative coordinates, and returns the block type stored
+        /// at that position.
+        /// </summary>
+        /// <param name="x">The global X-coordinate of the block in world space.</param>
+        /// <param name="y">The global Y-coordinate of the block in world space.</param>
+        /// <param name="z">The global Z-coordinate of the block in world space.</param>
+        /// <returns>The <see cref="BlockType"/> of the block at the specified coordinates.</returns>
+        public BlockType GetBlockTypeAtCoords(float x, float y, float z)
+        {
+            Vector3 coords = new(x, y, z);
+            Chunk c = GetAndLoadGlobalChunkFromCoords(coords);
+            Vector3i chunkRelative = GetChunkRelativeCoordinates(coords);
+            
+            return (BlockType) c._blockData![chunkRelative.X, chunkRelative.Y, chunkRelative.Z];
+        }
 
         /// <summary>
         /// Calculates the total number of chunks currently present in all visible regions.
@@ -385,7 +403,7 @@ namespace Vox.Genesis
         }
 
         /// <summary>
-        /// Gets the chunk at the specified global coordinates, loading or generating it if necessary.
+        /// Loads and enters the chunk at the specified global coordinates, generating it if necessary.
         /// </summary>
         /// <remarks>If the chunk at the specified coordinates has not been generated, this method creates
         /// and loads it before returning. The method is thread-safe when adding new chunks to a region.</remarks>
@@ -499,7 +517,7 @@ namespace Vox.Genesis
             Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block data in chunk 
-            actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
+            actionChunk._blockData![(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
 
             /*=============================================
              * Add a single block to the SSBO for rendering

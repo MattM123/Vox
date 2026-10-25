@@ -227,6 +227,23 @@ namespace Vox
                 }
             }
         }
+        public static string RemoveInvisibleCharacters(ReadOnlySpan<char> input)
+        {
+            Span<char> output = stackalloc char[input.Length];
+            int index = 0;
 
+            foreach (char c in input)
+            {
+                // Keep normal ASCII characters.
+                // This removes zero-width spaces, BOMs, non-breaking spaces,
+                // smart/invisible Unicode characters, etc.
+                if (c <= 127)
+                {
+                    output[index++] = c;
+                }
+            }
+
+            return new string(output[..index]);
+        }
     }
 }

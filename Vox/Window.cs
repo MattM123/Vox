@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using System.Drawing.Printing;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -39,8 +38,6 @@ using PixelInternalFormat = OpenTK.Graphics.OpenGL4.PixelInternalFormat;
 using PixelType = OpenTK.Graphics.OpenGL4.PixelType;
 using PrimitiveType = OpenTK.Graphics.OpenGL4.PrimitiveType;
 using ReadBufferMode = OpenTK.Graphics.OpenGL4.ReadBufferMode;
-using RenderbufferStorage = OpenTK.Graphics.OpenGL4.RenderbufferStorage;
-using RenderbufferTarget = OpenTK.Graphics.OpenGL4.RenderbufferTarget;
 using StringName = OpenTK.Graphics.OpenGL4.StringName;
 using TextureCompareMode = OpenTK.Graphics.OpenGL4.TextureCompareMode;
 using TextureMagFilter = OpenTK.Graphics.OpenGL4.TextureMagFilter;
@@ -56,9 +53,9 @@ namespace Vox
 {
     public partial class Window(GameWindowSettings windowSettings, NativeWindowSettings nativeSettings) : GameWindow(windowSettings, nativeSettings)
     {
-        ImGuiController? _UIController;
-        public static readonly int screenWidth = Monitors.GetPrimaryMonitor().ClientArea.Size.X;
-        public static readonly int screenHeight = Monitors.GetPrimaryMonitor().ClientArea.Size.Y - 100;
+        private ImGuiController? _uiController;
+        public static readonly int SreenWidth = Monitors.GetPrimaryMonitor().ClientArea.Size.X;
+        public static readonly int ScreenHeight = Monitors.GetPrimaryMonitor().ClientArea.Size.Y - 100;
 
         private AssetLookup? _assetLookup;
         private TextureLoader? _textureLoader;
@@ -75,43 +72,44 @@ namespace Vox
         private CacheEventHandler? _cacheEventHandler;
 
 
-        private static readonly string _assets = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\Assets\\";
-        private static bool _isClosing = false;
+        private static readonly string Assets = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".voxelGame", "Assets");
+        private static bool _isClosing;
 
         private readonly Action _close;
-        private static int SSBOTerrainSize = 0;
+        private static int _ssboTerrainSize;
 
-        private static bool isAnyMenuShowing = false;
-        private static bool renderMenu = true;
-        private static readonly string appFolder = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\.voxelGame\\";
+        private static bool _isAnyMenuShowing;
+        private static bool _renderMenu = true;
+        private static readonly string AppFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".voxelGame");
 
-        private readonly float FOV = MathHelper.DegreesToRadians(50.0f);
-        private static float angle = 0.0f;
-        private static Chunk? _globalPlayerChunk = null;
-        private static Region? _globalPlayerRegion = null;
-        private static Matrix4 modelMatricRotate;
-        private static Matrix4 viewMatrix;
+        private readonly float _fov = MathHelper.DegreesToRadians(60.0f);
+        private static float _angle;
+        private static Chunk? _globalPlayerChunk;
+        private static Region? _globalPlayerRegion;
+        private static Matrix4 _modelMatricRotate;
+        private static Matrix4 _viewMatrix;
+        private static Matrix4 _lightSpaceMatrix;
 
-        private static readonly List<Chunk> menuChunks = [];
-        private static long menuSeed;
-        private static Vector3 sunlightPos;
+        private static readonly List<Chunk> MenuChunks = [];
+        private static long _menuSeed;
+        private static Vector3 _sunlightPos;
         private static int crosshairTex;
-        public static int sunlightDepthMapFBO;
-        private static int sunlightDepthMap;
-        private static Matrix4 pMatrix;
-        private Matrix4 sunlightProjectionMatrix;
-        private Matrix4 sunlightViewMatrix;
-        private static Matrix4 lightSpaceMatrix;
-        private static int _menuVAO;
-        private static int _terrainVAO;
+
+        private static int _sunlightDepthMapFbo;
+        private static int _sunlightDepthMap;
+        private static Matrix4 _pMatrix;
+        private Matrix4 _sunlightProjectionMatrix;
+        private Matrix4 _sunlightViewMatrix;
+        private static int _menuVao;
+        private static int _terrainVao;
 
         //used for player and lighting projection matrices
-        private static float FAR = 1000.0f;
-        private static float NEAR = 1f;
+        private const float Far = 1000.0f;
+        private const float Near = 1f;
 
-        private static Vector3 lightColor;
-        private static Vector3 ambientColor;
-        private static Vector3 diffuseColor;
+        private static Vector3 _lightColor;
+        private static Vector3 _ambientColor;
+        private static Vector3 _diffuseColor;
 
         protected override void OnLoad()
         {   
@@ -128,66 +126,82 @@ namespace Vox
             //============================
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine(
-            " ==========================================================\n" +
-            " Shaders created with the help of LYGIA.xyz shader library \n" +
-            " ==========================================================\n");
+                // ReSharper disable once LocalizableElement
+                " ==========================================================\n" +
+                " Shaders created with the help of LYGIA.xyz shader library \n" +
+                " ==========================================================\n");
             Console.ResetColor();
+            
+            //-----------------------Terrain shaders---------------------------------        
 
-            //-----------------------Terrain shaders---------------------------------            
-
-            string vertexTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Vertex\\VertexTerrainShader.glsl");
-            string fragmentTerrainShaderSource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Fragment\\FragTerrainShader.glsl");
-
-
-            _shaderManager.AddShaderProgram("Terrain", new())
+            string vertexTerrainPath = Path.Combine("..", "..", "..", "Rendering", "Vertex", "VertexTerrainShader.glsl");
+            string fragTerrainPath = Path.Combine("..", "..", "..", "Rendering", "Fragment", "FragTerrainShader.glsl");
+            string vertexTerrainShaderSource = ProcessShaderIncludes(vertexTerrainPath);
+            string fragmentTerrainShaderSource = ProcessShaderIncludes(fragTerrainPath);
+            
+            // Include processing will introduce invalid chanacters, clean up string after resolving includes
+            fragmentTerrainShaderSource = Utils.RemoveInvisibleCharacters(fragmentTerrainShaderSource.AsSpan());
+            File.WriteAllText("/home/mattm/actual_shader.frag", fragmentTerrainShaderSource);
+           
+            _shaderManager.AddShaderProgram("Terrain", new ShaderProgram())
                 .CreateVertexShader("VertexTerrainShader", vertexTerrainShaderSource)
                 .CreateFragmentShader("FragTerrainShader", fragmentTerrainShaderSource)
                 .Link();
             //-----------------------Terrain shaders---------------------------------
-            visited.Clear();
+            Visited.Clear();
             //-----------------------Lighting shaders---------------------------------
-            string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex\\VertexDepthShader.glsl");
-            string fragmentLightingSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Fragment\\FragDepthShader.glsl");
+            string vertexLightingPath = Path.Combine("..", "..", "..", "Rendering", "Vertex", "VertexDepthShader.glsl");
+            string fragLightingPath = Path.Combine("..", "..", "..", "Rendering", "Fragment", "FragDepthShader.glsl");
+            string vertexLightingShaderSource = ShaderProgram.LoadShaderFromFile(vertexLightingPath);
+            string fragmentLightingSource = ShaderProgram.LoadShaderFromFile(fragLightingPath);
 
             _shaderManager.AddShaderProgram("Lighting", new())
                 .CreateVertexShader("VertexDepthShader", vertexLightingShaderSource)
                 .CreateFragmentShader("FragDepthShader", fragmentLightingSource)
                 .Link();
             //-----------------------Lighting shaders---------------------------------
-
+            Visited.Clear();
             //-----------------------Lighting shaders---------------------------------     
-            string vertexCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Vertex\\Vertex_Crosshair.glsl");
-            string fragmentCrosshairSource = ShaderProgram.LoadShaderFromFile("..\\..\\..\\Rendering\\Fragment\\Frag_Crosshair.glsl");
+            string vertexCrosshairPath = Path.Combine("..", "..", "..", "Rendering", "Vertex", "Vertex_Crosshair.glsl");
+            string fragCrosshairPath = Path.Combine("..", "..", "..", "Rendering", "Fragment", "Frag_Crosshair.glsl");
+            string vertexCrosshairSource = ShaderProgram.LoadShaderFromFile(vertexCrosshairPath);
+            string fragmentCrosshairSource = ShaderProgram.LoadShaderFromFile(fragCrosshairPath);
 
             _shaderManager.AddShaderProgram("Crosshair", new())
                 .CreateVertexShader("Vertex_Crosshair", vertexCrosshairSource)
                 .CreateFragmentShader("Frag_Crosshair", fragmentCrosshairSource)
                 .Link();
             //-----------------------Lighting shaders---------------------------------
-
+            Visited.Clear();
             //------------------------Inventory shaders---------------------------------
-            string vertexInventorySource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Vertex\\VertexInventoryShader.glsl");
-            string fragInventorySource = ProcessShaderIncludes("..\\..\\..\\Rendering\\Fragment\\FragInventoryShader.glsl");
+            string vertexInventoryPath = Path.Combine("..", "..", "..", "Rendering", "Vertex", "VertexInventoryShader.glsl");
+            string fragInventoryPath = Path.Combine("..", "..", "..", "Rendering", "Fragment", "FragInventoryShader.glsl");
+            string vertexInventorySource = ProcessShaderIncludes(vertexInventoryPath);
+            string fragInventorySource = ProcessShaderIncludes(fragInventoryPath);
+
+            // Include processing will introduce invalid chanacters, clean up string after resolving includes
+            fragInventorySource = Utils.RemoveInvisibleCharacters(fragInventorySource.AsSpan());
+            
             _shaderManager.AddShaderProgram("Inventory", new())
                 .CreateVertexShader("VertexInventoryShader", vertexInventorySource)
                 .CreateFragmentShader("FragInventoryShader", fragInventorySource)
                 .Link();
-            string inventoryProgramName = "Shader Program: Inventory";
-            GL.ObjectLabel(ObjectLabelIdentifier.Program, _shaderManager.GetShaderProgram("Inventory").GetProgramId(), inventoryProgramName.Length, inventoryProgramName);
+            
+            GL.ObjectLabel(ObjectLabelIdentifier.Program, _shaderManager.GetShaderProgram("Inventory").GetProgramId(), "Shader Program: Inventory".Length, "Shader Program: Inventory");
             //------------------------Inventory shaders---------------------------------
 
-            _terrainVAO = GL.GenVertexArray();
-            _menuVAO = GL.GenVertexArray();
+            _terrainVao = GL.GenVertexArray();
+            _menuVao = GL.GenVertexArray();
 
             _cacheEventHandler = new CacheEventHandler();
 
-            _settings = new SettingsStore(appFolder);
+            _settings = new SettingsStore(AppFolder);
             _assetLookup = new AssetLookup();
             _ssboManager = new SSBOManager();
             _lightHelper = new LightHelper(_ssboManager);
 
             _inventoryStore = new InventoryStore(_ssboManager, _assetLookup);
-            _textureLoader = new TextureLoader("..\\..\\..\\Assets\\Textures\\", _assetLookup, _inventoryStore, _shaderManager);
+            _textureLoader = new TextureLoader(Path.Combine("..","..","..","Assets","Textures"), _assetLookup, _inventoryStore, _shaderManager);
             _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
             _chunkCache = new ChunkCache(null, _regionManager!, _cacheEventHandler);
             _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache, _shaderManager);
@@ -195,9 +209,9 @@ namespace Vox
 
             _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
             _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
-            sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
+            _sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
 
-            _UIController = new ImGuiController(ClientSize.X, ClientSize.Y);
+            _uiController = new ImGuiController(ClientSize.X, ClientSize.Y);
 
 
             /*=================
@@ -208,13 +222,13 @@ namespace Vox
             int blockFacesPerBlock = 6;
             int maxBlocksPerChunk = (int)Math.Pow(_regionManager.GetChunkBounds(), 3);
             int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
-            SSBOTerrainSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
+            _ssboTerrainSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
 
-            _ssboManager.AddSSBO(SSBOTerrainSize, 0, SSBO.Terrain);
+            _ssboManager.AddSSBO(_ssboTerrainSize, 0, SSBO.Terrain);
             _ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, SSBO.Inventory);
 
             _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose, _shaderManager);
-            _UIController.RecreateFontDeviceTexture();
+            _uiController.RecreateFontDeviceTexture();
 
 
 
@@ -227,17 +241,15 @@ namespace Vox
             //Generate menu chunk seed
             byte[] buffer = new byte[8];
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
-            menuSeed = BitConverter.ToInt64(buffer, 0);
+            _menuSeed = BitConverter.ToInt64(buffer, 0);
 
 
             //Load textures and _models
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
-
-
-
-            Directory.CreateDirectory(appFolder + "worlds");
+            
+            Directory.CreateDirectory(Path.Combine(AppFolder, "worlds"));
 
             GL.Enable(EnableCap.LineSmooth);
             GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
@@ -249,11 +261,11 @@ namespace Vox
 
 
             //Sunlight frame buffer for shadow map
-            sunlightDepthMapFBO = GL.GenFramebuffer();
-            sunlightDepthMap = GL.GenTexture();
+            _sunlightDepthMapFbo = GL.GenFramebuffer();
+            _sunlightDepthMap = GL.GenTexture();
 
             GL.ActiveTexture(TextureUnit.Texture1);
-            GL.BindTexture(TextureTarget.Texture2D, sunlightDepthMap);
+            GL.BindTexture(TextureTarget.Texture2D, _sunlightDepthMap);
             GL.TexImage2D(
                 TextureTarget.Texture2D, 
                 0, 
@@ -273,12 +285,12 @@ namespace Vox
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach depth texture to frame buffer         
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sunlightDepthMapFbo);
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer, 
                 FramebufferAttachment.DepthAttachment,
                 TextureTarget.Texture2D, 
-                sunlightDepthMap, 
+                _sunlightDepthMap, 
                 0
             );
             GL.DrawBuffer(DrawBufferMode.None);
@@ -293,12 +305,12 @@ namespace Vox
             //Matrix unifrom setup
             //========================
 
-            pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)ClientSize.X / ClientSize.Y, NEAR, FAR);
+            _pMatrix = Matrix4.CreatePerspectiveFieldOfView(_fov, (float)ClientSize.X / ClientSize.Y, Near, Far);
 
-            viewMatrix = Matrix4.LookAt(new Vector3(-20f, 280f, -20f), new Vector3(8f, 260f, 8f), new Vector3(0.0f, 1f, 0.0f));
+            _viewMatrix = Matrix4.LookAt(new Vector3(-20f, 280f, -20f), new Vector3(8f, 260f, 8f), new Vector3(0.0f, 1f, 0.0f));
 
             float dist = _regionManager.GetChunkBounds() * _regionManager.GetRenderDistance();
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist, dist, -dist, dist, 1f, dist * 2);
+            _sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist, dist, -dist, dist, 1f, dist * 2);
 
             _shaderManager.GetShaderProgram("Lighting").Bind()
                 .CreateUniform("lightModel")
@@ -326,10 +338,10 @@ namespace Vox
                 .CreateUniform("isMenuRendered")
 
                 .UploadAndBindTexture("texture_sampler", 3, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
-                .UploadAndBindTexture("sunlightDepth_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
+                .UploadAndBindTexture("sunlightDepth_sampler", 1, _sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
               //  .UploadAndBindTexture("inventory_texture_sampler", 1, sunlightDepthMap, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2D)
                 .SetIntFloatUniform("chunkSize", _regionManager.GetChunkBounds())               
-                .SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
+                .SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(SreenWidth, ScreenHeight, 0.1f, 10f));
 
             _shaderManager.GetShaderProgram("Inventory").Bind()
                 .UploadAndBindTexture("texture_sampler", 3, texArray, (OpenTK.Graphics.OpenGL.TextureTarget)TextureTarget.Texture2DArray)
@@ -349,27 +361,26 @@ namespace Vox
 
 
             // This is where we change the lights color over time using the sin function
-            float time = DateTime.Now.Second + DateTime.Now.Millisecond / 1000f;
-            lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
-            lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
-            lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
+            _lightColor.X = 1.4f; //(MathF.Sin(time * 2.0f) + 1) / 2f;
+            _lightColor.Y = 1f;//(MathF.Sin(time * 0.7f) + 1) / 2f;
+            _lightColor.Z = 1f; //(MathF.Sin(time * 1.3f) + 1) / 2f;
 
 
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
-            ambientColor = lightColor * new Vector3(0.2f);
-            diffuseColor = lightColor * new Vector3(0.5f);
+            _ambientColor = _lightColor * new Vector3(0.2f);
+            _diffuseColor = _lightColor * new Vector3(0.5f);
 
             /*===================================
             Render menu screen
             ====================================*/
-            menuChunks.Add(_regionManager.GetAndLoadGlobalChunkFromCoords(0, 224, 0));
+            MenuChunks.Add(_regionManager.GetAndLoadGlobalChunkFromCoords(0, 224, 0));
 
-            foreach (Chunk c in menuChunks)
+            foreach (var c in MenuChunks)
             {
                 c.GenerateRenderData();
             }
 
-            int iconAtlas = _textureLoader.GenerateIconAtlas();
+            _textureLoader.GenerateIconAtlas();
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -386,19 +397,19 @@ namespace Vox
             /*==============================
             Update UI input and config
             ===============================*/
-            _UIController?.Update(this, (float)e.Time);
+            _uiController?.Update(this, (float)e.Time);
 
 
             GL.ClearColor(1.0f, 0.8f, 1.0f, 0.0f);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
-            if (renderMenu == true)
+            if (_renderMenu)
             {
-                if (angle > 360)
-                    angle = 0.0f;
+                if (_angle > 360)
+                    _angle = 0.0f;
 
-                angle += 0.12f * (float) e.Time;
+                _angle += 0.12f * (float) e.Time;
 
                 _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetIntFloatUniform("isMenuRendered", 1);
@@ -419,26 +430,26 @@ namespace Vox
             /*======================================
             Render new UI frame over everything
             ========================================*/
-            RenderUI((float)e.Time);
-            _UIController?.Render();
+            RenderUi((float)e.Time);
+            _uiController?.Render();
 
             SwapBuffers();
 
         }
 
-        public void SetTerrainShaderUniforms()
+        private void SetTerrainShaderUniforms()
         {
             _shaderManager?.GetShaderProgram("Terrain").Bind()
-                .SetMatrixUniform("projectionMatrix", pMatrix)
-                .SetMatrixUniform("modelMatrix", modelMatricRotate);
+                .SetMatrixUniform("projectionMatrix", _pMatrix)
+                .SetMatrixUniform("modelMatrix", _modelMatricRotate);
 
             if (_imguiHelper?.GetCurrentMenu() == Menu.Main)
             {
-                modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), angle);
-                Matrix4 menuMatrix = modelMatricRotate;
+                _modelMatricRotate = Matrix4.CreateFromAxisAngle(new Vector3(100f, 2000, 100f), _angle);
+                Matrix4 menuMatrix = _modelMatricRotate;
                 _shaderManager?.GetShaderProgram("Terrain").Bind()
                     .SetMatrixUniform("modelMatrix", menuMatrix)
-                    .SetMatrixUniform("viewMatrix", viewMatrix);
+                    .SetMatrixUniform("viewMatrix", _viewMatrix);
             }
             else
             {
@@ -470,12 +481,7 @@ namespace Vox
                 .SetVector3Uniform("forwardDir", GetPlayer().GetForwardDirection())
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition());
         }
-
-
-
-        //Track cursor position on color picker open
-        private static float dirX = 0.0f;
-        private static float dirY = 0.0f;
+        
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
 
@@ -488,10 +494,7 @@ namespace Vox
             }
 
             // Update pause status
-            if (_imguiHelper?.GetCurrentMenu() == Menu.None)
-                isAnyMenuShowing = false;
-            else
-                isAnyMenuShowing = true;
+            _isAnyMenuShowing = _imguiHelper?.GetCurrentMenu() != Menu.None;
 
             //Update player and cursor state
             if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause)
@@ -506,25 +509,25 @@ namespace Vox
             Ambient lighting update
             ====================================*/
             //update light color each frame
-            float dayLengthInSeconds = 60.0f;  
+            const float dayLengthInSeconds = 60.0f;  
             float timeOfDay = (DateTime.Now.Second + DateTime.Now.Millisecond / 1000f) % dayLengthInSeconds;
             float normalizedTime = timeOfDay / dayLengthInSeconds;  // Normalized time between 0 (start of day) and 1 (end of day)
             float dayCycle = MathF.Sin(normalizedTime * MathF.PI * 2);  // Sine wave oscillates between -1 and 1 over one full cycle
             float angle = normalizedTime * MathF.PI * 2;
             float lightIntensity = (((dayCycle + 1.0f) / 2f) + 0.1f) * 2;  // Convert sine range (-1 to 1) to (0 to 1)
 
-            lightColor.X = lightIntensity * 1.0f;//R
-            lightColor.Y = lightIntensity * 0.7f;//G
-            lightColor.Z = lightIntensity * 0.3f;//B
+            _lightColor.X = lightIntensity * 1.0f;//R
+            _lightColor.Y = lightIntensity * 0.7f;//G
+            _lightColor.Z = lightIntensity * 0.3f;//B
 
             // The ambient light is less intensive than the diffuse light in order to make it less dominant
-            ambientColor = lightColor * new Vector3(0.2f);
-            diffuseColor = lightColor * new Vector3(0.5f);
+            _ambientColor = _lightColor * new Vector3(0.2f);
+            _diffuseColor = _lightColor * new Vector3(0.5f);
 
             _shaderManager?.GetShaderProgram("Terrain").Bind()
-                .SetVector3Uniform("light.position", sunlightPos)
-                .SetVector3Uniform("light.ambient", ambientColor)
-                .SetVector3Uniform("light.diffuse", diffuseColor)
+                .SetVector3Uniform("light.position", _sunlightPos)
+                .SetVector3Uniform("light.ambient", _ambientColor)
+                .SetVector3Uniform("light.diffuse", _diffuseColor)
                 .SetVector3Uniform("light.specular", new Vector3(1.0f, 1.0f, 1.0f));
 
 
@@ -533,67 +536,83 @@ namespace Vox
             //x = h + r⋅cos(θ)
             //y = k + r⋅sin(θ)
             float radius = _regionManager!.GetChunkBounds() * _regionManager.GetRenderDistance() * 2f;
-            Vector3 playerPos = GetPlayer().GetPosition();
+            var playerPos = GetPlayer().GetPosition();
             float x = playerPos.X + radius * MathF.Cos(angle);
             float z = playerPos.Z + radius * MathF.Sin(angle);
             float y = playerPos.Y + radius * 0.5f * MathF.Sin(angle);
 
-            sunlightPos = new Vector3(x, y, z);
+            _sunlightPos = new Vector3(x, y, z);
 
 
 
             SetTerrainShaderUniforms();
 
             _shaderManager?.GetShaderProgram("Lighting").Bind()
-                .SetVector3Uniform("light.position", sunlightPos);
+                .SetVector3Uniform("light.position", _sunlightPos);
 
-            if (_imguiHelper?.GetCurrentMenu() != Menu.Main)
-                sunlightViewMatrix = Matrix4.LookAt(sunlightPos, new(0, 0, 0), Vector3.UnitY);
-            else
-                sunlightViewMatrix = Matrix4.LookAt(sunlightPos, GetPlayer().GetPosition(), Vector3.UnitY);
+            _sunlightViewMatrix = Matrix4.LookAt(_sunlightPos, 
+                _imguiHelper?.GetCurrentMenu() != Menu.Main ? new Vector3(0, 0, 0) : GetPlayer().GetPosition(), 
+                Vector3.UnitY
+            );
 
             float dist1 = _regionManager.GetChunkBounds() * _regionManager.GetRenderDistance();
-            sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist1, dist1, -dist1, dist1 , 1f, dist1);
+            _sunlightProjectionMatrix = Matrix4.CreateOrthographicOffCenter(-dist1, dist1, -dist1, dist1 , 1f, dist1);
 
-            lightSpaceMatrix = sunlightViewMatrix * sunlightProjectionMatrix;
+            _lightSpaceMatrix = _sunlightViewMatrix * _sunlightProjectionMatrix;
 
 
             _shaderManager?.GetShaderProgram("Lighting").Bind()
-                .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
-                .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
+                .SetMatrixUniform("lightViewMatrix", _sunlightViewMatrix)
+                .SetMatrixUniform("lightProjMatrix", _sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
             _shaderManager?.GetShaderProgram("Terrain").Bind()
-                .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
-                .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
+                .SetMatrixUniform("lightViewMatrix", _sunlightViewMatrix)
+                .SetMatrixUniform("lightProjMatrix", _sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
 
             _shaderManager?.GetShaderProgram("Inventory").Bind()
-                .SetMatrixUniform("lightViewMatrix", sunlightViewMatrix)
-                .SetMatrixUniform("lightProjMatrix", sunlightProjectionMatrix)
+                .SetMatrixUniform("lightViewMatrix", _sunlightViewMatrix)
+                .SetMatrixUniform("lightProjMatrix", _sunlightProjectionMatrix)
                 .SetMatrixUniform("lightModel", Chunk.GetModelMatrix());
         }
 
-        private KeyboardState previousKeyboardState;
         protected override void OnKeyDown(KeyboardKeyEventArgs e)
         {
             base.OnKeyDown(e);
-            KeyboardState current = KeyboardState.GetSnapshot();
 
             if (float.IsNaN(GetPlayer().GetBlockedDirection().X))
                 return;
 
+            var currentKeyboardState = KeyboardState.GetSnapshot();
+  
+            // Use KeyboardState for movement to handle multiple simultaneous keypresses and diagonal movements
             if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause && _imguiHelper?.GetCurrentMenu() != Menu.Settings) { 
-                if (current[Keys.W])// && Math.Sign(GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z))
-                    GetPlayer().MoveForward(1);
-                if (current[Keys.S] && Math.Sign(-GetPlayer().GetForwardDirection().Z) != Math.Sign(GetPlayer().GetBlockedDirection().Z)) GetPlayer().MoveForward(-1);
-                if (current[Keys.A] && Math.Sign(-GetPlayer().GetRightDirection().X) != Math.Sign(GetPlayer().GetBlockedDirection().X)) GetPlayer().MoveRight(-1);
-                if (current[Keys.D] && Math.Sign(GetPlayer().GetRightDirection().X) != Math.Sign(GetPlayer().GetBlockedDirection().X)) GetPlayer().MoveRight(1);
-                               
-                if (current[Keys.Space] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != 1)
-                    GetPlayer().MoveUp(3);
+                Vector3 blockedDirection = GetPlayer().GetBlockedDirection();
 
-                if (current[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
+                Vector3 forward = GetPlayer().GetForwardDirection();
+                Vector3 right = GetPlayer().GetRightDirection();
+
+                if (currentKeyboardState[Keys.W] && Vector3.Dot(forward, blockedDirection) <= 0)
+                    GetPlayer().MoveForward(5);
+                
+
+                if (currentKeyboardState[Keys.S] && Vector3.Dot(-forward, blockedDirection) <= 0)
+                    GetPlayer().MoveForward(-5);
+                
+
+                if (currentKeyboardState[Keys.A] && Vector3.Dot(-right, blockedDirection) <= 0)
+                    GetPlayer().MoveRight(-1);
+                
+
+                if (currentKeyboardState[Keys.D] && Vector3.Dot(right, blockedDirection) <= 0)
+                    GetPlayer().MoveRight(1);
+                
+                               
+                if (currentKeyboardState[Keys.Space] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != 1)
+                    GetPlayer().Jump(7);
+
+                if (currentKeyboardState[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
                     GetPlayer().MoveUp(-1);
 
             }
@@ -603,14 +622,14 @@ namespace Vox
                 Vector3 target = new(0, 0, 0);
 
                 if (_imguiHelper?.GetCurrentMenu() != Menu.Inventory)
-                    target = GetPlayer().UpdateViewTarget(out _, out _, out Vector3 blockSpace);
+                    target = GetPlayer().UpdateViewTarget(out _, out _, out _);
 
 
-                Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(target);
-                Vector3i idx = _regionManager.GetChunkRelativeCoordinates(target);
+                var actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(target);
+                var idx = _regionManager.GetChunkRelativeCoordinates(target);
 
                 //Render color picker for light emitting blocks
-                if (current[Keys.C] && (BlockType)actionChunk._blockData![idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+                if (e.Key == Keys.C && (BlockType)actionChunk._blockData![idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
                 {
                     // If no menu is currently active, show the colorpicker, otherwise close the colorpicker
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
@@ -623,23 +642,18 @@ namespace Vox
                 }
 
                 // Show player inventory
-                if (current[Keys.E] && _imguiHelper?.GetCurrentMenu() != Menu.Main)
+                if (e.Key == Keys.E && _imguiHelper?.GetCurrentMenu() != Menu.Main)
                 {
 
                     // If no menu is currently active, show the inventory, otherwise close the inventory
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
-                    {
                         _imguiHelper.SetCurrentMenu(Menu.Inventory);
-
-                        //Create inventory textures for the duration of the menu
-
-                    }
                     else if (_imguiHelper?.GetCurrentMenu() == Menu.Inventory)
                         _imguiHelper.SetCurrentMenu(Menu.None);
                 }
 
                 // Shows pause menu if Escape is pressed
-                if (current[Keys.Escape] && _imguiHelper?.GetCurrentMenu() != Menu.Main)
+                if (e.Key == Keys.Escape && _imguiHelper?.GetCurrentMenu() != Menu.Main)
                 {
                     // Show pause menu if no menu is currently active, otherwise close the active menu
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
@@ -648,13 +662,15 @@ namespace Vox
                         _imguiHelper?.SetCurrentMenu(Menu.None);
                 }
             }
-            previousKeyboardState = current;
+  
         }
+        // ReSharper disable once RedundantOverriddenMember
         protected override void OnKeyUp(KeyboardKeyEventArgs e)
         {
             base.OnKeyUp(e);
         }
 
+        // ReSharper disable once RedundantOverriddenMember
         protected override void OnMouseMove(MouseMoveEventArgs e)
         {
             base.OnMouseMove(e);
@@ -663,44 +679,52 @@ namespace Vox
 
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
-            base.OnMouseDown(e); 
+            base.OnMouseDown(e);
 
-            if (_imguiHelper?.GetCurrentMenu() == Menu.None)
+            if (_imguiHelper?.GetCurrentMenu() != Menu.None) return;
+            var block = GetPlayer().UpdateViewTarget(out _, out _, out var blockSpace);
+
+            switch (e.Button)
             {
-                Vector3 block = GetPlayer().UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace);
-
-                if (e.Button == MouseButton.Left)
+                case MouseButton.Left:
                 {
                     ColorVector color = new(9, 9, 8);
                     _regionManager!.AddBlockToChunk(blockSpace, GetPlayer().GetPlayerBlockType(), color);
-
+                    break;
                 }
-                if (e.Button == MouseButton.Right)
-                {
+                case MouseButton.Right:
                     _regionManager!.RemoveBlockFromChunk(block);
-                }
-           
+                    break;
+                case MouseButton.Button3:
+                case MouseButton.Button4:
+                case MouseButton.Button5:
+                case MouseButton.Button6:
+                case MouseButton.Button7:
+                case MouseButton.Button8:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
         protected override void OnTextInput(TextInputEventArgs e)
         {
             base.OnTextInput(e);
-            _UIController?.PressChar((char)e.Unicode);
+            _uiController?.PressChar((char)e.Unicode);
         }
 
         protected override void OnMouseWheel(MouseWheelEventArgs e)
         {
             base.OnMouseWheel(e);
 
-            _UIController?.MouseScroll(e.Offset);
+            _uiController?.MouseScroll(e.Offset);
         }
         public static long GetMenuSeed()
         {
-            return menuSeed;
+            return _menuSeed;
         }
-        private void RenderUI(float time)
+        private void RenderUi(float time)
         {
-            if (renderMenu)
+            if (_renderMenu)
             {
                 _imguiHelper?.SetCurrentMenu(Menu.Main);
             }
@@ -708,45 +732,36 @@ namespace Vox
             {
                 _imguiHelper!.CreateDebugMenu();
             }
-
-            KeyboardState current = KeyboardState.GetSnapshot();
-
             //============================
             //Inventory shader binding
             //============================
             if (_imguiHelper?.GetCurrentMenu() == Menu.Inventory)
-             {
-                 if (angle > 360)
-                     angle = 0.0f;
+            {
+                 if (_angle > 360)
+                     _angle = 0.0f;
             
-                 angle += 0.1f * time;
+                 _angle += 0.1f * time;
                  _shaderManager?.GetShaderProgram("Inventory").Bind();
-             }
+            }
 
             //============================
             //Handle cursor state on menus
             //============================
-            if (_imguiHelper?.GetCurrentMenu() != Menu.None)
-            {
-                CursorState = CursorState.Normal;
-            } else
-            {
-                CursorState = CursorState.Grabbed;
-            }
+            CursorState = _imguiHelper?.GetCurrentMenu() != Menu.None ? CursorState.Normal : CursorState.Grabbed;
 
             _imguiHelper?.RenderCurrentMenu();
         }
        
 
-        public static bool IsMainMenuScreenDisplayed() { return renderMenu; }
+        public static bool IsMainMenuScreenDisplayed() { return _renderMenu; }
 
-        public static void DisplayMainMenuScreen(bool val) { renderMenu = val; }
+        public static void DisplayMainMenuScreen(bool val) { _renderMenu = val; }
 
     
         private void RenderMenu()
         {
-            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
-            int max = terrainSSBO.Size / Marshal.SizeOf<BlockFaceInstance>();
+            var terrainSsbo = _ssboManager!.GetSSBO(SSBO.Terrain);
+            int max = terrainSsbo.Size / Marshal.SizeOf<BlockFaceInstance>();
 
             /*==========================================
              * DEPTH RENDERING PRE-PASS
@@ -754,24 +769,24 @@ namespace Vox
             GL.Viewport(0, 0, 4096, 4096);
 
             //Bind FBO and clear depth
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sunlightDepthMapFbo);
             GL.Clear(ClearBufferMask.DepthBufferBit);
 
 
             //Check FBO
-            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
             {
-                Console.WriteLine($"Framebuffer error: {status}");
+                Logger.Error($"Framebuffer error: {status}");
             }
             _shaderManager?.GetShaderProgram("Lighting").Bind();
-            GL.BindVertexArray(_menuVAO);
+            GL.BindVertexArray(_menuVao);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip
                 0,                                  // Start from the first vertex in the base geometry
                 4,                                  // 4 vertices per face (for triangle strip)
-                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
+                max - terrainSsbo.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
 
@@ -797,37 +812,30 @@ namespace Vox
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip
                 0,                                  // Start from the first vertex in the base geometry
                 4,                                  // 4 vertices per face (for triangle strip)
-                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
+                max - terrainSsbo.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
             //-------------------------Render and Draw Terrain---------------------------------------
             GL.BindVertexArray(0);
         }
-
-        public RegionManager? GetLoadedWorld()
-        {
-            return (RegionManager?) _regionManager;
-        }
+        
         public void SetLoadedWorld(RegionManager rm)
         {
             _regionManager = rm;
         }
-        public static string GetAppFolder()
-        {
-            return appFolder;   
-        }
+        
         private void RenderWorld()
         {
-            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
-            int max = terrainSSBO.Size / Marshal.SizeOf<BlockFaceInstance>();
+            var terrainSsbo = _ssboManager!.GetSSBO(SSBO.Terrain);
+            int max = terrainSsbo.Size / Marshal.SizeOf<BlockFaceInstance>();
 
             //Remeber to clear cache each frame 
             _chunkCache!.ClearChunkCache();
 
             //Recalculate SSBO size
-            int blockFacesPerBlock = 6;
-            int maxBlocksPerChunk = (int)Math.Pow(_regionManager!.GetChunkBounds(), 3);
-            int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
+            //int blockFacesPerBlock = 6;
+            //int maxBlocksPerChunk = (int)Math.Pow(_regionManager!.GetChunkBounds(), 3);
+            //int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
 
             //If SSBO size changed (i.e render distance was increased or decreased) 
             //if (Marshal.SizeOf<BlockFaceInstance>() * (maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) != _ssboManager!.GetSSBO(SSBO.Terrain).Size)
@@ -862,50 +870,54 @@ namespace Vox
             //playerChunk will be null when world first loads
             if (_globalPlayerChunk == null)
             {
-                _globalPlayerChunk = _regionManager.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,//+ _regionManager.GetChunkBounds(),
+                _globalPlayerChunk = _regionManager?.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,//+ _regionManager.GetChunkBounds(),
                      (int) _player!.GetChunkWithPlayer().GetLocation().Y, (int) _player.GetChunkWithPlayer().GetLocation().Z);
-                _player.SetPosition(new(_player.GetPosition().X, _player.GetPosition().Y + 10, _player.GetPosition().Z));
+                _player?.SetPosition(new Vector3(_player.GetPosition().X, _player.GetPosition().Y, _player.GetPosition().Z));
             }
 
             //Updates the chunks to render when the player has moved into a new chunk
-            _chunkCache.SetPlayerChunk(_globalPlayerChunk);
-            Dictionary<string, Chunk> chunksToRender = _chunkCache!.UpdateChunkCache();
-
-
-            if (!_player!.GetChunkWithPlayer().Equals(_globalPlayerChunk))
+            if (_globalPlayerChunk != null)
             {
-                _chunkCache.UpdateVisibleRegions();
-                _globalPlayerChunk = _player.GetChunkWithPlayer();
                 _chunkCache.SetPlayerChunk(_globalPlayerChunk);
+                var chunksToRender = _chunkCache!.UpdateChunkCache();
 
-                chunksToRender = _chunkCache.UpdateChunkCache();       
 
-                //Updates the regions when player moves into different region
-                if (!_player.GetRegionWithPlayer().Equals(_globalPlayerRegion))
-                    _globalPlayerRegion = _player.GetRegionWithPlayer();
-            }
-            //=========================================================================
-
-          
-
-            CountdownEvent countdown = new(chunksToRender.Count);
-            foreach (KeyValuePair<string, Chunk> c in chunksToRender)
-            {
-                ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
+                if (!_player!.GetChunkWithPlayer().Equals(_globalPlayerChunk))
                 {
-                    //If the chunk above this one is generated, we don't need to generate this chunk   
-                    if ((!c.Value.IsGenerated()) 
-                    && !_regionManager.GetAndLoadGlobalChunkFromCoords(
-                        (int)c.Value.xLoc, (int)(c.Value.yLoc + _regionManager.GetChunkBounds()), 
-                        (int)c.Value.zLoc).IsGenerated())
-                    {
-                        c.Value.GenerateRenderData();
-                    }
+                    _chunkCache.UpdateVisibleRegions();
+                    _globalPlayerChunk = _player.GetChunkWithPlayer();
+                    _chunkCache.SetPlayerChunk(_globalPlayerChunk);
 
-                   countdown.Signal();
-               }));
+                    chunksToRender = _chunkCache.UpdateChunkCache();
+
+                    //Updates the regions when player moves into different region
+                    if (!_player.GetRegionWithPlayer().Equals(_globalPlayerRegion))
+                        _globalPlayerRegion = _player.GetRegionWithPlayer();
+                }
+                //=========================================================================
+
+
+                CountdownEvent countdown = new(chunksToRender.Count);
+                foreach (var c in chunksToRender)
+                {
+                    ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        //If the chunk above this one is generated, we don't need to generate this chunk   
+                        if ((!c.Value.IsGenerated())
+                            && _regionManager != null
+                            && !_regionManager.GetAndLoadGlobalChunkFromCoords(
+                                (int)c.Value.xLoc, (int)(c.Value.yLoc + _regionManager.GetChunkBounds()),
+                                (int)c.Value.zLoc).IsGenerated())
+                        {
+                            c.Value.GenerateRenderData();
+                        }
+
+                        countdown.Signal();
+                    });
+                }
+
+                countdown.Wait();
             }
-            countdown.Wait();
 
             /*==========================================
              * DEPTH RENDERING PRE-PASS
@@ -915,26 +927,26 @@ namespace Vox
             //Bind FBO and clear depth
 
             GL.Clear(ClearBufferMask.DepthBufferBit);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, sunlightDepthMapFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sunlightDepthMapFbo);
 
 
             //Check FBO
             FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
             {
-                Console.WriteLine($"Framebuffer error: {status}");
+                Logger.Error($"Framebuffer error: {status}");
             }
-            _shaderManager.GetShaderProgram("Lighting").Bind();
-            GL.BindVertexArray(_terrainVAO);
+            _shaderManager?.GetShaderProgram("Lighting").Bind();
+            GL.BindVertexArray(_terrainVao);
 
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
-            GL.BindBufferBase(OpenTK.Graphics.OpenGL4.BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip
                 0,                                  // Start from the first vertex in the base geometry
                 4,                                  // 4 vertices per face (for triangle strip)
-                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
+                max - terrainSsbo.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
 
@@ -949,7 +961,7 @@ namespace Vox
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-            _shaderManager.GetShaderProgram("Terrain").Bind();
+            _shaderManager?.GetShaderProgram("Terrain").Bind();
 
 
             /*==================================
@@ -959,23 +971,24 @@ namespace Vox
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip
                 0,                                  // Start from the first vertex in the base geometry
                 4,                                  // 4 vertices per face (for triangle strip)
-                max - terrainSSBO.FreeIndexCount    // Instance count (number of faces to draw)
+                max - terrainSsbo.FreeIndexCount    // Instance count (number of faces to draw)
             );
 
             GL.BindVertexArray(0);
 
         }
 
+        // ReSharper disable once UnusedMember.Local
         private static float[] GetCrosshair()
         {
             return [
-                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 - 13.5f, 0, 0,
-                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 - 13.5f, 1, 0,
-                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 + 13.5f, 1, 1,
+                (float) SreenWidth / 2 - 13.5f, (float) ScreenHeight / 2 - 13.5f, 0, 0,
+                (float) SreenWidth / 2 + 13.5f, (float) ScreenHeight / 2 - 13.5f, 1, 0,
+                (float) SreenWidth / 2 + 13.5f, (float) ScreenHeight / 2 + 13.5f, 1, 1,
 
-                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 - 13.5f, 0, 0,
-                (float) screenWidth / 2 - 13.5f, (float) screenHeight / 2 + 13.5f, 1, 0,
-                (float) screenWidth / 2 + 13.5f, (float) screenHeight / 2 + 13.5f, 1, 1,
+                (float) SreenWidth / 2 - 13.5f, (float) ScreenHeight / 2 - 13.5f, 0, 0,
+                (float) SreenWidth / 2 - 13.5f, (float) ScreenHeight / 2 + 13.5f, 1, 0,
+                (float) SreenWidth / 2 + 13.5f, (float) ScreenHeight / 2 + 13.5f, 1, 1,
             ];
         }
         protected override void OnClosing(CancelEventArgs e)
@@ -983,8 +996,8 @@ namespace Vox
             base.OnClosing(e);
 
             _isClosing = true;
-            _shaderManager.CleanupShaders();
-
+            _shaderManager?.CleanupShaders();
+            Console.WriteLine("RequestClose called");
 
 
             Environment.Exit(0);
@@ -992,7 +1005,7 @@ namespace Vox
 
         private void RequestClose()
         {
-            Console.WriteLine(_isClosing);
+            Console.WriteLine("RequestClose called");
             _isClosing = true;
             Close();
         }
@@ -1001,43 +1014,44 @@ namespace Vox
             base.OnResize(e);
 
             //Update ortho matrix for crosshair on window resize
-            _shaderManager.GetShaderProgram("Terrain").SetMatrixUniform("crosshairOrtho", Matrix4.CreateOrthographic(screenWidth, screenHeight, 0.1f, 10f));
+            _shaderManager?.GetShaderProgram("Terrain").SetMatrixUniform("crosshairOrtho",
+                Matrix4.CreateOrthographic(SreenWidth, ScreenHeight, 0.1f, 10f));
 
             // Update the opengl viewport
             GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
 
-            Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(FOV, (float)e.Width / e.Height, NEAR, FAR);
-            _shaderManager.GetShaderProgram("Terrain").Bind().SetMatrixUniform("projectionMatrix", pMatrix);
+            Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(_fov, (float)e.Width / e.Height, Near, Far);
+            _shaderManager?.GetShaderProgram("Terrain").Bind().SetMatrixUniform("projectionMatrix", pMatrix);
 
             // Tell ImGui of the new size
-            _UIController.WindowResized(ClientSize.X, ClientSize.Y);
+            _uiController?.WindowResized(ClientSize.X, ClientSize.Y);
         }
 
 
-        public Player GetPlayer() {
+        private Player GetPlayer() {
             _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!, _shaderManager!);
 
-            return (Player) _player;
+            return _player;
         }
 
         public static List<Chunk> GetMenuChunks()
         {
-            return menuChunks;
+            return MenuChunks;
         }
-        private static HashSet<string> visited = new();
+        private static readonly HashSet<string> Visited = [];
 
         public static bool IsAnyMenuShowing()
         {
-            return isAnyMenuShowing;
+            return _isAnyMenuShowing;
         }
+        
         private static string ProcessShaderIncludes(string filePath)
         {
             string fullPath = Path.GetFullPath(filePath);
+            fullPath = fullPath.Replace('/', Path.DirectorySeparatorChar);
 
-            if (visited.Contains(fullPath))
+            if (!Visited.Add(fullPath))
                 return ""; // Prevent circular includes
-
-            visited.Add(fullPath);
 
             var lines = File.ReadAllLines(fullPath);
             var sb = new StringBuilder();
@@ -1048,7 +1062,7 @@ namespace Vox
 
                 if (line.Trim().StartsWith("#include"))
                 {
-                    var match = GLSLIncludeRegex().Match(line);
+                    var match = GlslIncludeRegex().Match(line);
 
                     if (match.Success)
                     {
@@ -1068,32 +1082,21 @@ namespace Vox
         }
 
         public static float GetAngle() { 
-            return angle;
+            return _angle;
         }
         public static string GetAssetPath()
         {
-            return _assets;
+            return Assets;
         }
-
-        public static int GetTerrainSSBOSize()
+        public static string GetAppFolder()
         {
-            return SSBOTerrainSize;
+            return AppFolder;   
         }
-        static void Main()
+
+        public static int GetTerrainSsboSize()
         {
-
-            Window wnd = new(GameWindowSettings.Default, new NativeWindowSettings() {
-                Location = new Vector2i(0, 0),
-                API = ContextAPI.OpenGL,
-                Profile = ContextProfile.Core,
-                Flags = ContextFlags.ForwardCompatible | ContextFlags.Debug,
-                ClientSize = new Vector2i(screenWidth, screenHeight),
-                APIVersion = new Version(4, 6), 
-            });
-
-            wnd.Run();
+            return _ssboTerrainSize;
         }
-
         //GL Debugger delegate
         private static readonly DebugProc DebugMessageDelegate = OnDebugMessage;
         private static void OnDebugMessage(
@@ -1108,7 +1111,7 @@ namespace Vox
 
             string message = Marshal.PtrToStringAnsi(pMessage, length);
 
-            Console.WriteLine($"[{type}] :: Severity[{severity}] :: Source[{source}] ID[{id}] Detail: {message}");
+            Logger.Error($"[{type}] :: Severity[{severity}] :: Source[{source}] ID[{id}] Detail: {message}");
             
             if (type == DebugType.DebugTypeError)
             {
@@ -1117,6 +1120,23 @@ namespace Vox
         }
         
         [GeneratedRegex("#include\\s+\"([^\"]+)\"")]
-        private static partial Regex GLSLIncludeRegex();
+        private static partial Regex GlslIncludeRegex();
+
+        private static void Main()
+        {
+
+            Window wnd = new(GameWindowSettings.Default, new NativeWindowSettings() {
+                Location = new Vector2i(0, 0),
+                API = ContextAPI.OpenGL,
+                Profile = ContextProfile.Core,
+                Flags = ContextFlags.ForwardCompatible | ContextFlags.Debug,
+                ClientSize = new Vector2i(SreenWidth, ScreenHeight),
+                APIVersion = new Version(4, 6), 
+            });
+
+            wnd.Run();
+        }
+
+  
     }
 }

@@ -41,7 +41,7 @@ namespace Vox
         {
             Console.WriteLine("[WARN] " + DateTime.Now + " :: " + message);
         }
-        public static void Debug(object message, ConsoleColor color = ConsoleColor.White)
+        public static void Debug(object message, ConsoleColor color = ConsoleColor.DarkGray)
         {
             if (message == null)
                 message = $"Object is null";

@@ -13,16 +13,12 @@ namespace Vox
         Vector3 GetForwardDirection();
         BlockType GetPlayerBlockType();
         bool IsPlayerGrounded();
-        Vector2 GetForwardRight();
-        List<Vector3> GetPlayerCollisionMesh();
+        void Jump(float v);
         void Update(float deltaTime);
-        void UpdateVelocity(float deltaTime);
         Vector3 GetPosition();
         Vector2 GetRotation();
         void SetPosition(Vector3 pos);
         InventoryStore GetInventory();
-        Vector3 GetDesiredMovement();
-        Vector3 GetVelocity();
         void MoveForward(float inc);
         void MoveRight(float inc);
         void MoveUp(float inc);
@@ -33,7 +29,6 @@ namespace Vox
         Vector3 GetRightDirection();
         Box3 GetBoundingBox();
         Matrix4 GetViewMatrix();
-        void RotateYaw(float deltaYaw);
         Vector3 GetBlockedDirection();
         string ToString();
     }

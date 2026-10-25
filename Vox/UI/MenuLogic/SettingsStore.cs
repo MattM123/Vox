@@ -16,6 +16,7 @@ namespace Vox.UI.MenuLogic
             _appFolder = appFolder;
             TryLoadSettingsFromFile();
             FillBuffersFromSettings();
+            SaveSettingsToFile();
         }
 
         /// <summary>
@@ -57,10 +58,10 @@ namespace Vox.UI.MenuLogic
             _settings!.GuiScaleBuffer = guiScale;
             _settings!.GuiScale = guiScale;
         }
-        public void SetUIColor(Vector4 UIColor)
+        public void SetUIColor(Vector4 uiColor)
         {
-            _settings!.UIColorBuffer = UIColor;
-            _settings!.UIColor = UIColor;
+            _settings!.UIColorBuffer = uiColor;
+            _settings!.UIColor = uiColor;
         }
         public Settings GetSettings()
         {

@@ -129,7 +129,6 @@ namespace Vox.Rendering
             int shaderId = GL.CreateShader(shaderType);
 
             GL.ShaderSource(shaderId, shaderCode);
-
             GL.CompileShader(shaderId);
 
             shaderIdentity.Add(shaderId, filename);
@@ -173,7 +172,7 @@ namespace Vox.Rendering
                         Logger.Error("                Failed to attach vertex shaders with ID of 0                ");
                         Logger.Error("============================================================================");
                         Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
-                        Logger.Debug(GetProgramLog());             
+                        Logger.Error(GetProgramLog());             
                     }
 
                     if (fragmentShaderId != 0)
@@ -188,14 +187,14 @@ namespace Vox.Rendering
                         Logger.Error("               Failed to attach fragment shaders with ID of 0               ");
                         Logger.Error("============================================================================");
                         Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
-                        Logger.Debug(GetProgramLog());
+                        Logger.Error(GetProgramLog());
                     }
 
                     Logger.Error("============================================================================");
                     Logger.Error("                Shader processing failed with linking error                 ");
                     Logger.Error("============================================================================");
                     Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
-                    Logger.Debug(GetProgramLog());
+                    Logger.Error(GetProgramLog());
 
                     Logger.Error(new ShaderException($"Shader program with ID of {programId} and shaders {shaderIdentity[vertexShaderId]} " +
                         $"and {shaderIdentity[fragmentShaderId]} failed to link properly"));
@@ -219,7 +218,7 @@ namespace Vox.Rendering
                     Logger.Error("               Shader processing failed with validation error                  ");
                     Logger.Error("===============================================================================");
                     Logger.Error(new ShaderException("Failed to validate program with status " + vStatus + "\nError Code: " + GL.GetError()));
-                    Logger.Debug(GetProgramLog());
+                    Logger.Error(GetProgramLog());
                 }
             }
             catch (Exception e)

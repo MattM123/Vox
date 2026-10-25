@@ -80,7 +80,7 @@ namespace Vox.UI
             _requestClose = requestClose;
             _shaderManager = shaderManager;
 
-            string _assets = "..\\..\\..\\Assets\\";
+            string _assets = Path.Combine("..", "..", "..", "Assets");
 
             PtFont18 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 18.0f);
             PtFont24 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 24.0f);
@@ -112,7 +112,7 @@ namespace Vox.UI
 
             ImGui.Text("Choose a World");
 
-                ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.screenWidth / horizontalMenuScale, menuHeight / 2.5f),
+                ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.SreenWidth / horizontalMenuScale, menuHeight / 2.5f),
                     ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
 
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
@@ -122,7 +122,7 @@ namespace Vox.UI
                 //Create UI entries for each world within world list
                 try
                 {
-                    IEnumerable<string> worldList = Directory.EnumerateDirectories(Window.GetAppFolder() + "worlds");
+                    IEnumerable<string> worldList = Directory.EnumerateDirectories(Path.Combine(Window.GetAppFolder(), "worlds"));
                     int dirLen = worldList.Count();
 
                     if (dirLen > 0)
@@ -136,7 +136,7 @@ namespace Vox.UI
 
                             for (int i = 0; i < folderReverse.Length - 1; i++)
                             {
-                                if (folderReverse[i] != '\\')
+                                if (folderReverse[i] != Path.DirectorySeparatorChar)
                                     label += folderReverse[i];
                                 else
                                     break;
@@ -190,18 +190,15 @@ namespace Vox.UI
 
                 if (ImGui.Button("Quit Game##MainMenuQuit"))
                 {
-                    Console.WriteLine("test");
-                    Console.WriteLine(_requestClose == null ? "NULL ACTION" : "ACTION EXISTS");
-
+                    Console.WriteLine("RequestClose called");
                     _requestClose();
                 }
 
 
                 ImGui.EndChild();
                 ImGui.PopStyleVar(3);
-                ImGui.PopStyleVar();
 
-            ImGui.PushItemWidth(Window.screenWidth / horizontalMenuScale);
+            ImGui.PushItemWidth(Window.SreenWidth / horizontalMenuScale);
 
             ImGui.SetKeyboardFocusHere();
             byte[] buffer = new byte[30];
@@ -220,12 +217,12 @@ namespace Vox.UI
             {
                 try
                 {
-                    Directory.CreateDirectory(Window.GetAppFolder() + "worlds\\" + Encoding.Default.GetString([.. buffer.Reverse()]));
+                    Directory.CreateDirectory(Path.Combine(Window.GetAppFolder(), "worlds", Encoding.Default.GetString([.. buffer.Reverse()])));
                 }
                 catch (Exception e)
                 {
                     Logger.Error(e);
-                    Logger.Debug(Window.GetAppFolder() + "worlds\\" + worldName);
+                    Logger.Debug(Path.Combine( Window.GetAppFolder(), "worlds", worldName));
                 }
             }
 
@@ -242,7 +239,7 @@ namespace Vox.UI
              =====================================*/
             // Menu sizing
             ImGui.SetWindowPos(new System.Numerics.Vector2(0, 0));
-            ImGui.SetWindowSize(new System.Numerics.Vector2(Window.screenWidth / 4.0f, Window.screenHeight / 2.0f));
+            ImGui.SetWindowSize(new System.Numerics.Vector2(Window.SreenWidth / 4.0f, Window.ScreenHeight / 2.0f));
 
             // Menu styling
             ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
@@ -307,7 +304,7 @@ namespace Vox.UI
             float menuHeight = 7.2f * _guiScale;
 
             //Menu sizing
-            ImGui.SetNextWindowPos(new(Window.screenWidth / 2, Window.screenHeight / 2), ImGuiCond.FirstUseEver);
+            ImGui.SetNextWindowPos(new(Window.SreenWidth / 2, Window.ScreenHeight / 2), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new System.Numerics.Vector2(_guiScale * 2.8f, _guiScale * 2.8f));
 
             //Menu styling
