@@ -1013,18 +1013,35 @@ namespace Vox
         {
             base.OnResize(e);
 
-            //Update ortho matrix for crosshair on window resize
-            _shaderManager?.GetShaderProgram("Terrain").SetMatrixUniform("crosshairOrtho",
-                Matrix4.CreateOrthographic(SreenWidth, ScreenHeight, 0.1f, 10f));
+            // Ignore minimized or zero-sized windows.
+            if (e.Width <= 0 || e.Height <= 0)
+                return;
 
-            // Update the opengl viewport
-            GL.Viewport(0, 0, ClientSize.X, ClientSize.Y);
+            // Update the viewport to match the actual window dimensions.
+            GL.Viewport(0, 0, e.Width, e.Height);
 
-            Matrix4 pMatrix = Matrix4.CreatePerspectiveFieldOfView(_fov, (float)e.Width / e.Height, Near, Far);
-            _shaderManager?.GetShaderProgram("Terrain").Bind().SetMatrixUniform("projectionMatrix", pMatrix);
+            // Update the perspective projection matrix.
+            // Store it in _pMatrix because SetTerrainShaderUniforms()
+            // uploads this field every frame.
+            _pMatrix = Matrix4.CreatePerspectiveFieldOfView(
+                _fov,
+                (float)e.Width / e.Height,
+                Near,
+                Far);
 
-            // Tell ImGui of the new size
-            _uiController?.WindowResized(ClientSize.X, ClientSize.Y);
+            _shaderManager?.GetShaderProgram("Terrain")
+                .Bind()
+                .SetMatrixUniform("projectionMatrix", _pMatrix);
+
+            // Update the crosshair's orthographic projection.
+            _shaderManager?.GetShaderProgram("Terrain")
+                .SetMatrixUniform(
+                    "crosshairOrtho",
+                    Matrix4.CreateOrthographic(
+                        e.Width, e.Height, 0.1f, 10f));
+
+            // Update ImGui to match the new window dimensions.
+            _uiController?.WindowResized(e.Width, e.Height);
         }
 
 
