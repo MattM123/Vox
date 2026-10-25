@@ -79,97 +79,159 @@ namespace Vox
         }
 
         /// <summary>
-        /// Updates the outline on the block the player is currently looking at and determines relevant block
-        /// interaction information.
+        /// Casts a ray from the player's viewpoint to identify the targeted block,
+        /// the face being targeted, and the adjacent empty block space.
+        /// Updates the terrain shader's target highlight when no menu is open.
         /// </summary>
-        /// <remarks>This method performs a raycast from the player's position in the direction they are
-        /// facing, up to the maximum reach distance, to identify the targeted block and related interaction data. The
-        /// output parameters provide additional context for block placement and interaction logic.</remarks>
-        /// <param name="playerFacing">When this method returns, contains the direction the player is facing, as a value of the BlockFace
-        /// enumeration.</param>
-        /// <param name="blockFace">When this method returns, contains the block face the player is looking at, represented as a Vector3.</param>
-        /// <param name="blockSpace">When this method returns, contains the coordinates of the empty block space immediately preceding the
-        /// intersection with terrain, indicating where a block would be placed if the player initiates a placement
-        /// action.</param>
-        /// <returns>A <see cref="Vector3"/> representing the coordinates of the block mesh that the player is targeting. If no block is
-        /// targeted, the returned vector may be zero.</returns>
-        public Vector3 UpdateViewTarget(out BlockFace playerFacing, out Vector3 blockFace, out Vector3 blockSpace)
+        /// <param name="playerFacing">
+        /// The dominant direction of the player's view.
+        /// </param>
+        /// <param name="blockFace">
+        /// The outward-facing normal of the block face hit by the ray.
+        /// </param>
+        /// <param name="blockSpace">
+        /// The coordinates of the adjacent empty block cell before the hit.
+        /// </param>
+        /// <returns>
+        /// The coordinates of the targeted block, or <see cref="Vector3.Zero"/>
+        /// if no block is found within reach.
+        /// </returns>
+        public Vector3 UpdateViewTarget(
+            out BlockFace playerFacing,
+            out Vector3 blockFace,
+            out Vector3 blockSpace)
         {
             playerFacing = BlockFace.ALL;
             blockFace = Vector3.Zero;
             blockSpace = Vector3.Zero;
 
-            float stepSize = 0.2f;  // Distance to step along the ray each iteration
-            float maxDistance = reachDistance;  // Maximum reach distance for the ray
-            Vector3 rayOrigin = _position;
-            Vector3 target = Vector3.Zero;
-            Vector3 currentPosition = Vector3.Zero;
-            Vector3 previousBlock = Vector3.Zero;
-            Vector3 rayDirection = GetForwardDirection();
-            for (float distance = 0; distance < maxDistance; distance += stepSize)
-            {
+            float stepSize = 0.2f;
+            float maxDistance = reachDistance;
 
-                // Calculate the current position along the ray, round to make divisible by stepSize
+            // Start the ray near the player's eyes, not at their feet.
+            Vector3 rayOrigin = _position
+                + new Vector3(0f, PlayerHeight - 0.1f, 0f);
+
+            Vector3 target = Vector3.Zero;
+            Vector3 previousBlock = Vector3.Zero;
+            Vector3 currentPosition;
+            Vector3 rayDirection = Vector3.Normalize(GetForwardDirection());
+
+            bool foundTarget = false;
+            bool hasPreviousAirBlock = false;
+
+            for (float distance = 0f; distance <= maxDistance; distance += stepSize)
+            {
                 currentPosition = rayOrigin + rayDirection * distance;
 
-                target = new(
-                    (float)Math.Floor(currentPosition.X),
-                    (float)Math.Floor(currentPosition.Y),
-                    (float)Math.Floor(currentPosition.Z)
-                );
+                target = new Vector3(
+                    MathF.Floor(currentPosition.X),
+                    MathF.Floor(currentPosition.Y),
+                    MathF.Floor(currentPosition.Z));
 
-                //If the ray steps into an air block, continue to the next step iteration
-                Chunk actionChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords((int)target.X, (int)target.Y, (int)target.Z);
-                Vector3 blockDataIndex = _regionManager.GetChunkRelativeCoordinates(target);
-                if (actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == (int)BlockType.AIR) {
-                    previousBlock = target;
-                    blockSpace = target;
-                    continue;
-                }   
-                //else, render block selection target and break the loop
-                else
+                Chunk actionChunk =
+                    _regionManager!.GetAndLoadGlobalChunkFromCoords(
+                        (int)target.X, (int)target.Y, (int)target.Z);
+
+                Vector3 blockDataIndex =
+                    _regionManager.GetChunkRelativeCoordinates(target);
+
+                int blockType = actionChunk._blockData[
+                    (short)blockDataIndex.X,
+                    (short)blockDataIndex.Y,
+                    (short)blockDataIndex.Z];
+
+                if (blockType == (int)BlockType.AIR)
                 {
+                    previousBlock = target;
+                    hasPreviousAirBlock = true;
+                    continue;
+                }
+
+                // A solid block was hit.
+                foundTarget = true;
+
+                if (hasPreviousAirBlock)
                     blockSpace = previousBlock;
 
-                    //calculate direction player is facing from their view matrix
-                    Vector3 absoluteDirection = new(Math.Abs(rayDirection.X), Math.Abs(rayDirection.Y), Math.Abs(rayDirection.Z));
-                    if (absoluteDirection.X > absoluteDirection.Z && absoluteDirection.X > absoluteDirection.Y)
-                        playerFacing = (rayDirection.X > 0 ? BlockFace.EAST : BlockFace.WEST);
+                // Determine the dominant direction of the ray.
+                Vector3 absDirection = new(
+                    MathF.Abs(rayDirection.X),
+                    MathF.Abs(rayDirection.Y),
+                    MathF.Abs(rayDirection.Z));
 
-                    else if (absoluteDirection.Y > absoluteDirection.X && absoluteDirection.Y > absoluteDirection.Z)
-                        playerFacing = (rayDirection.Y > 0 ? BlockFace.UP : BlockFace.DOWN);
-
-                    else
-                        playerFacing = (rayDirection.Z > 0 ? BlockFace.NORTH : BlockFace.SOUTH);
-
-
-
-                    Vector3 blockCenter = Vector3.Add(target, new(0.5f, 0.5f, 0.5f));
-
-                    //Create block view matrix to calculate blockface player is looking at
-                    Matrix4 blockViewMat = Matrix4.LookAt(blockCenter, currentPosition, new Vector3(0.0f, 1f, 0.0f));
-
-                    Vector3 blockForwardDir = Vector3.Normalize(new(-blockViewMat.Column2.Xyz));
-                    Vector3 absBlockForwardDirection = new(Math.Abs(blockForwardDir.X), Math.Abs(blockForwardDir.Y), Math.Abs(blockForwardDir.Z));
-
-                    Vector3 blockFaceToAdd = new((float)Math.Round(Math.Abs(blockForwardDir.X)), (float)Math.Round(Math.Abs(blockForwardDir.Y)), (float)Math.Round(Math.Abs(blockForwardDir.Z)));
-
-                    if (absBlockForwardDirection.X > absBlockForwardDirection.Z && absBlockForwardDirection.X > absBlockForwardDirection.Y)
-                        blockFace = new(blockFaceToAdd.X, 0, 0);
-
-
-                    else if (absBlockForwardDirection.Y > absBlockForwardDirection.X && absBlockForwardDirection.Y > absBlockForwardDirection.Z)
-                        blockFace = new(0, blockFaceToAdd.Y, 0);
-
-                    else
-                        blockFace = new(0, 0, blockFaceToAdd.Z);
-
-                    break;
+                if (absDirection.X >= absDirection.Y &&
+                    absDirection.X >= absDirection.Z)
+                {
+                    playerFacing = rayDirection.X > 0
+                        ? BlockFace.EAST
+                        : BlockFace.WEST;
                 }
+                else if (absDirection.Y >= absDirection.Z)
+                {
+                    playerFacing = rayDirection.Y > 0
+                        ? BlockFace.UP
+                        : BlockFace.DOWN;
+                }
+                else
+                {
+                    playerFacing = rayDirection.Z > 0
+                        ? BlockFace.NORTH
+                        : BlockFace.SOUTH;
+                }
+
+                // Keep the original block-face calculation.
+                Vector3 blockCenter = target + new Vector3(0.5f);
+
+                Matrix4 blockViewMat = Matrix4.LookAt(
+                    blockCenter,
+                    currentPosition,
+                    Vector3.UnitY);
+
+                Vector3 blockForwardDir =
+                    Vector3.Normalize(-blockViewMat.Column2.Xyz);
+
+                Vector3 absBlockForwardDirection = new(
+                    MathF.Abs(blockForwardDir.X),
+                    MathF.Abs(blockForwardDir.Y),
+                    MathF.Abs(blockForwardDir.Z));
+
+                Vector3 blockFaceToAdd = new(
+                    MathF.Round(MathF.Abs(blockForwardDir.X)),
+                    MathF.Round(MathF.Abs(blockForwardDir.Y)),
+                    MathF.Round(MathF.Abs(blockForwardDir.Z)));
+
+                if (absBlockForwardDirection.X >= absBlockForwardDirection.Y &&
+                    absBlockForwardDirection.X >= absBlockForwardDirection.Z)
+                {
+                    blockFace = new(blockFaceToAdd.X, 0f, 0f);
+                }
+                else if (absBlockForwardDirection.Y >= absBlockForwardDirection.Z)
+                {
+                    blockFace = new(0f, blockFaceToAdd.Y, 0f);
+                }
+                else
+                {
+                    blockFace = new(0f, 0f, blockFaceToAdd.Z);
+                }
+
+                break;
             }
-            //Returns the last block the player was looking at only if no menu is open
+
+            // Explicitly clear the target when the ray hits nothing.
+            if (!foundTarget)
+            {
+                target = Vector3.Zero;
+                playerFacing = BlockFace.ALL;
+                blockFace = Vector3.Zero;
+                blockSpace = Vector3.Zero;
+            }
+
             if (!Window.IsAnyMenuShowing())
-                _shaderManager.GetShaderProgram("Terrain").SetVector3Uniform("targetVertex", target);
+            {
+                _shaderManager.GetShaderProgram("Terrain")
+                    .SetVector3Uniform("targetVertex", target);
+            }
 
             return target;
         }
