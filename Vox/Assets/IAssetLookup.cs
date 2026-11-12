@@ -8,7 +8,12 @@ namespace Vox.Assets
     {
         int GetTextureLayerFromTexture(Texture texture);
         bool IsNatural(BlockType type);
+        List<BlockType> GetTerrainBlocks();
+        List<BlockType> GetSurfaceDeco(Biome biome);
+        bool IsPassthrough(BlockType type);
+        bool IsBillboard(BlockType type);
         List<BlockType> GetNaturalBlockTypes();
+        Dictionary<Biome, float> GetBiomeWeights();
         List<Texture> GetTexturesWithLayers();
         BlockModel GetModel(int type);
         BlockModel GetModel(BlockType type);

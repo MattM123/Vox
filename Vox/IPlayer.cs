@@ -19,9 +19,7 @@ namespace Vox
         Vector2 GetRotation();
         void SetPosition(Vector3 pos);
         InventoryStore GetInventory();
-        void MoveForward(float inc);
-        void MoveRight(float inc);
-        void MoveUp(float inc);
+        void QueueMovement(Direction direction, float inc);
         Region GetRegionWithPlayer();
         Chunk GetChunkWithPlayer();
         void SetLookDir(float x, float y);

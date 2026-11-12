@@ -5,9 +5,9 @@ namespace Vox.Model
 {
     public struct ColorVector(int red, int green, int blue)
     {
-        public int Red { get; set; } = red;
-        public int Green { get; set; } = green;
-        public int Blue { get; set; } = blue;
+        public int Red { get; } = red;
+        public int Green { get; } = green;
+        public int Blue { get; } = blue;
 
         public override string ToString()
         {

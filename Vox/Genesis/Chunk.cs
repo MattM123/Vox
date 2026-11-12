@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
 using Vox.Assets;
+using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
@@ -54,6 +55,8 @@ namespace Vox.Genesis
         [IgnoreMember]
         public bool isCached = false;
 
+        [IgnoreMember] public bool SiteProcessed = false;
+
         [Key(0)]
         public float xLoc;
 
@@ -69,6 +72,13 @@ namespace Vox.Genesis
         [Key(4)]
         public short[,,]? _blockData;
 
+        [Key(5)] 
+        public int _siteX;
+        
+        [Key(6)] 
+        public int _siteZ;
+        
+
         [SerializationConstructor]
         public Chunk() { }
         public Chunk(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup)
@@ -81,76 +91,81 @@ namespace Vox.Genesis
             _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
             _blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
         }
-
+        
         /**
          * Initializes a chunk at a given point and populates it's heightmap using Simplex noise
-         * @param x coordinate of top left chunk corner
-         * @param y coordinate of top left chunk corner
-         * @param z coordinate of top left chunk corner
+         * @param v The location of top left chunk corner
+         * @param biome the biome that the block at this location inhabits
          * @return the chunk
          */
-        public Chunk PopulateHeightmap(float x, float y, float z)
+        public Chunk PopulateHeightmap(Vector3 v)
         {
-            xLoc = x;
-            zLoc = z;
-            yLoc = y;
+            xLoc = v.X;
+            yLoc = v.Y;
+            zLoc = v.Z;
             location = new Vector3(xLoc, yLoc, zLoc);
-
+            
             //Generic model matrix applicable to every chunk object
             modelMatrix = Matrix4.CreateTranslation(0, 0, 0);
 
-            if (!IsInitialized)
+            if (IsInitialized) return this;
+            //===================================
+            //Generate surface chunk height map
+            //===================================
+
+            int xCount = 0;
+            int zCount = 0;
+
+            int bounds = _regionManager!.GetChunkBounds();
+
+            for (int localX = 0; localX < bounds; localX++)
             {
-
-                //===================================
-                //Generate surface chunk height map
-                //===================================
-
-                int xCount = 0;
-                int zCount = 0;
-
-                int bounds = _regionManager!.GetChunkBounds();
-
-                for (int localX = 0; localX < bounds; localX++)
+                for (int localZ = 0; localZ < bounds; localZ++)
                 {
-                    for (int localZ = 0; localZ < bounds; localZ++)
-                    {
-                        int worldX = (int)x + localX;
-                        int worldZ = (int)z + localZ;
+                    int worldX = (int)xLoc + localX;
+                    int worldZ = (int)zLoc + localZ;
+                        
+                    //Generate height map
+                    _heightMap![localZ, localX] =
+                        _regionManager.GetGlobalHeightMapValue(worldX, worldZ);
 
-                        _heightMap![localZ, localX] =
-                            _regionManager.GetGlobalHeightMapValue(worldX, worldZ);
-                    }
                 }
-                for (int x1 = 0; x1 < _regionManager?.GetChunkBounds(); x1++)
+            }
+            for (int x1 = 0; x1 < _regionManager?.GetChunkBounds(); x1++)
+            {
+                for (int z1 = 0; z1 < _regionManager.GetChunkBounds(); z1++)
                 {
-                    for (int z1 = 0; z1 < _regionManager.GetChunkBounds(); z1++)
+                    for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
                     {
-                        for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
+                        int worldX = (int)(x1 + xLoc);
+                        int worldY = (int)(y1 + yLoc);
+                        int worldZ = (int)(z1 + zLoc);
+
+                        int elevation = _heightMap![z1, x1];
+
+                        //Set block data to AIR if it's not visible
+                        if (worldY <= elevation)
                         {
-                            int worldX = (int)(x1 + xLoc);
-                            int worldY = (int)(y1 + yLoc);
-                            int worldZ = (int)(z1 + zLoc);
+                            _blockData![x1, y1, z1] =
+                                (short)_regionManager.GetGeneratedBlockType(worldX, worldY, worldZ);
 
-                            int elevation = _heightMap![z1, x1];
-
-                            //Set block data to AIR and visibility to false if its not visible
-                            if (worldY <= elevation)
-                            {
-                                _blockData![x1, y1, z1] =
-                                    (short)_regionManager.GetGeneratedBlockType(worldX, worldY, worldZ);
-                            }
+                        }
+                        //Populate surface deco
+                        else if (worldY == elevation + 1 && worldY == _regionManager.GetGlobalHeightMapValue(worldX, worldZ) + 1)
+                        {
+                            _blockData![x1, y1, z1] =
+                                (short)_regionManager.GetSurfaceDecoration(worldX, worldZ, _regionManager.GetBiomeAtLocation(worldX, worldZ));
+                            
                         }
                     }
                 }
-                IsInitialized = true;
-
             }
+            IsInitialized = true;
 
 
             return this;
         }
-
+        
 
         /// <summary>
         /// Re-initializes the chunk with the given dependencies. 
@@ -181,76 +196,100 @@ namespace Vox.Genesis
         {
             int bounds = _chunkBounds;
 
-            if (!isGenerated)
+            if (isGenerated) return;
+            
+            for (int x = 0; x < bounds; x++)
             {
-                for (int x = 0; x < bounds; x++)
+                for (int y = 0; y < bounds; y++)
                 {
-                    for (int y = 0; y < bounds; y++)
+                    for (int z = 0; z < bounds; z++)
                     {
-                        for (int z = 0; z < bounds; z++)
+                        Vector3 facePos = new(x + xLoc, y + yLoc, z + zLoc);
+                            
+                        if (_blockData![x, y, z] > 0)
                         {
-                            Vector3 facePos = new(x + xLoc, y + yLoc, z + zLoc);
-                            if (_blockData![x, y, z] > 0)
+                            BlockType type = (BlockType)_blockData[x, y, z];
+                            ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
+                                
+                            //Positive Y (UP)
+                            if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y + 1, z]))
                             {
-                                BlockType type = (BlockType)_blockData[x, y, z];
-
-                                //Positive Y (UP)
-                                if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.UP);
-                                    BlockFace faceDir = BlockFace.UP;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
-                                // Positive X (EAST)
-                                if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.EAST);
-                                    BlockFace faceDir = BlockFace.EAST;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
-                                //Negative X (WEST)
-                                if (x - 1 < 0 || _blockData[x - 1, y, z] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.WEST);
-                                    BlockFace faceDir = BlockFace.WEST;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
-                                //Negative Y (DOWN)
-                                if (y - 1 < 0 || _blockData[x, y - 1, z] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.DOWN);
-                                    BlockFace faceDir = BlockFace.DOWN;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
-
-                                //Positive Z (NORTH)
-                                if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.NORTH);
-                                    BlockFace faceDir = BlockFace.NORTH;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
-
-                                //Negative Z (SOUTH)
-                                if (z - 1 < 0 || _blockData[x, y, z - 1] == 0)
-                                {
-                                    int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
-                                    BlockFace faceDir = BlockFace.SOUTH;
-                                    AddOrUpdateBlockFace(facePos, texLayer, faceDir);
-                                }
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.UP);
+                                BlockFace faceDir = BlockFace.UP;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
+
+                            //Negative Y (DOWN)
+                            if (y - 1 < 0 || _blockData[x, y - 1, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y - 1, z]))
+                            {
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.DOWN);
+                                BlockFace faceDir = BlockFace.DOWN;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
+                            }
+                                
+                            
+                            // Positive X (EAST)
+                            if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x + 1, y, z]))
+                            {
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.EAST);
+                                BlockFace faceDir = BlockFace.EAST;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
+                            }
+
+                            //Negative X (WEST)
+                            if (x - 1 < 0 || _blockData[x - 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x - 1, y, z]))
+                            {
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.WEST);
+                                BlockFace faceDir = BlockFace.WEST;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
+                            }
+
+                            //Positive Z (NORTH)
+                            if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y, z + 1]))
+                            {
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.NORTH);
+                                BlockFace faceDir = BlockFace.NORTH;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
+                            }
+
+                            //Negative Z (SOUTH)
+                            if (z - 1 < 0 || _blockData[x, y, z - 1] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y, z - 1]))
+                            {
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
+                                BlockFace faceDir = BlockFace.SOUTH;
+                                AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
+                            }
+                                
                         }
                     }
                 }
-                isGenerated = true;
             }
+            isGenerated = true;
         }
 
+        public bool IsSiteProcessed()
+        {
+            return SiteProcessed;
+        }
+        public void ProcessChunkSite()
+        {
+            //Site used for Voroni site rejection sampling.
+            int chunkSeed = HashCode.Combine(_regionManager!.GetSeed(), xLoc, zLoc);
+
+            Random rnd = new(chunkSeed);
+            _siteX = rnd.Next(0, _regionManager.GetChunkBounds());
+            _siteZ = rnd.Next(0, _regionManager.GetChunkBounds());
+            
+
+            _regionManager.ProcessChunkSite(this);
+            SiteProcessed = true;
+
+        }
         /**
          * Adds a blockface to the chunk in memory to cache for any necessary updating
          * and also uploads it to the SSBO for rendering.
          */
-        public void AddOrUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir)
+        public void AddOrUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir, ushort isBillboard)
         {
             StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
             Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
@@ -263,6 +302,9 @@ namespace Vox.Genesis
                 //Update Texture
                 existingFace.textureLayer = texLayer;
 
+                //isBillboard block
+                existingFace.isBillboard = isBillboard;
+                
                 //Update entire instance
                 SSBOdata[key] = existingFace;
 
@@ -273,7 +315,7 @@ namespace Vox.Genesis
             else
             {
                 int idx = terrainSSBO.AllocateIndex();
-                SSBOdata[key] = new(facePos, faceDir, texLayer, idx, 0);
+                SSBOdata[key] = new(facePos, faceDir, texLayer, idx, isBillboard, 0);
 
                 //Update data for GPU
                 AddOrUpdateFaceInMemory(SSBOdata[key]);

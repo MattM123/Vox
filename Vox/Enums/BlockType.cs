@@ -7,7 +7,9 @@
         DIRT_BLOCK = 1,
         STONE_BLOCK = 3,
         LAMP_BLOCK,
+        TALL_GRASS_BLOCK,
         TEST_BLOCK,
         TARGET_BLOCK,
+        DEAD_BUSH,
     }
 }

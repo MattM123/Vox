@@ -6,12 +6,14 @@ using Vox.Assets;
 using Vox.Enums;
 using Vox.Model;
 using Vox.Rendering;
+
 namespace Vox.Genesis
 {
 
     public class RegionManager : IRegionManager
     {
-        private Dictionary<string, Region> VisibleRegions = [];
+        private Dictionary<string, Region?> VisibleRegions = [];
+        private ConcurrentDictionary<Vector2, Biome> VoronoiSites = [];
         private readonly List<Vector3> visited = [];
 
         private readonly ISSBOManager _ssboManager;
@@ -25,6 +27,7 @@ namespace Vox.Genesis
         private readonly int CHUNK_BOUNDS = 32;
         private readonly long WORLD_SEED;
         private readonly object chunkLock = new();
+        private readonly object _regionLock = new();
 
         private readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue;
         /**
@@ -183,10 +186,8 @@ namespace Vox.Genesis
             //Generate noise and normalize to 0-1 from -1-1
             float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
 
-            //how many different types of blocks are there?
-
-            //this needs to be fixed. It has range 0-3 which doesnt map correctly to the texture layers
-            List<BlockType> naturalBlockTypes = _assetLookup.GetNaturalBlockTypes();
+            //Get a list of block the terrain can be generated from
+            List<BlockType> naturalBlockTypes = _assetLookup.GetTerrainBlocks();
 
             // Multiply normalized noise to get an index
             int index = (int)(noise * naturalBlockTypes.Count);
@@ -204,6 +205,51 @@ namespace Vox.Genesis
             return naturalBlockTypes[index];
 
         }
+        
+        
+        public BlockType GetSurfaceDecoration(int x, int z, Biome biome)
+        {
+            if (Window.IsMainMenuScreenDisplayed())
+                Window.GetMenuSeed();
+
+            const double densityFrequency = 0.05;
+            const double spawnFrequency = 0.4;
+
+            float density = OpenSimplex2.Noise2(
+                WORLD_SEED + 1,
+                x * densityFrequency,
+                z * densityFrequency
+            );
+
+            float spawnNoise = OpenSimplex2.Noise2(
+                WORLD_SEED + 2,
+                x * spawnFrequency,
+                z * spawnFrequency
+            );
+
+            // Normalize noise to [0, 1].
+            density = Math.Clamp((density + 1f) * 0.5f, 0f, 1f);
+            float probability = Math.Clamp((spawnNoise + 1f) * 0.5f, 0f, 1f);
+
+            if (biome == Biome.NONE)
+                biome += 1;
+            
+            List<BlockType> surfaceDeco = _assetLookup.GetSurfaceDeco(biome);
+ 
+            if (surfaceDeco.Count == 0)
+                return BlockType.AIR;
+
+            // Use the large-scale noise to control local vegetation density.
+            if (probability > density)
+                return BlockType.AIR;
+
+            // Select a decoration deterministically for this coordinate.
+            int seed = unchecked((int)(WORLD_SEED + x * 73856093L ^ z * 19349663L));
+            Random random = new(seed);
+
+            return surfaceDeco[random.Next(surfaceDeco.Count)];
+            
+        }
 
 
         /// <summary>
@@ -215,6 +261,7 @@ namespace Vox.Genesis
         /// <param name="x">The global X-coordinate of the block in world space.</param>
         /// <param name="y">The global Y-coordinate of the block in world space.</param>
         /// <param name="z">The global Z-coordinate of the block in world space.</param>
+        /// <param name="biome">The biome that this vloc</param>
         /// <returns>The <see cref="BlockType"/> of the block at the specified coordinates.</returns>
         public BlockType GetBlockTypeAtCoords(float x, float y, float z)
         {
@@ -283,8 +330,6 @@ namespace Vox.Genesis
 
         }
 
-
-
         /// <summary>
         /// Adds the specified region to the collection of visible regions if it is not already present and returns the
         /// region.
@@ -297,7 +342,7 @@ namespace Vox.Genesis
         public void EnterRegion(Region region)
         {
             string regionIdx = $"{region.GetBounds().X}|{region.GetBounds().Y}";
-
+            
             //Null and ungenerated regions are initlialized if necessary 
             if (region == null)
                 EnterRegion(regionIdx);
@@ -308,7 +353,7 @@ namespace Vox.Genesis
                     VisibleRegions.Add(regionIdx, region);
             }
         }
-
+        
 
         /// <summary>
         /// Serializes the specified visible region and writes it to a file in the region data directory.
@@ -378,28 +423,19 @@ namespace Vox.Genesis
             int[] index = [.. rIndex.Split('|').Select(int.Parse)];
             string path = Path.Combine(worldDir, "regions", index[0] + "." + index[1] + ".dat");
 
-            if (!VisibleRegions.TryGetValue(rIndex, out Region? value) && !File.Exists(path))
-            {
-                Logger.Info($"No file found for region {rIndex}. Creating new region.", ConsoleColor.Blue);
-                return new Region(this, index[0], index[1]);
-            }
-            else if (VisibleRegions.TryGetValue(rIndex, out Region? val) && !File.Exists(path))
-            {
-                return val;
-            }
-            else if (!VisibleRegions.TryGetValue(rIndex, out Region? v) && File.Exists(path))
+            //If region is already in memory, return it without file IO operations
+            if (VisibleRegions.TryGetValue(rIndex, out Region? r) && r != null)
+                return r;
+            
+            //If not found in memory, fallback to filesystem
+            if (File.Exists(path))
             {
                 Logger.Info($"File found for region {rIndex}. Loading region from file.", ConsoleColor.Blue);
                 return ReadRegion(path)!;
             }
-            else // Region is visible and exists as a file
-            {
-                if (VisibleRegions.TryGetValue(rIndex, out Region? region))
-                    if (region == null || region.chunks.Count == 0)
-                        return new Region(this, index[0], index[1]);
-
-                return VisibleRegions[rIndex];
-            }
+            
+            Logger.Info($"No file found for region {rIndex}. Creating new region.", ConsoleColor.Blue);
+            return new Region(this, index[0], index[1]);
         }
 
         /// <summary>
@@ -413,31 +449,41 @@ namespace Vox.Genesis
         /// <returns>The <see cref="Chunk"/> located at the specified global coordinates.</returns>
         public Chunk GetAndLoadGlobalChunkFromCoords(int x, int y, int z)
         {
-
+            
             string playerChunkIdx =
                 $"{Math.Floor((float)x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
                 $"{Math.Floor((float)y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
                 $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
-
+            
             int[] chunkIdxArray = [.. playerChunkIdx.Split('|').Select(int.Parse)];
-            string playerRegionIdx = GetRegionIndexFromChunkCoords(chunkIdxArray[0], chunkIdxArray[2]);
-            Region r = EnterRegion(playerRegionIdx);
 
-            //If chunk has not yet been generated, generate it
-            if (!r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
+            string playerRegionIdx = GetRegionIndexFromChunkCoords(
+                chunkIdxArray[0],
+                chunkIdxArray[2]
+            );
+            
+            Region r = EnterRegion(playerRegionIdx);
+            
+            lock (r.chunks)
             {
-                value = new Chunk(_ssboManager, this, _assetLookup).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
-                lock (chunkLock)
-                {
-                    r.chunks.Add(playerChunkIdx, value);
-                }
+                // Return the existing chunk if it has already been generated.
+                if (r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
+                    return value;
+
+                // Otherwise, generate and cache it.
+                Vector3 location = new(
+                    chunkIdxArray[0],
+                    chunkIdxArray[1],
+                    chunkIdxArray[2]
+                );
+                
+                value = new Chunk(_ssboManager, this, _assetLookup)
+                    .PopulateHeightmap(location);
+
+                r.chunks.Add(playerChunkIdx, value);
+
                 return value;
             }
-            else
-            {
-                return r.chunks[$"{chunkIdxArray[0]}|{chunkIdxArray[1]}|{chunkIdxArray[2]}"];
-            }
-
         }
         public Chunk GetAndLoadGlobalChunkFromCoords(Vector3 v)
         {
@@ -452,15 +498,31 @@ namespace Vox.Genesis
 
             int[] chunkIdxArray = chunkIdx.Split('|').Select(int.Parse).ToArray();
 
-            string regionIdx = GetRegionIndexFromChunkCoords(chunkIdxArray[0], chunkIdxArray[2]);
-            Region r = EnterRegion(regionIdx);
+            string playerRegionIdx = GetRegionIndexFromChunkCoords(
+                chunkIdxArray[0],
+                chunkIdxArray[2]
+            );
 
-            if (!r.chunks.TryGetValue(chunkIdx, out Chunk? value))
+            Region r = EnterRegion(playerRegionIdx);
+            
+            lock (r.chunks)
             {
-                value = new Chunk(_ssboManager, this, _assetLookup).PopulateHeightmap(chunkIdxArray[0], chunkIdxArray[1], chunkIdxArray[2]);
+                if (r.chunks.TryGetValue(chunkIdx, out Chunk? value))
+                    return value;
+
+                Vector3 location = new(
+                    chunkIdxArray[0],
+                    chunkIdxArray[1],
+                    chunkIdxArray[2]
+                );
+
+                value = new Chunk(_ssboManager, this, _assetLookup)
+                    .PopulateHeightmap(location);
+
                 r.chunks.Add(chunkIdx, value);
+
+                return value;
             }
-            return value;
         }
 
         /// <summary>
@@ -475,22 +537,12 @@ namespace Vox.Genesis
         /// containing the provided chunk.</returns>
         public string GetRegionIndexFromChunkCoords(int chunkX, int chunkZ)
         {
-            int xLowerLimit = ((chunkX / REGION_BOUNDS) * REGION_BOUNDS);
-            int xUpperLimit;
-            if (chunkX < 0)
-                xUpperLimit = xLowerLimit - REGION_BOUNDS;
-            else
-                xUpperLimit = xLowerLimit + REGION_BOUNDS;
+            int regionX = (int)Math.Floor((double)chunkX / REGION_BOUNDS)
+                          * REGION_BOUNDS;
 
-
-            int zLowerLimit = ((chunkZ / REGION_BOUNDS) * REGION_BOUNDS);
-            int zUpperLimit;
-            if (chunkZ < 0)
-                zUpperLimit = zLowerLimit - REGION_BOUNDS;
-            else
-                zUpperLimit = zLowerLimit + REGION_BOUNDS;
-
-            return $"{xUpperLimit}|{zUpperLimit}";
+            int regionZ = (int)Math.Floor((double)chunkZ / REGION_BOUNDS)
+                          * REGION_BOUNDS;
+            return $"{regionX}|{regionZ}";
         }
 
 
@@ -507,6 +559,7 @@ namespace Vox.Genesis
         /// <param name="type">The _type of block to add at the specified coordinates. Determines the block's appearance and behavior.</param>
         /// <param name="blockLight">The light color and intensity to assign to the block if it is emissive. Used for blocks that emit light,
         /// such as lamps.</param>
+        /// <param name="biome">The biome that this block inhabits</param>
         public void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight)
         {
 
@@ -528,13 +581,15 @@ namespace Vox.Genesis
             int x = blockDataIndex.X;
             int y = blockDataIndex.Y;
             int z = blockDataIndex.Z;
-
+            
+            ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
+            
             //Positive Y (UP)
             if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
@@ -542,7 +597,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing EAST Face");
             }
 
@@ -552,7 +607,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing WEST Face");
             }
 
@@ -563,7 +618,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
@@ -572,7 +627,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
@@ -581,7 +636,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 
@@ -608,8 +663,105 @@ namespace Vox.Genesis
 
             }
         }
+        public Biome GetBiomeAtLocation(int x, int z)
+        {
+            float minDistance = float.MaxValue;
+            Biome biome = Biome.NONE;
 
+            const double distortionFrequency = 0.035;
+            const float distortionStrength = 30f;
 
+            Vector2 position = new(
+                x + OpenSimplex2.Noise2(
+                    WORLD_SEED + 3,
+                    x * distortionFrequency,
+                    z * distortionFrequency
+                ) * distortionStrength,
+
+                z + OpenSimplex2.Noise2(
+                    WORLD_SEED + 4,
+                    x * distortionFrequency,
+                    z * distortionFrequency
+                ) * distortionStrength
+            );
+
+            foreach (var voronoiSite in VoronoiSites)
+            {
+                float distance = Vector2.Distance(voronoiSite.Key, position);
+
+                if (distance >= minDistance)
+                    continue;
+
+                minDistance = distance;
+                biome = voronoiSite.Value;
+            }
+
+            return biome;
+        }
+
+        public void ProcessChunkSite(Chunk c)
+        {
+            const double densityFrequency = 0.5;
+            const double biomeFrequency = 0.05;
+
+            Random rnd = new();
+
+            Biome siteBiome = Biome.NONE;
+            Vector2 site = new(c.xLoc + c._siteX, c.zLoc + c._siteZ);
+
+            //===================================================
+            // Voronoi site rejection sampling
+            //===================================================
+
+            float siteNoiseSample = OpenSimplex2.Noise2(
+                WORLD_SEED + 1,
+                site.X * densityFrequency,
+                site.Y * densityFrequency
+            );
+
+            float normalisedSiteNoise = (siteNoiseSample + 1f) * 0.5f;
+            float densityWeight = MathF.Pow(normalisedSiteNoise, 2);
+            float randFloat = (float)rnd.NextDouble();
+
+            if (randFloat >= densityWeight)
+                return;
+
+            //===================================================
+            // Determine biome at site based on weights
+            //===================================================
+
+            float noise = OpenSimplex2.Noise2(
+                WORLD_SEED + 2,
+                site.X * biomeFrequency,
+                site.Y * biomeFrequency
+            );
+
+            float value = (noise + 1f) * 0.5f;
+
+            Dictionary<Biome, float> biomeWeights = _assetLookup.GetBiomeWeights();
+
+            float totalWeight = biomeWeights.Values.Sum();
+            float threshold = value * totalWeight;
+            float cumulativeWeight = 0f;
+
+            foreach (var (biome, weight) in biomeWeights)
+            {
+                cumulativeWeight += weight;
+
+                if (threshold < cumulativeWeight)
+                {
+                    siteBiome = biome;
+                    break;
+                }
+            }
+
+            //===================================================
+            // Accept site
+            //===================================================
+
+            if (!VoronoiSites.ContainsKey(site))
+                VoronoiSites.TryAdd(site, siteBiome);
+        }
 
         /// <summary>
         /// Adds a block of the specified _type to the chunk at the given world-space coordinates and updates the corresponding chunk's
@@ -646,13 +798,15 @@ namespace Vox.Genesis
             int x = blockDataIndex.X;
             int y = blockDataIndex.Y;
             int z = blockDataIndex.Z;
+            
+            ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
 
             //Positive Y (UP)
             if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
                 BlockFace faceDir = BlockFace.UP;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
@@ -660,7 +814,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
                 BlockFace faceDir = BlockFace.EAST;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing EAST Face");
             }
 
@@ -670,7 +824,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
                 BlockFace faceDir = BlockFace.WEST;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing WEST Face");
             }
 
@@ -681,7 +835,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
                 BlockFace faceDir = BlockFace.DOWN;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
@@ -690,7 +844,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
                 BlockFace faceDir = BlockFace.NORTH;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
@@ -699,7 +853,7 @@ namespace Vox.Genesis
             {
                 int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
                 BlockFace faceDir = BlockFace.SOUTH;
-                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir);
+                actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 
@@ -725,7 +879,14 @@ namespace Vox.Genesis
             }
         }
 
-
+        public long GetSeed()
+        {
+            return WORLD_SEED;
+        }
+        public bool IsRegionVisible(string rIndex)
+        {
+            return VisibleRegions.Keys.Any(visibleIndex => visibleIndex == rIndex);
+        }
         /// <summary>
         /// Removes the provided block from its chunk, 
         /// updating the chunk's block data and rendering information accordingly. 
@@ -733,6 +894,7 @@ namespace Vox.Genesis
         /// lighting changes to adjacent blocks and chunks as needed.
         /// </summary>
         /// <param name="blockSpace">The block space.</param>
+        /// <param name="biome">The biome the block inhabits that will be removed</param>
         public void RemoveBlockFromChunk(Vector3 blockSpace)
         {
             //The chunk that is added to
@@ -797,10 +959,9 @@ namespace Vox.Genesis
 
             BlockType typeU = (BlockType)up._blockData[(short)blockDataIndexUP.X, (short)(blockDataIndexUP.Y + 1), (short)blockDataIndexUP.Z];
             //Only add block if its not air
-            //Console.WriteLine("Up Block: " + typeU + " at " + u);
+
             if (typeU != BlockType.AIR)
             {
-                //Console.WriteLine("Adding UP block");
                 AddBlockToChunk(u, typeU, _lightHelper.GetBlockLight(u, BlockFace.UP, up));
             }
             //==============================Negative Y (DOWN)==============================
@@ -817,10 +978,8 @@ namespace Vox.Genesis
 
             BlockType typeD = (BlockType)down._blockData[(short)blockDataIndexDOWN.X, (short)(blockDataIndexDOWN.Y - 1), (short)blockDataIndexDOWN.Z];
             //Only add block if its not air
-            //Console.WriteLine("Down Block: " + typeD + " at " + d);
             if (typeD != BlockType.AIR)
             {
-                //Console.WriteLine("Adding DOWN block");
                 AddBlockToChunk(d, typeD, _lightHelper.GetBlockLight(d, BlockFace.DOWN, down));
             }
             //==============================Positive X (EAST)==============================
@@ -837,10 +996,8 @@ namespace Vox.Genesis
 
             BlockType typeE = (BlockType)east._blockData[(short)(blockDataIndexEAST.X + 1), (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
             //Only add block if its not air
-            //Console.WriteLine("East Block: " + typeE + " at " + e);
             if (typeE != BlockType.AIR)
             {
-                //Console.WriteLine("Adding EAST block");
                 AddBlockToChunk(e, typeE, _lightHelper.GetBlockLight(e, BlockFace.EAST, east));
             }
 
@@ -858,10 +1015,8 @@ namespace Vox.Genesis
 
             BlockType typeW = (BlockType)west._blockData[(short)(blockDataIndexWEST.X - 1), (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
             //Only add block if its not air
-            //Console.WriteLine("West Block: " + typeW + " at " + w);
             if (typeW != BlockType.AIR)
             {
-                //Console.WriteLine("Adding WEST block");
                 AddBlockToChunk(w, typeW, _lightHelper.GetBlockLight(w, BlockFace.WEST, west));
             }
 
@@ -879,10 +1034,8 @@ namespace Vox.Genesis
 
             BlockType typeN = (BlockType)north._blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)(blockDataIndexNORTH.Z + 1)];
             //Only add block if its not air
-            //Console.WriteLine("North Block: " + typeN + " at " + n);
             if (typeN != BlockType.AIR)
             {
-                //Console.WriteLine("Adding NORTH block");
                 AddBlockToChunk(n, typeN, _lightHelper.GetBlockLight(n, BlockFace.NORTH, north));
             }
             //==============================Negative Z (SOUTH)==============================
@@ -900,10 +1053,8 @@ namespace Vox.Genesis
             BlockType typeS = (BlockType)south._blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)(blockDataIndexSOUTH.Z - 1)];
 
             //Only add block if its not air
-            //Console.WriteLine("South Block: " + typeS + " at " + s);
             if (typeS != BlockType.AIR)
             {
-                //Console.WriteLine("Adding SOUTH block");
                 AddBlockToChunk(s, typeS, _lightHelper.GetBlockLight(s, BlockFace.SOUTH, south));
             }
         }

@@ -8,7 +8,7 @@ struct BlockFaceInstance
     int textureLayer;
     int index;
     uint16_t lighting;      // 4 bytes (contains 2-byte C# ushort lighting + 2-byte C# ushort _pad1)
-    uint16_t _pad1;         // 2 bytes
+    uint16_t isBillboard;   // 2 bytes
     uint _pad2;             // 4 bytes
 };
 
@@ -63,7 +63,23 @@ void main() {
 
     BlockFaceInstance instance = blockFaces[gl_InstanceID];
 
-    vec3 offset = GetCornerOffset(gl_VertexID, instance.faceDirection);
+    vec3 offset;
+
+    if (int(instance.isBillboard) != 0)
+    {
+        offset = GetBillboardCornerOffset(
+            gl_VertexID,
+            instance.faceDirection
+        );
+    }
+    else
+    {
+        offset = GetCornerOffset(
+            gl_VertexID,
+            instance.faceDirection
+        );
+    }
+
     vec3 worldPos = instance.facePosition + offset;
 
 
@@ -94,19 +110,43 @@ void main() {
         fLighting = int(instance.lighting & 0xFFFFu);  // Extract lower 16 bits (the actual ushort lighting value)
         fPlayerMin = playerMin;
         fPlayerMax = playerMax;
-
+        
         vec2 texCoords[4] = vec2[4](
             vec2(0.0f, 0.0f),
             vec2(1.0f, 0.0f),
             vec2(0.0f, 1.0f),
             vec2(1.0f, 1.0f)
         );
-
+        
         fragPosLightSpace = vec4(fragPos, 1.0) * lightModel * lightViewMatrix * lightProjMatrix;
 
-        int texCoordMapped = texCoordMap[instance.faceDirection][gl_VertexID];
-        ftexCoords = texCoords[texCoordMapped];
+        if (int(instance.isBillboard) != 0)
+        {
+            // Billboard vertices already have a consistent UV order.
+            int vertexIndex = gl_VertexID;
+        
+        // SOUTH and WEST are the reverse sides of the two planes.
+        if (instance.faceDirection == 1 || instance.faceDirection == 3)
+        {
+            const int reverseOrder[4] = int[4](1, 0, 3, 2);
+            vertexIndex = reverseOrder[gl_VertexID];
+        }
 
-        fnormal = GetNormal(instance.faceDirection);
+        vec2 uv = texCoords[vertexIndex];
+        uv.y = 1.0 - uv.y;
+        ftexCoords = uv;
+        
+        // Diagonal plane normals.
+        if (instance.faceDirection == 0 || instance.faceDirection == 1)
+            fnormal = normalize(vec3(-1.0, 0.0, 1.0));
+        else
+            fnormal = normalize(vec3(1.0, 0.0, 1.0));
+        }
+        else
+        {
+            int texCoordMapped = texCoordMap[instance.faceDirection][gl_VertexID];
+            ftexCoords = texCoords[texCoordMapped];
+            fnormal = GetNormal(instance.faceDirection);
+        }
     }
 } 

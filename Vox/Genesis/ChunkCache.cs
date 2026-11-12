@@ -72,11 +72,18 @@ namespace Vox.Genesis
 
             for (int radius = 1; radius <= renderDistance; radius++)
             {
+                
+                Vector3 negativeCorner = new(
+                    _playerChunk!.xLoc - (bounds * radius),
+                    _playerChunk.yLoc - (bounds * radius),
+                    _playerChunk.zLoc - (bounds * radius));
 
-
-                Vector3 negativeCorner = new(_playerChunk.xLoc - (bounds * radius), _playerChunk.yLoc - (bounds * radius), _playerChunk.zLoc - (bounds * radius));
-                Vector3 positiveCorner = new(_playerChunk.xLoc + (bounds * radius), _playerChunk.yLoc + (bounds * radius), _playerChunk.zLoc + (bounds * radius));
-
+                Vector3 positiveCorner = new(
+                    _playerChunk.xLoc + (bounds * radius),
+                    _playerChunk.yLoc + (bounds * radius),
+                    _playerChunk.zLoc + (bounds * radius));
+                
+                
                 //Iterates from the farthest -X point to the farthest +X
 
                 for (int x = (int)negativeCorner.X; x <= positiveCorner.X; x += bounds)
@@ -120,12 +127,24 @@ namespace Vox.Genesis
             lock (chunkLock)
             {
                 Chunk c = _regionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
-
+                
                 if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
+                {   
+                    if (!c.IsSiteProcessed())
+                        c.ProcessChunkSite();
+                    
                     chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
+                }
+
 
                 if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                    chunks.Add($"{x}|{y}|{z}", c);            
+                {
+                    if (!c.IsSiteProcessed())
+                        c.ProcessChunkSite();
+                    
+                    chunks.Add($"{x}|{y}|{z}", c);
+                }
+
             }
             if (!regions.ContainsKey(_regionManager.GetRegionIndexFromChunkCoords(x, z))) 
                 regions.Add(_regionManager.GetRegionIndexFromChunkCoords(x, z), chunkRegion);
@@ -153,7 +172,7 @@ namespace Vox.Genesis
 
                     if ((!wasInCache && !nowInCache) || (wasInCache && nowInCache))
                         continue;
-
+                    
                     TriggerCacheEvent(chunk.Value, wasInCache, nowInCache);
                 }
             }
@@ -195,7 +214,7 @@ namespace Vox.Genesis
             //Updates regions within render distance
             UpdateChunkCache();
             Dictionary<string, Region> updatedRegions = GetRegions();
-
+            
             if (_regionManager.GetVisibleRegions().Count > 0)
             {
 
@@ -217,8 +236,6 @@ namespace Vox.Genesis
                 }
             }
         }
-
-
     }
 
 }

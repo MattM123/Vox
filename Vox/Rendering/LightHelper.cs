@@ -115,7 +115,7 @@ namespace Vox.Rendering
             else
             {
                 int idx = terrainSSBO.AllocateIndex();
-                chunk.SSBOdata[key] = new(facePos, faceDir, 0, idx, lighting);
+                chunk.SSBOdata[key] = new(facePos, faceDir, 0, idx, 0, lighting);
 
                 //Update data for GPU
                 chunk.AddOrUpdateFaceInMemory(chunk.SSBOdata[key]);

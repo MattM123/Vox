@@ -37,6 +37,41 @@ vec3 GetCornerOffset(int vertexID, int direction) {
     else if (direction == 5)  return vec3(offset.x, 0.0, offset.y);             // -Y (bottom)
 }
 
+vec3 GetBillboardCornerOffset(int vertexID, int direction)
+{
+    // NORTH / SOUTH: first diagonal plane
+    if (direction == 0 || direction == 1)
+    {
+        const vec3 corners[4] = vec3[4](
+        vec3(0.0, 0.0, 0.0),
+        vec3(1.0, 0.0, 1.0),
+        vec3(0.0, 1.0, 0.0),
+        vec3(1.0, 1.0, 1.0)
+        );
+
+        // Reverse vertex order for the opposite side.
+        int index = (direction == 1)
+        ? int[4](1, 0, 3, 2)[vertexID]
+        : vertexID;
+
+        return corners[index];
+    }
+
+    // EAST / WEST: second diagonal plane
+    const vec3 corners[4] = vec3[4](
+        vec3(0.0, 0.0, 1.0),
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 1.0),
+        vec3(1.0, 1.0, 0.0)
+    );
+
+    int index = (direction == 3)
+    ? int[4](1, 0, 3, 2)[vertexID]
+    : vertexID;
+    
+    return corners[index];
+}
+
 vec3 GetNormal(int faceDirection)
 {
     if (faceDirection == 0) return vec3(0.0, 0.0, 1.0);  // +Z

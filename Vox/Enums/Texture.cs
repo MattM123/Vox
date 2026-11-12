@@ -8,7 +8,10 @@
         GRASS_SIDE,
         LAMP,
         STONE,
+        TALL_GRASS,
+        DEAD_BUSH,
         TARGET,
         TEST,
+        
     }
 }

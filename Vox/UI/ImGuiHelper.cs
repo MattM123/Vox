@@ -154,7 +154,7 @@ namespace Vox.UI
                                 //Clear UI world load
                                 SetCurrentMenu(Menu.None);
 
-                                //Reset the menu chunk coordinates so the render in the world.  
+                                //Reset the menu chunk coordinates so they render in the world.  
                                 foreach (Chunk c in Window.GetMenuChunks())
                                     c.FreeShaderMemory();
 

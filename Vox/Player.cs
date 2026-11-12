@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using OpenTK.Mathematics;
+using Vox.Assets;
 using Vox.Enums;
 using Vox.Genesis;
 using Vox.Model;
@@ -20,6 +21,7 @@ namespace Vox
         private readonly IRegionManager? _regionManager;
         private readonly IChunkCache? _chunkCache;
         private readonly IShaderManager? _shaderManager;
+        private readonly IAssetLookup? _assetLookup;
         
         private static Vector3 _position = Vector3.Zero;
         private static float yaw = 0f;
@@ -30,7 +32,7 @@ namespace Vox
         private static Vector3 prevPos = Vector3.Zero;
 
         private static Vector3 velocity = Vector3.Zero;
-        public readonly float moveSpeed = 5.0f;
+        public readonly float moveSpeed = 15.0f;
         private Vector3 desiredMovement = Vector3.Zero;
         private float forward = 0f;
         private float right = 0f;
@@ -43,19 +45,20 @@ namespace Vox
         private const float CollisionSkin = 0.01f;
         private const float CollisionEpsilon = 0.0001f;
 
-        private static readonly float gravity = 9.8f;      // Gravity constant
+        private static readonly float gravity = 0f;//9.8f;      // Gravity constant
         private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
          * Region 0,0.
          */
-        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache, IShaderManager shaderManager)
+        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache, IShaderManager shaderManager, IAssetLookup assetLookup)
         {
             _ssboManager = ssboManager;
             _inventoryStore = inventoryStore;
             _regionManager = regionManager;
             _chunkCache = chunkCache;
             _shaderManager = shaderManager;
+            _assetLookup = assetLookup;
 
 
             // Test / debug values for inventory, can be removed later
@@ -67,6 +70,7 @@ namespace Vox
             _inventoryStore.SetSlot(5, BlockType.STONE_BLOCK, 10);
 
             _chunkCache.SetPlayerChunk(GetChunkWithPlayer());      
+            
             _position = new(0, _regionManager.GetGlobalHeightMapValue((int)_position.X, (int)_position.Z) + 1, 0);
             prevPos = _position;
 
@@ -120,102 +124,105 @@ namespace Vox
             bool foundTarget = false;
             bool hasPreviousAirBlock = false;
 
-            for (float distance = 0f; distance <= maxDistance; distance += stepSize)
+            if (!Window.IsMainMenuScreenDisplayed())
             {
-                currentPosition = rayOrigin + rayDirection * distance;
-
-                target = new Vector3(
-                    MathF.Floor(currentPosition.X),
-                    MathF.Floor(currentPosition.Y),
-                    MathF.Floor(currentPosition.Z));
-
-                Chunk actionChunk =
-                    _regionManager!.GetAndLoadGlobalChunkFromCoords(
-                        (int)target.X, (int)target.Y, (int)target.Z);
-
-                Vector3 blockDataIndex =
-                    _regionManager.GetChunkRelativeCoordinates(target);
-
-                int blockType = actionChunk._blockData[
-                    (short)blockDataIndex.X,
-                    (short)blockDataIndex.Y,
-                    (short)blockDataIndex.Z];
-
-                if (blockType == (int)BlockType.AIR)
+                for (float distance = 0f; distance <= maxDistance; distance += stepSize)
                 {
-                    previousBlock = target;
-                    hasPreviousAirBlock = true;
-                    continue;
+                    currentPosition = rayOrigin + rayDirection * distance;
+
+                    target = new Vector3(
+                        MathF.Floor(currentPosition.X),
+                        MathF.Floor(currentPosition.Y),
+                        MathF.Floor(currentPosition.Z));
+
+                    Chunk actionChunk =
+                        _regionManager!.GetAndLoadGlobalChunkFromCoords(
+                            (int)target.X, (int)target.Y, (int)target.Z);
+
+                    Vector3 blockDataIndex =
+                        _regionManager.GetChunkRelativeCoordinates(target);
+
+                    int blockType = actionChunk._blockData[
+                        (short)blockDataIndex.X,
+                        (short)blockDataIndex.Y,
+                        (short)blockDataIndex.Z];
+
+                    if (blockType == (int)BlockType.AIR)
+                    {
+                        previousBlock = target;
+                        hasPreviousAirBlock = true;
+                        continue;
+                    }
+
+                    // A solid block was hit.
+                    foundTarget = true;
+
+                    if (hasPreviousAirBlock)
+                        blockSpace = previousBlock;
+
+                    // Determine the dominant direction of the ray.
+                    Vector3 absDirection = new(
+                        MathF.Abs(rayDirection.X),
+                        MathF.Abs(rayDirection.Y),
+                        MathF.Abs(rayDirection.Z));
+
+                    if (absDirection.X >= absDirection.Y &&
+                        absDirection.X >= absDirection.Z)
+                    {
+                        playerFacing = rayDirection.X > 0
+                            ? BlockFace.EAST
+                            : BlockFace.WEST;
+                    }
+                    else if (absDirection.Y >= absDirection.Z)
+                    {
+                        playerFacing = rayDirection.Y > 0
+                            ? BlockFace.UP
+                            : BlockFace.DOWN;
+                    }
+                    else
+                    {
+                        playerFacing = rayDirection.Z > 0
+                            ? BlockFace.NORTH
+                            : BlockFace.SOUTH;
+                    }
+
+                    // Keep the original block-face calculation.
+                    Vector3 blockCenter = target + new Vector3(0.5f);
+
+                    Matrix4 blockViewMat = Matrix4.LookAt(
+                        blockCenter,
+                        currentPosition,
+                        Vector3.UnitY);
+
+                    Vector3 blockForwardDir =
+                        Vector3.Normalize(-blockViewMat.Column2.Xyz);
+
+                    Vector3 absBlockForwardDirection = new(
+                        MathF.Abs(blockForwardDir.X),
+                        MathF.Abs(blockForwardDir.Y),
+                        MathF.Abs(blockForwardDir.Z));
+
+                    Vector3 blockFaceToAdd = new(
+                        MathF.Round(MathF.Abs(blockForwardDir.X)),
+                        MathF.Round(MathF.Abs(blockForwardDir.Y)),
+                        MathF.Round(MathF.Abs(blockForwardDir.Z)));
+
+                    if (absBlockForwardDirection.X >= absBlockForwardDirection.Y &&
+                        absBlockForwardDirection.X >= absBlockForwardDirection.Z)
+                    {
+                        blockFace = new(blockFaceToAdd.X, 0f, 0f);
+                    }
+                    else if (absBlockForwardDirection.Y >= absBlockForwardDirection.Z)
+                    {
+                        blockFace = new(0f, blockFaceToAdd.Y, 0f);
+                    }
+                    else
+                    {
+                        blockFace = new(0f, 0f, blockFaceToAdd.Z);
+                    }
+
+                    break;
                 }
-
-                // A solid block was hit.
-                foundTarget = true;
-
-                if (hasPreviousAirBlock)
-                    blockSpace = previousBlock;
-
-                // Determine the dominant direction of the ray.
-                Vector3 absDirection = new(
-                    MathF.Abs(rayDirection.X),
-                    MathF.Abs(rayDirection.Y),
-                    MathF.Abs(rayDirection.Z));
-
-                if (absDirection.X >= absDirection.Y &&
-                    absDirection.X >= absDirection.Z)
-                {
-                    playerFacing = rayDirection.X > 0
-                        ? BlockFace.EAST
-                        : BlockFace.WEST;
-                }
-                else if (absDirection.Y >= absDirection.Z)
-                {
-                    playerFacing = rayDirection.Y > 0
-                        ? BlockFace.UP
-                        : BlockFace.DOWN;
-                }
-                else
-                {
-                    playerFacing = rayDirection.Z > 0
-                        ? BlockFace.NORTH
-                        : BlockFace.SOUTH;
-                }
-
-                // Keep the original block-face calculation.
-                Vector3 blockCenter = target + new Vector3(0.5f);
-
-                Matrix4 blockViewMat = Matrix4.LookAt(
-                    blockCenter,
-                    currentPosition,
-                    Vector3.UnitY);
-
-                Vector3 blockForwardDir =
-                    Vector3.Normalize(-blockViewMat.Column2.Xyz);
-
-                Vector3 absBlockForwardDirection = new(
-                    MathF.Abs(blockForwardDir.X),
-                    MathF.Abs(blockForwardDir.Y),
-                    MathF.Abs(blockForwardDir.Z));
-
-                Vector3 blockFaceToAdd = new(
-                    MathF.Round(MathF.Abs(blockForwardDir.X)),
-                    MathF.Round(MathF.Abs(blockForwardDir.Y)),
-                    MathF.Round(MathF.Abs(blockForwardDir.Z)));
-
-                if (absBlockForwardDirection.X >= absBlockForwardDirection.Y &&
-                    absBlockForwardDirection.X >= absBlockForwardDirection.Z)
-                {
-                    blockFace = new(blockFaceToAdd.X, 0f, 0f);
-                }
-                else if (absBlockForwardDirection.Y >= absBlockForwardDirection.Z)
-                {
-                    blockFace = new(0f, blockFaceToAdd.Y, 0f);
-                }
-                else
-                {
-                    blockFace = new(0f, 0f, blockFaceToAdd.Z);
-                }
-
-                break;
             }
 
             // Explicitly clear the target when the ray hits nothing.
@@ -280,7 +287,7 @@ namespace Vox
                     for (int z = minZ; z <= maxZ; z++)
                     {
                         //Only solid blocks are valid candidates
-                        if (_regionManager?.GetBlockTypeAtCoords(x, y, z) != BlockType.AIR)
+                        if (IsSolidBlock(x, y, z))
                             candidates.Add(new Vector3(x, y, z));
                     }
                 }
@@ -312,7 +319,7 @@ namespace Vox
             {
                 for (int z = minZ; z <= maxZ; z++)
                 {
-                    if (_regionManager!.GetBlockTypeAtCoords(x, y, z) != BlockType.AIR)
+                    if (IsSolidBlock(x, y, z))
                         return true;
                 }
             }
@@ -335,15 +342,26 @@ namespace Vox
             { 
                 velocity.Y -= gravity * deltaTime; // Apply gravity
             } 
-            
+            else if (velocity.Y < 0)
+            {
+                velocity.Y = 0;
+            }
             // -----------------------------
             // Horizontal movement
             // -----------------------------
             if (desiredMovement.LengthSquared > float.Epsilon && desiredMovement != Vector3.Zero)
             { 
                 Vector3 movement = desiredMovement.Normalized() * moveSpeed; 
-                velocity.Xz = movement.Xz; 
-            } 
+                velocity.Xz = movement.Xz;
+                
+            }
+            
+            // -----------------------------
+            // Vertical movement
+            // -----------------------------
+            if (desiredMovement.Y > 0)
+                velocity.Y += desiredMovement.Y;
+            
             desiredMovement = Vector3.Zero; 
             
             
@@ -411,56 +429,79 @@ namespace Vox
             float friction = 0.5f;
             velocity *= (1 - friction * deltaTime);
         }
-        
-        /// <summary>
-        /// Adds movement in the direction the player is facing to the desired movement vector.
-        /// The accumulated movement is processed during the next update cycle.
-        /// </summary>
-        /// <param name="inc">The amount of forward or backward movement to request.</param>
-        public void MoveForward(float inc)
-        {
-            forward += inc;
-            desiredMovement += GetForwardDirection() * inc;
-            UpdateBoundingBox();
-        }
 
         /// <summary>
-        /// Adds movement along the player's right direction to the desired movement vector,
-        /// provided the direction passes the current blocked-direction check.
-        /// The accumulated movement is processed during the next update cycle.
+        /// Queues movement in the specified direction by updating the desired movement vector
+        /// and the corresponding forward or right movement values. Vertical movement is applied
+        /// directly to the Y component of the desired movement vector. Updates the player's
+        /// bounding box after applying the movement.
         /// </summary>
-        /// <param name="inc">The amount of rightward or leftward movement to request.</param>
-        public void MoveRight(float inc)
+        /// <param name="direction">The direction in which to queue movement.</param>
+        /// <param name="inc">The amount of movement to apply in the specified direction.</param>
+        public void QueueMovement(Direction direction, float inc)
         {
-            if (GetRightDirection().X != blockedDirection.X)
+            switch (direction)
             {
-                right += inc;
-                desiredMovement += GetRightDirection() * inc;
-                UpdateBoundingBox();
+                case Direction.NORTH:
+                {
+                    forward += inc;
+
+                    //Remove vertical movement
+                    Vector3 forwardDirection = GetForwardDirection();
+                    forwardDirection.Y = 0;
+                    forwardDirection = forwardDirection.Normalized();
+
+                    desiredMovement += forwardDirection * inc;
+                    break;
+                }
+                case Direction.SOUTH:
+                {
+                    forward -= inc;
+
+                    //Remove vertical movement
+                    Vector3 forwardDirection = GetForwardDirection();
+                    forwardDirection.Y = 0;
+                    forwardDirection = forwardDirection.Normalized();
+
+                    desiredMovement -= forwardDirection * inc;
+                    break;
+                }
+                case Direction.WEST:
+                {
+                    right += -inc;
+                    desiredMovement += GetRightDirection() * -inc;
+                    break;
+                }
+                case Direction.EAST:
+                {
+                    right += inc;
+                    desiredMovement += GetRightDirection() * inc;
+                    break;
+                }
+                case Direction.DOWN:
+                {
+                    desiredMovement.Y += -inc;
+                    break;
+                }
+                case Direction.UP:
+                {
+                    desiredMovement.Y += inc;
+                    break;
+                }
             }
-
-        }
-
-        /// <summary>
-        /// Adds vertical movement to the desired movement vector.
-        /// The accumulated movement is processed during the next update cycle.
-        /// </summary>
-        /// <param name="inc">The amount of upward or downward movement to request.</param>
-        public void MoveUp(float inc)
-        {
-            desiredMovement.Y += inc;
             UpdateBoundingBox();
         }
+        
         /// <summary>
         /// Applies an upward velocity to the player if the player is grounded.
         /// The supplied velocity is used to initiate the jump.
         /// </summary>
-        /// <param name="v">The vertical velocity to apply when jumping.</param>
-        public void Jump(float v)
+        /// <param name="inc">The vertical velocity to apply when jumping.</param>
+        public void Jump(float inc)
         {
             if (IsPlayerGrounded())
             {
-                velocity.Y = v;
+                desiredMovement.Y += inc;
             }
         }
 
@@ -633,7 +674,7 @@ namespace Vox
         private bool IsSolidBlock(int x, int y, int z)
         {
             BlockType type = _regionManager!.GetBlockTypeAtCoords(x, y, z);
-            return type != BlockType.AIR;
+            return !_assetLookup!.IsPassthrough(type);
         }
 
         /// <summary>

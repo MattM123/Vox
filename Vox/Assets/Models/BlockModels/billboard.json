@@ -1,0 +1,27 @@
+{
+  "parent": "",
+  "elements": [
+    {
+      "from": [ 0, 0, 0 ],
+      "to": [ 1, 1, 1 ],
+      "faces": {
+        "north": {
+          "texture": "#north",
+          "cullface": "north"
+        },
+        "south": {
+          "texture": "#south",
+          "cullface": "south"
+        },
+        "west": {
+          "texture": "#west",
+          "cullface": "west"
+        },
+        "east": {
+          "texture": "#east",
+          "cullface": "east"
+        }
+      }
+    }
+  ]
+}

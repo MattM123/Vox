@@ -22,7 +22,7 @@ namespace Vox.Rendering
 
         private List<int> _textureIDs;
         private int textureSize = 16;
-        private int numberOfTextures = 7;
+        private int numberOfTextures;
         private readonly StbiImage _cachedAtlasData;
         private readonly IShaderManager? _shaderManager;
 
@@ -34,6 +34,7 @@ namespace Vox.Rendering
             _inventoryStore = inventoryStore;
             _shaderManager = shaderManager;
 
+            numberOfTextures = _assetLookup.GetTexturesWithLayers().Count();
 
             Directory.CreateDirectory(_assetsPath + "Textures");
             Directory.CreateDirectory(_assetsPath + "BlockTextures");

@@ -118,6 +118,11 @@ namespace Vox
             GL.Enable(EnableCap.DepthTest);
             GL.DepthFunc(DepthFunction.Lequal);
 
+
+            Directory.CreateDirectory(Assets);            
+            Directory.CreateDirectory(Path.Combine(AppFolder, "worlds"));
+            
+            
             _shaderManager = new ShaderManager();
 
 
@@ -204,10 +209,11 @@ namespace Vox
             _textureLoader = new TextureLoader(Path.Combine("..","..","..","Assets","Textures"), _assetLookup, _inventoryStore, _shaderManager);
             _regionManager = new RegionManager(_ssboManager, _lightHelper, _assetLookup);
             _chunkCache = new ChunkCache(null, _regionManager!, _cacheEventHandler);
-            _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache, _shaderManager);
+            _player = new Player(_ssboManager, _inventoryStore, _regionManager!, _chunkCache, _shaderManager, _assetLookup);
 
 
             _chunkCache.SetPlayerChunk(_player.GetChunkWithPlayer());
+
             _chunkCache.SetRenderDistance(_regionManager.GetRenderDistance());
             _sunlightPos = new(0.0f, _regionManager!.GetWorldHeight() + 100, 0.0f);
 
@@ -248,8 +254,6 @@ namespace Vox
             //crosshairTex = TextureLoader.LoadSingleTexture(Path.Combine(assets, "Textures", "Crosshair_06.png"));
 
             Title += ": OpenGL Version: " + GL.GetString(StringName.Version);
-            
-            Directory.CreateDirectory(Path.Combine(AppFolder, "worlds"));
 
             GL.Enable(EnableCap.LineSmooth);
             GL.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
@@ -297,9 +301,8 @@ namespace Vox
             GL.ReadBuffer(ReadBufferMode.None);
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-
-            GL.Enable(EnableCap.CullFace);
-            GL.CullFace(CullFaceMode.Back);
+            
+            GL.Disable(EnableCap.CullFace);
      
             //========================
             //Matrix unifrom setup
@@ -377,6 +380,9 @@ namespace Vox
 
             foreach (var c in MenuChunks)
             {
+                if (!c.IsSiteProcessed())
+                    c.ProcessChunkSite();
+                
                 c.GenerateRenderData();
             }
 
@@ -482,11 +488,43 @@ namespace Vox
                 .SetVector3Uniform("playerPos", GetPlayer().GetPosition());
         }
         
+        
+        private KeyboardState? currentKeyboardState;
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
 
             base.OnUpdateFrame(args);
 
+            currentKeyboardState = KeyboardState.GetSnapshot();
+       // Use KeyboardState for movement to handle multiple simultaneous keypresses and diagonal movements
+            if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause && _imguiHelper?.GetCurrentMenu() != Menu.Settings) { 
+                Vector3 blockedDirection = GetPlayer().GetBlockedDirection();
+
+                Vector3 forward = GetPlayer().GetForwardDirection();
+                Vector3 right = GetPlayer().GetRightDirection();
+
+                if (currentKeyboardState != null)
+                {
+                    if (currentKeyboardState[Keys.W])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.NORTH, 5);
+                    
+                    if (currentKeyboardState[Keys.S])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.SOUTH, 5);
+
+                    if (currentKeyboardState[Keys.A])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.WEST, 5);
+
+                    if (currentKeyboardState[Keys.D])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.EAST, 5);
+
+                    if (currentKeyboardState[Keys.Space])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().Jump(8);
+
+                    if ((currentKeyboardState[Keys.LeftShift]) && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
+                        GetPlayer().QueueMovement(Direction.DOWN, 5);
+                }
+            }
+            
             if (_isClosing)
             {
                 RequestClose();
@@ -583,39 +621,8 @@ namespace Vox
 
             if (float.IsNaN(GetPlayer().GetBlockedDirection().X))
                 return;
-
-            var currentKeyboardState = KeyboardState.GetSnapshot();
-  
-            // Use KeyboardState for movement to handle multiple simultaneous keypresses and diagonal movements
-            if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause && _imguiHelper?.GetCurrentMenu() != Menu.Settings) { 
-                Vector3 blockedDirection = GetPlayer().GetBlockedDirection();
-
-                Vector3 forward = GetPlayer().GetForwardDirection();
-                Vector3 right = GetPlayer().GetRightDirection();
-
-                if (currentKeyboardState[Keys.W] && Vector3.Dot(forward, blockedDirection) <= 0)
-                    GetPlayer().MoveForward(5);
-                
-
-                if (currentKeyboardState[Keys.S] && Vector3.Dot(-forward, blockedDirection) <= 0)
-                    GetPlayer().MoveForward(-5);
-                
-
-                if (currentKeyboardState[Keys.A] && Vector3.Dot(-right, blockedDirection) <= 0)
-                    GetPlayer().MoveRight(-1);
-                
-
-                if (currentKeyboardState[Keys.D] && Vector3.Dot(right, blockedDirection) <= 0)
-                    GetPlayer().MoveRight(1);
-                
-                               
-                if (currentKeyboardState[Keys.Space] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != 1)
-                    GetPlayer().Jump(7);
-
-                if (currentKeyboardState[Keys.LeftShift] && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
-                    GetPlayer().MoveUp(-1);
-
-            }
+            
+     
 
             if (_imguiHelper?.GetCurrentMenu() != Menu.Main)
             {
@@ -870,8 +877,9 @@ namespace Vox
             //playerChunk will be null when world first loads
             if (_globalPlayerChunk == null)
             {
-                _globalPlayerChunk = _regionManager?.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,//+ _regionManager.GetChunkBounds(),
+                _globalPlayerChunk = _regionManager?.GetAndLoadGlobalChunkFromCoords((int) _player!.GetChunkWithPlayer().GetLocation().X,
                      (int) _player!.GetChunkWithPlayer().GetLocation().Y, (int) _player.GetChunkWithPlayer().GetLocation().Z);
+                
                 _player?.SetPosition(new Vector3(_player.GetPosition().X, _player.GetPosition().Y, _player.GetPosition().Z));
             }
 
@@ -902,12 +910,14 @@ namespace Vox
                 {
                     ThreadPool.QueueUserWorkItem(delegate
                     {
+                        Chunk checkGen = _regionManager!.GetAndLoadGlobalChunkFromCoords(
+                            (int)c.Value.xLoc, (int)(c.Value.yLoc + _regionManager.GetChunkBounds()),
+                            (int)c.Value.zLoc);
+                        
                         //If the chunk above this one is generated, we don't need to generate this chunk   
                         if ((!c.Value.IsGenerated())
                             && _regionManager != null
-                            && !_regionManager.GetAndLoadGlobalChunkFromCoords(
-                                (int)c.Value.xLoc, (int)(c.Value.yLoc + _regionManager.GetChunkBounds()),
-                                (int)c.Value.zLoc).IsGenerated())
+                            && !checkGen.IsGenerated())
                         {
                             c.Value.GenerateRenderData();
                         }
@@ -1046,7 +1056,7 @@ namespace Vox
 
 
         private Player GetPlayer() {
-            _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!, _shaderManager!);
+            _player ??= new Player(_ssboManager!, _inventoryStore!, _regionManager!, _chunkCache!, _shaderManager!, _assetLookup!);
 
             return _player;
         }

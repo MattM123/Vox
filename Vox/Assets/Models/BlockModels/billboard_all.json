@@ -1,0 +1,10 @@
+{
+  "parent": "billboard",
+  "textures": {
+    "particle": "#all",
+    "north": "#all",
+    "east": "#all",
+    "south": "#all",
+    "west": "#all"
+  }
+}
