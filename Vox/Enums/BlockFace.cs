@@ -2,18 +2,18 @@
 {
     public enum BlockFace
     {
-        NORTH,
-        SOUTH,
-        EAST,
-        WEST,
-        UP,
-        DOWN,
+        North,
+        South,
+        East,
+        West,
+        Up,
+        Down,
 
 
 
-        BOTTOM,
-        TOP,
-        SIDE,
-        ALL,
+        Bottom,
+        Top,
+        Side,
+        All,
     }
 }

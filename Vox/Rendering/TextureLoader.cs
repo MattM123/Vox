@@ -21,8 +21,8 @@ namespace Vox.Rendering
         private readonly IInventoryStore? _inventoryStore;
 
         private List<int> _textureIDs;
-        private int textureSize = 16;
-        private int numberOfTextures;
+        private int _textureSize = 16;
+        private int _numberOfTextures;
         private readonly StbiImage _cachedAtlasData;
         private readonly IShaderManager? _shaderManager;
 
@@ -34,7 +34,7 @@ namespace Vox.Rendering
             _inventoryStore = inventoryStore;
             _shaderManager = shaderManager;
 
-            numberOfTextures = _assetLookup.GetTexturesWithLayers().Count();
+            _numberOfTextures = _assetLookup.GetTexturesWithLayers().Count();
 
             Directory.CreateDirectory(_assetsPath + "Textures");
             Directory.CreateDirectory(_assetsPath + "BlockTextures");
@@ -59,7 +59,7 @@ namespace Vox.Rendering
 
             GL.ActiveTexture(TextureUnit.Texture4);
             GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, textureSize, textureSize, numberOfTextures);
+            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, _textureSize, _textureSize, _numberOfTextures);
 
             // Setting texture parameters
             GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMaxLevel, 0);
@@ -70,38 +70,38 @@ namespace Vox.Rendering
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
 
             byte[] layerBuffer = new byte[
-                numberOfTextures *
-                textureSize *
-                textureSize *
+                _numberOfTextures *
+                _textureSize *
+                _textureSize *
                 4];
 
             byte[] atlas = _cachedAtlasData.Data.ToArray();
             int texturesPerRow = 64;
             int channels = 4;
 
-            int rowSize = textureSize * channels;
-            int copySize = textureSize * channels;
+            int rowSize = _textureSize * channels;
+            int copySize = _textureSize * channels;
 
             List<Texture> textures = _assetLookup!.GetTexturesWithLayers();
 
             for (int i = 0; i < textures.Count; i++)
             {
                 int layer = _assetLookup.GetTextureLayerFromTexture(textures[i]);
-                int atlasWidth = texturesPerRow * textureSize;
+                int atlasWidth = texturesPerRow * _textureSize;
 
-                for (int y = 0; y < textureSize; y++)
+                for (int y = 0; y < _textureSize; y++)
                 {
                     int tileX = i % texturesPerRow;
                     int tileY = i / texturesPerRow;
 
                     int srcOffset =
-                        ((tileY * textureSize + y) * atlasWidth +
-                         tileX * textureSize) * channels;
+                        ((tileY * _textureSize + y) * atlasWidth +
+                         tileX * _textureSize) * channels;
 
                     int dstOffset =
-                        ((layer * textureSize * textureSize) +
-                         (y * textureSize)) * channels;
-
+                        ((layer * _textureSize * _textureSize) +
+                         (y * _textureSize)) * channels;
+                    
                     Buffer.BlockCopy(
                         atlas,
                         srcOffset,
@@ -117,9 +117,9 @@ namespace Vox.Rendering
                 TextureTarget.Texture2DArray,
                 0,
                 0, 0, 0,
-                textureSize,
-                textureSize,
-                numberOfTextures,
+                _textureSize,
+                _textureSize,
+                _numberOfTextures,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,
                 layerBuffer
@@ -189,15 +189,15 @@ namespace Vox.Rendering
             int tileY = layer / texturesPerRow;
 
             // 4. Extract only the bytes for this specific tile
-            byte[] tileBuffer = new byte[textureSize * textureSize * channels];
+            byte[] tileBuffer = new byte[_textureSize * _textureSize * channels];
             int atlasWidthPixels = _cachedAtlasData.Width; // Assuming you have dimensions available
 
-            for (int y = 0; y < textureSize; y++)
+            for (int y = 0; y < _textureSize; y++)
             {
-                int srcOffset = ((tileY * textureSize + y) * atlasWidthPixels + (tileX * textureSize)) * channels;
-                int dstOffset = (y * textureSize) * channels;
+                int srcOffset = ((tileY * _textureSize + y) * atlasWidthPixels + (tileX * _textureSize)) * channels;
+                int dstOffset = (y * _textureSize) * channels;
 
-                Buffer.BlockCopy(_cachedAtlasData.Data.ToArray(), srcOffset, tileBuffer, dstOffset, textureSize * channels);
+                Buffer.BlockCopy(_cachedAtlasData.Data.ToArray(), srcOffset, tileBuffer, dstOffset, _textureSize * channels);
             }
 
             // Overwrite the existing texture pixels without creating a new handle
@@ -205,8 +205,8 @@ namespace Vox.Rendering
                 TextureTarget.Texture2D,
                 0,
                 0, 0,
-                textureSize,
-                textureSize,
+                _textureSize,
+                _textureSize,
                 PixelFormat.Rgba,
                 PixelType.UnsignedByte,
                 tileBuffer // Your new data
@@ -221,9 +221,9 @@ namespace Vox.Rendering
 
             //Save current state
             int prevTex = GL.GetInteger(GetPName.TextureBinding2D);
-            int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
+            int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
-            int prevVAO = GL.GetInteger(GetPName.VertexArrayBinding);
+            int prevVao = GL.GetInteger(GetPName.VertexArrayBinding);
             int[] prevViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, prevViewport);
 
@@ -255,7 +255,7 @@ namespace Vox.Rendering
                 .SetMatrixUniform("modelMatrix", modelMatrix);
 
             // Bind frame buffer
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryStore!.GetInventoryIconSlotFBO());
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryStore!.GetInventoryIconSlotFbo());
 
             FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
@@ -266,13 +266,13 @@ namespace Vox.Rendering
                 Logger.Success("Successfully bound icon atlas framebuffer with status " + status);
             }
 
-            GL.BindVertexArray(_inventoryStore.GetInventoryVAO());
+            GL.BindVertexArray(_inventoryStore.GetInventoryVao());
             int viewportSize = 128;
             for (int i = 0; i < Enum.GetValues(typeof(BlockType)).Length; i++)
             {
                 BlockType type = (BlockType)i;
 
-                if (type == BlockType.AIR)
+                if (type == BlockType.Air)
                     continue;
 
                 int cols = atlasSize / viewportSize;
@@ -290,7 +290,7 @@ namespace Vox.Rendering
                 GL.Finish();
 
                 // Draw the next icon model
-                _inventoryStore?.UpdateSSBOBlock(type);
+                _inventoryStore?.UpdateSsboBlock(type);
                 
                 //Drawing
                 GL.DrawArraysInstanced(
@@ -305,9 +305,9 @@ namespace Vox.Rendering
 
             //Restore state
             GL.BindTexture(TextureTarget.Texture2D, prevTex);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
             GL.UseProgram(prevProgram);
-            GL.BindVertexArray(prevVAO);
+            GL.BindVertexArray(prevVao);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
             return texId;

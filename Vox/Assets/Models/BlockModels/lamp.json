@@ -2,6 +2,6 @@
   "parent": "cube_all",
   "transparent": false,
   "textures": {
-    "all": "lamp"
+    "all": "Lamp"
   }
 }

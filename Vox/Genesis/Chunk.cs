@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using MessagePack;
 using OpenTK.Mathematics;
@@ -7,6 +8,7 @@ using Vox.Assets;
 using Vox.Assets.Models;
 using Vox.Enums;
 using Vox.Model;
+
 using Vox.Rendering;
 
 namespace Vox.Genesis
@@ -16,7 +18,7 @@ namespace Vox.Genesis
     public class Chunk
     {
         [IgnoreMember]
-        private ISSBOManager? _ssboManager;
+        private IssboManager? _ssboManager;
 
         [IgnoreMember]
         private IRegionManager? _regionManager;
@@ -26,70 +28,70 @@ namespace Vox.Genesis
 
         //Vector4 (x, y, z, faceDir)
         [IgnoreMember]
-        public ConcurrentDictionary<Vector4, BlockFaceInstance> SSBOdata = [];
+        public ConcurrentDictionary<Vector4, BlockFaceInstance> SsbOdata = [];
 
         [IgnoreMember]
         public bool IsEmpty = true;
 
         [IgnoreMember]
-        private static readonly object chunkLock = new();
+        private static readonly object ChunkLock = new();
 
         [IgnoreMember]
-        private Vector3 location;
+        private Vector3 _location;
 
         [IgnoreMember]
-        private static Matrix4 modelMatrix = new();
+        private static Matrix4 _modelMatrix = new();
 
         [IgnoreMember]
-        bool isGenerated = false;
+        bool _isGenerated = false;
 
         [IgnoreMember]
-        public int blockFacesInChunk = 0;
+        public int BlockFacesInChunk = 0;
 
         [IgnoreMember]
-        public int _chunkBounds;
+        public int ChunkBounds;
 
         [IgnoreMember]
         public bool IsInitialized = false;
 
         [IgnoreMember]
-        public bool isCached = false;
+        public bool IsCached = false;
 
         [IgnoreMember] public bool SiteProcessed = false;
 
         [Key(0)]
-        public float xLoc;
+        public float XLoc;
 
         [Key(1)]
-        public float zLoc;
+        public float ZLoc;
 
         [Key(2)]
-        public float yLoc;
+        public float YLoc;
 
         [Key(3)]
-        public short[,]? _heightMap;
+        public short[,]? HeightMap;
 
         [Key(4)]
-        public short[,,]? _blockData;
+        public short[,,]? BlockData;
 
         [Key(5)] 
-        public int _siteX;
+        public int SiteX;
         
         [Key(6)] 
-        public int _siteZ;
+        public int SiteZ;
         
 
         [SerializationConstructor]
         public Chunk() { }
-        public Chunk(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup)
+        public Chunk(IssboManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup)
         {
             _assetLookup = assetLookup;
             _ssboManager = ssboManager;
             _regionManager = regionManager;
-            _chunkBounds = _regionManager.GetChunkBounds();
+            ChunkBounds = _regionManager.GetChunkBounds();
 
-            _heightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
-            _blockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            HeightMap = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
+            BlockData = new short[_regionManager.GetChunkBounds(), _regionManager.GetChunkBounds(), _regionManager.GetChunkBounds()];
         }
         
         /**
@@ -100,13 +102,13 @@ namespace Vox.Genesis
          */
         public Chunk PopulateHeightmap(Vector3 v)
         {
-            xLoc = v.X;
-            yLoc = v.Y;
-            zLoc = v.Z;
-            location = new Vector3(xLoc, yLoc, zLoc);
+            XLoc = v.X;
+            YLoc = v.Y;
+            ZLoc = v.Z;
+            _location = new Vector3(XLoc, YLoc, ZLoc);
             
             //Generic model matrix applicable to every chunk object
-            modelMatrix = Matrix4.CreateTranslation(0, 0, 0);
+            _modelMatrix = Matrix4.CreateTranslation(0, 0, 0);
 
             if (IsInitialized) return this;
             //===================================
@@ -122,11 +124,11 @@ namespace Vox.Genesis
             {
                 for (int localZ = 0; localZ < bounds; localZ++)
                 {
-                    int worldX = (int)xLoc + localX;
-                    int worldZ = (int)zLoc + localZ;
+                    int worldX = (int)XLoc + localX;
+                    int worldZ = (int)ZLoc + localZ;
                         
                     //Generate height map
-                    _heightMap![localZ, localX] =
+                    HeightMap![localZ, localX] =
                         _regionManager.GetGlobalHeightMapValue(worldX, worldZ);
 
                 }
@@ -137,25 +139,28 @@ namespace Vox.Genesis
                 {
                     for (int y1 = 0; y1 < _regionManager.GetChunkBounds(); y1++)
                     {
-                        int worldX = (int)(x1 + xLoc);
-                        int worldY = (int)(y1 + yLoc);
-                        int worldZ = (int)(z1 + zLoc);
+                        int worldX = (int)(x1 + XLoc);
+                        int worldY = (int)(y1 + YLoc);
+                        int worldZ = (int)(z1 + ZLoc);
 
-                        int elevation = _heightMap![z1, x1];
+                        int elevation = HeightMap![z1, x1];
 
                         //Set block data to AIR if it's not visible
                         if (worldY <= elevation)
                         {
-                            _blockData![x1, y1, z1] =
+                            BlockData![x1, y1, z1] =
                                 (short)_regionManager.GetGeneratedBlockType(worldX, worldY, worldZ);
-
                         }
                         //Populate surface deco
                         else if (worldY == elevation + 1 && worldY == _regionManager.GetGlobalHeightMapValue(worldX, worldZ) + 1)
                         {
-                            _blockData![x1, y1, z1] =
-                                (short)_regionManager.GetSurfaceDecoration(worldX, worldZ, _regionManager.GetBiomeAtLocation(worldX, worldZ));
-                            
+                            BlockData![x1, y1, z1] =
+                                (short)BiomeExtensions.GetSurfaceDecoration(
+                                    worldX, worldZ, 
+                                    _regionManager.GetBiomeAtLocation(worldX, worldZ),
+                                    _regionManager.GetWorlSeed(),
+                                    _assetLookup!
+                                );
                         }
                     }
                 }
@@ -178,25 +183,25 @@ namespace Vox.Genesis
         /// <param name="x">X coordinate of the chunk</param>
         /// <param name="y">Y coordinate of the chunk</param>
         /// <param name="z">Z coordinate of the chunk</param>
-        public void Initialize(ISSBOManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup, float x, float y, float z)
+        public void Initialize(IssboManager ssboManager, IRegionManager regionManager, IAssetLookup assetLookup, float x, float y, float z)
         {
-            xLoc = x;
-            zLoc = z;
-            yLoc = y;
-            location = new Vector3(xLoc, yLoc, zLoc);
+            XLoc = x;
+            ZLoc = z;
+            YLoc = y;
+            _location = new Vector3(XLoc, YLoc, ZLoc);
 
             _assetLookup = assetLookup;
             _ssboManager = ssboManager;
             _regionManager = regionManager;
-            _chunkBounds = _regionManager.GetChunkBounds();
-            isCached = false;
+            ChunkBounds = _regionManager.GetChunkBounds();
+            IsCached = false;
 
         }
         public void GenerateRenderData()
         {
-            int bounds = _chunkBounds;
+            int bounds = ChunkBounds;
 
-            if (isGenerated) return;
+            if (_isGenerated) return;
             
             for (int x = 0; x < bounds; x++)
             {
@@ -204,59 +209,59 @@ namespace Vox.Genesis
                 {
                     for (int z = 0; z < bounds; z++)
                     {
-                        Vector3 facePos = new(x + xLoc, y + yLoc, z + zLoc);
+                        Vector3 facePos = new(x + XLoc, y + YLoc, z + ZLoc);
                             
-                        if (_blockData![x, y, z] > 0)
+                        if (BlockData![x, y, z] > 0)
                         {
-                            BlockType type = (BlockType)_blockData[x, y, z];
+                            BlockType type = (BlockType)BlockData[x, y, z];
                             ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
                                 
                             //Positive Y (UP)
-                            if (y + 1 >= bounds || _blockData[x, y + 1, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y + 1, z]))
+                            if (y + 1 >= bounds || BlockData[x, y + 1, z] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x, y + 1, z]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.UP);
-                                BlockFace faceDir = BlockFace.UP;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.Up);
+                                BlockFace faceDir = BlockFace.Up;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
 
                             //Negative Y (DOWN)
-                            if (y - 1 < 0 || _blockData[x, y - 1, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y - 1, z]))
+                            if (y - 1 < 0 || BlockData[x, y - 1, z] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x, y - 1, z]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.DOWN);
-                                BlockFace faceDir = BlockFace.DOWN;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.Down);
+                                BlockFace faceDir = BlockFace.Down;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
                                 
                             
                             // Positive X (EAST)
-                            if (x + 1 >= bounds || _blockData[x + 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x + 1, y, z]))
+                            if (x + 1 >= bounds || BlockData[x + 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x + 1, y, z]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.EAST);
-                                BlockFace faceDir = BlockFace.EAST;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.East);
+                                BlockFace faceDir = BlockFace.East;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
 
                             //Negative X (WEST)
-                            if (x - 1 < 0 || _blockData[x - 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x - 1, y, z]))
+                            if (x - 1 < 0 || BlockData[x - 1, y, z] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x - 1, y, z]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.WEST);
-                                BlockFace faceDir = BlockFace.WEST;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.West);
+                                BlockFace faceDir = BlockFace.West;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
 
                             //Positive Z (NORTH)
-                            if (z + 1 >= bounds || _blockData[x, y, z + 1] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y, z + 1]))
+                            if (z + 1 >= bounds || BlockData[x, y, z + 1] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x, y, z + 1]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.NORTH);
-                                BlockFace faceDir = BlockFace.NORTH;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.North);
+                                BlockFace faceDir = BlockFace.North;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
 
                             //Negative Z (SOUTH)
-                            if (z - 1 < 0 || _blockData[x, y, z - 1] == 0 || _assetLookup.IsBillboard((BlockType) _blockData[x, y, z - 1]))
+                            if (z - 1 < 0 || BlockData[x, y, z - 1] == 0 || _assetLookup.IsBillboard((BlockType) BlockData[x, y, z - 1]))
                             {
-                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
-                                BlockFace faceDir = BlockFace.SOUTH;
+                                int texLayer = _assetLookup!.GetModel(type).GetTextureLayer(BlockFace.South);
+                                BlockFace faceDir = BlockFace.South;
                                 AddOrUpdateBlockFace(facePos, texLayer, faceDir, isBillboard);
                             }
                                 
@@ -264,7 +269,7 @@ namespace Vox.Genesis
                     }
                 }
             }
-            isGenerated = true;
+            _isGenerated = true;
         }
 
         public bool IsSiteProcessed()
@@ -274,11 +279,11 @@ namespace Vox.Genesis
         public void ProcessChunkSite()
         {
             //Site used for Voroni site rejection sampling.
-            int chunkSeed = HashCode.Combine(_regionManager!.GetSeed(), xLoc, zLoc);
+            int chunkSeed = HashCode.Combine(_regionManager!.GetWorlSeed(), XLoc, ZLoc);
 
             Random rnd = new(chunkSeed);
-            _siteX = rnd.Next(0, _regionManager.GetChunkBounds());
-            _siteZ = rnd.Next(0, _regionManager.GetChunkBounds());
+            SiteX = rnd.Next(0, _regionManager.GetChunkBounds());
+            SiteZ = rnd.Next(0, _regionManager.GetChunkBounds());
             
 
             _regionManager.ProcessChunkSite(this);
@@ -291,13 +296,11 @@ namespace Vox.Genesis
          */
         public void AddOrUpdateBlockFace(Vector3 facePos, int texLayer, BlockFace faceDir, ushort isBillboard)
         {
-            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
+            StorageBufferObject terrainSsbo = _ssboManager!.GetSsbo(Ssbo.Terrain);
             Vector4 key = new(facePos.X, facePos.Y, facePos.Z, (float)faceDir);
-
-
-
+            
             //Look for existing face to update 
-            if (SSBOdata.TryGetValue(key, out BlockFaceInstance existingFace))
+            if (SsbOdata.TryGetValue(key, out BlockFaceInstance existingFace))
             {
                 //Update Texture
                 existingFace.textureLayer = texLayer;
@@ -306,7 +309,7 @@ namespace Vox.Genesis
                 existingFace.isBillboard = isBillboard;
                 
                 //Update entire instance
-                SSBOdata[key] = existingFace;
+                SsbOdata[key] = existingFace;
 
                 //Update data for GPU
                 AddOrUpdateFaceInMemory(existingFace);
@@ -314,11 +317,14 @@ namespace Vox.Genesis
             // If no existing face, assign the face an index and add to the SSBO data
             else
             {
-                int idx = terrainSSBO.AllocateIndex();
-                SSBOdata[key] = new(facePos, faceDir, texLayer, idx, isBillboard, 0);
+                int idx = terrainSsbo.AllocateIndex();
 
+                SsbOdata[key] = new(facePos, faceDir, texLayer, idx, isBillboard, 0);
+              //  Console.WriteLine("BLOCKFACE TEXTURE: " + model.GetTexture(faceDir));
+              //  Console.WriteLine("PROVIDED LAYER: " + texLayer + " : ACTUAL LAYER: " + _assetLookup.GetTextureLayerFromTexture(model.GetTexture(faceDir)));
+              //  Console.WriteLine();
                 //Update data for GPU
-                AddOrUpdateFaceInMemory(SSBOdata[key]);
+                AddOrUpdateFaceInMemory(SsbOdata[key]);
             }
         }
 
@@ -328,27 +334,18 @@ namespace Vox.Genesis
          */
         public void AddOrUpdateFaceInMemory(BlockFaceInstance face)
         {
-            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
+            StorageBufferObject terrainSsbo = _ssboManager!.GetSsbo(Ssbo.Terrain);
             //Write face directly to SSBO
             unsafe
             {
                 int offset = face.index * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)terrainSSBO.Pointer;
+                byte* basePtr = (byte*)terrainSsbo.Pointer;
 
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
                 *instancePtr = face;
-            }
-
-            if (face.textureLayer == (int)Texture.AIR)
-            {
-
-                terrainSSBO.FreeIndex(face.index);
-
-                Vector4 key = new(face.facePosition.X, face.facePosition.Y, face.facePosition.Z, face.faceDirection);
-                SSBOdata.TryRemove(key, out _);
             }
         }
 
@@ -359,27 +356,27 @@ namespace Vox.Genesis
          */
         public Vector3 GetLocation()
         {
-            return location;
+            return _location;
         }
 
         public static Matrix4 GetModelMatrix()
         {
-            return modelMatrix;
+            return _modelMatrix;
         }
 
 
         public short[,] GetHeightmap()
         {
-            return _heightMap!;
+            return HeightMap!;
         }
 
         public bool IsGenerated()
         {
-            return isGenerated;
+            return _isGenerated;
         }
         public override string ToString()
         {
-            return $"Chunk[{xLoc},{yLoc},{zLoc}]";
+            return $"Chunk[{XLoc},{YLoc},{ZLoc}]";
         }
 
         public override int GetHashCode()
@@ -389,11 +386,11 @@ namespace Vox.Genesis
 
         public override bool Equals(object obj)
         {
-            Vector3 chunk1 = new(xLoc, yLoc, zLoc);
+            Vector3 chunk1 = new(XLoc, YLoc, ZLoc);
 
             if (obj is Chunk other)
             {
-                Vector3 chunk2 = new(other.xLoc, other.yLoc, other.zLoc);
+                Vector3 chunk2 = new(other.XLoc, other.YLoc, other.ZLoc);
                 return chunk1.Equals(chunk2);
             }
             return false;
@@ -404,45 +401,24 @@ namespace Vox.Genesis
          */
         public int FreeShaderMemory()
         {
-            StorageBufferObject terrainSSBO = _ssboManager!.GetSSBO(SSBO.Terrain);
-            blockFacesInChunk = 0;
-            isGenerated = false;
-            int size = SSBOdata.Count;
+            StorageBufferObject terrainSsbo = _ssboManager!.GetSsbo(Ssbo.Terrain);
+            BlockFacesInChunk = 0;
+            _isGenerated = false;
+            int size = SsbOdata.Count;
 
-            foreach (var face in SSBOdata.Values)
+            foreach (var face in SsbOdata.Values)
             {
-                terrainSSBO.FreeIndex(face.index);
+                terrainSsbo.FreeIndex(face.index);
             }
 
-            SSBOdata.Clear();
+            SsbOdata.Clear();
 
             return size * Marshal.SizeOf<BlockFaceInstance>();
 
         }
         public void SetCached(bool cached)
         {
-            isCached = cached;
-        }
-
-        public bool Intersects(Vector3 point)
-        {
-            // Convert world-space to a local chunk index
-            Vector3i index = new(
-                (int)MathF.Floor(point.X - xLoc),
-                (int)MathF.Floor(point.Y - yLoc),
-                (int)MathF.Floor(point.Z - zLoc)
-            );
-
-            // Check if the local chunk index is within the chunk bounds
-            if (index.X < 0 || index.X >= _blockData!.GetLength(0) ||
-                index.Y < 0 || index.Y >= _blockData!.GetLength(1) ||
-                index.Z < 0 || index.Z >= _blockData!.GetLength(2))
-            {
-                return false;
-            }
-
-            // A non-air block means the point intersects terrain
-            return _blockData[index.X, index.Y, index.Z] != (int)BlockType.AIR;
+            IsCached = cached;
         }
     }
 }

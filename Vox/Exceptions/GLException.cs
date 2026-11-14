@@ -1,10 +1,10 @@
 ﻿
 namespace Vox.Exceptions
 {
-    public class GLException : Exception
+    public class GlException : Exception
     {
-        public GLException() { }
-        public GLException(string message) : base(message) { }
-        public GLException(string message, Exception innerException) : base(message, innerException) { }
+        public GlException() { }
+        public GlException(string message) : base(message) { }
+        public GlException(string message, Exception innerException) : base(message, innerException) { }
     }
 }

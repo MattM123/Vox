@@ -12,24 +12,24 @@ namespace Vox.Genesis
 
     public class RegionManager : IRegionManager
     {
-        private Dictionary<string, Region?> VisibleRegions = [];
-        private ConcurrentDictionary<Vector2, Biome> VoronoiSites = [];
-        private readonly List<Vector3> visited = [];
+        private Dictionary<string, Region?> _visibleRegions = [];
+        private ConcurrentDictionary<Vector2, Biome> _voronoiSites = [];
+        private readonly List<Vector3> _visited = [];
 
-        private readonly ISSBOManager _ssboManager;
+        private readonly IssboManager _ssboManager;
         private readonly ILightHelper _lightHelper;
         private readonly IAssetLookup _assetLookup;
 
-        private string worldDir = "";
-        private readonly int WORLD_HEIGHT = 500;
-        private readonly int RENDER_DISTANCE = 3;
-        public readonly int REGION_BOUNDS = 512;
-        private readonly int CHUNK_BOUNDS = 32;
-        private readonly long WORLD_SEED;
-        private readonly object chunkLock = new();
+        private string _worldDir = "";
+        private readonly int _worldHeight = 500;
+        private readonly int _renderDistance = 3;
+        public readonly int RegionBounds = 512;
+        private readonly int _chunkBounds = 32;
+        private readonly long _worldSeed;
+        private readonly object _chunkLock = new();
         private readonly object _regionLock = new();
 
-        private readonly ConcurrentQueue<LightNode> BFSEmissivePropagationQueue;
+        private readonly ConcurrentQueue<LightNode> _bfsEmissivePropagationQueue;
         /**
          * The highest level object representation of a world. The RegionManager
          * contains an in-memory list of regions that are currently within
@@ -45,17 +45,17 @@ namespace Vox.Genesis
         /// <param name="path">The file path of this world's directory.</param>
         /// <param name="ssboManager">The SSBO manager.</param>
         /// <param name="lightHelper">The light helper.</param>
-        public RegionManager(ISSBOManager ssboManager, ILightHelper lightHelper, IAssetLookup assetLookup)
+        public RegionManager(IssboManager ssboManager, ILightHelper lightHelper, IAssetLookup assetLookup)
         {
             _lightHelper = lightHelper;
             _ssboManager = ssboManager;
             _assetLookup = assetLookup;
 
-            BFSEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(CHUNK_BOUNDS, 3)));
+            _bfsEmissivePropagationQueue = new(new Queue<LightNode>((int)Math.Pow(_chunkBounds, 3)));
 
             byte[] buffer = new byte[8];
             RandomNumberGenerator.Fill(buffer); // Fills the buffer with random bytes
-            WORLD_SEED = BitConverter.ToInt64(buffer, 0);
+            _worldSeed = BitConverter.ToInt64(buffer, 0);
         }
 
         /// <summary>
@@ -68,8 +68,8 @@ namespace Vox.Genesis
         {
             try
             {
-                worldDir = path;
-                Directory.CreateDirectory(Path.Combine(worldDir, "regions"));
+                _worldDir = path;
+                Directory.CreateDirectory(Path.Combine(_worldDir, "regions"));
             } catch (Exception ex)
             {
                 Logger.Error(ex, "RegionManager");
@@ -82,24 +82,24 @@ namespace Vox.Genesis
         /// </summary>
         public void ClearVisibleRegions()
         {
-            VisibleRegions.Clear();
+            _visibleRegions.Clear();
         }
 
         /// <summary>
         /// Gets the fixed height of the world in blocks.
         /// </summary>
         /// <returns>The height of the world as an integer value.</returns>
-        public int GetWorldHeight() { return WORLD_HEIGHT; }
+        public int GetWorldHeight() { return _worldHeight; }
 
         /// <summary>
         /// Gets the size of one side of the cubic chunk. 
         /// This value defines the length, width, and height of a chunk in blocks.
         /// </summary>
         /// <returns>An integer representing the size of the chunk.</returns>
-        public int GetChunkBounds() { return CHUNK_BOUNDS; }
+        public int GetChunkBounds() { return _chunkBounds; }
         private void EnqueueEmissiveLightNode(LightNode node)
         {
-            BFSEmissivePropagationQueue.Enqueue(node);
+            _bfsEmissivePropagationQueue.Enqueue(node);
         }
 
         /// <summary>
@@ -111,7 +111,7 @@ namespace Vox.Genesis
         /// node.</returns>
         private LightNode DequeueEmissiveLightNode()
         {
-            if (BFSEmissivePropagationQueue.TryDequeue(out LightNode node))
+            if (_bfsEmissivePropagationQueue.TryDequeue(out LightNode node))
                 return node;
             else
                 return new LightNode("", null);
@@ -136,13 +136,13 @@ namespace Vox.Genesis
             //more smooth, spread out hills.
             double var2 = 0.011;
 
-            float f = 1 * OpenSimplex2.Noise2(WORLD_SEED, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
-                    + (float)(0.5 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
-                    + (float)(0.25 * OpenSimplex2.Noise2(WORLD_SEED, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
+            float f = 1 * OpenSimplex2.Noise2(_worldSeed, x * var2, z * var2) / (var1 + 2) //Noise Octave 1
+                    + (float)(0.5 * OpenSimplex2.Noise2(_worldSeed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 4)) //Noise Octave 2
+                    + (float)(0.25 * OpenSimplex2.Noise2(_worldSeed, x * (var2 * 2), z * (var2 * 2)) / (var1 + 6)); //Noise Octave 3
 
             //Normalized the noise value and scale between 0 and WORLD_HEIGHT
             float noise = (f * 0.5f) + 0.5f;
-            return (short)(noise * WORLD_HEIGHT);
+            return (short)(noise * _worldHeight);
 
         }
 
@@ -158,9 +158,9 @@ namespace Vox.Genesis
         public Vector3i GetChunkRelativeCoordinates(Vector3 v)
         {
             return new Vector3i(
-                (int)(v.X - MathF.Floor(v.X / CHUNK_BOUNDS) * CHUNK_BOUNDS),
-                (int)(v.Y - MathF.Floor(v.Y / CHUNK_BOUNDS) * CHUNK_BOUNDS),
-                (int)(v.Z - MathF.Floor(v.Z / CHUNK_BOUNDS) * CHUNK_BOUNDS)
+                (int)(v.X - MathF.Floor(v.X / _chunkBounds) * _chunkBounds),
+                (int)(v.Y - MathF.Floor(v.Y / _chunkBounds) * _chunkBounds),
+                (int)(v.Z - MathF.Floor(v.Z / _chunkBounds) * _chunkBounds)
             );
         }
 
@@ -177,80 +177,21 @@ namespace Vox.Genesis
         /// <returns>A <see cref="BlockType"/> enumeration representing the block _type at the given coordinates.</returns>
         public BlockType GetGeneratedBlockType(int x, int y, int z)
         {
-            long seed;
-            if (Window.IsMainMenuScreenDisplayed())
-                seed = Window.GetMenuSeed();
-            else
-                seed = WORLD_SEED;
-
-            //Generate noise and normalize to 0-1 from -1-1
-            float noise = (OpenSimplex2.Noise3_ImproveXZ(seed, x, y, z) * 0.5f) + 0.5f;
-
-            //Get a list of block the terrain can be generated from
-            List<BlockType> naturalBlockTypes = _assetLookup.GetTerrainBlocks();
-
-            // Multiply normalized noise to get an index
-            int index = (int)(noise * naturalBlockTypes.Count);
-            index = Math.Clamp(index, 0, naturalBlockTypes.Count - 1);
-
-            //Manually define ranges for certain block types like this:
-            //if (noise < 0.3f)
-            //    return BlockType.GRASS_BLOCK;
-            //else if (noise < 0.6f)
-            //    return BlockType.DIRT_BLOCK;
-            //else
-            //    return BlockType.STONE_BLOCK;
-
-            // Convert index to BlockType
-            return naturalBlockTypes[index];
-
+        
+            var seed = Window.IsMainMenuScreenDisplayed() ? Window.GetMenuSeed() : _worldSeed;
+            
+            Biome biome = GetBiomeAtLocation(x, z);
+        
+            BlockType type = BiomeExtensions.GetGeneratedBlockType(x, y, z, biome, seed, _assetLookup);
+            return type;
+        
         }
-        
-        
-        public BlockType GetSurfaceDecoration(int x, int z, Biome biome)
+
+        public void AddSite(Vector2 site, Biome siteBiome)
         {
-            if (Window.IsMainMenuScreenDisplayed())
-                Window.GetMenuSeed();
-
-            const double densityFrequency = 0.05;
-            const double spawnFrequency = 0.4;
-
-            float density = OpenSimplex2.Noise2(
-                WORLD_SEED + 1,
-                x * densityFrequency,
-                z * densityFrequency
-            );
-
-            float spawnNoise = OpenSimplex2.Noise2(
-                WORLD_SEED + 2,
-                x * spawnFrequency,
-                z * spawnFrequency
-            );
-
-            // Normalize noise to [0, 1].
-            density = Math.Clamp((density + 1f) * 0.5f, 0f, 1f);
-            float probability = Math.Clamp((spawnNoise + 1f) * 0.5f, 0f, 1f);
-
-            if (biome == Biome.NONE)
-                biome += 1;
-            
-            List<BlockType> surfaceDeco = _assetLookup.GetSurfaceDeco(biome);
- 
-            if (surfaceDeco.Count == 0)
-                return BlockType.AIR;
-
-            // Use the large-scale noise to control local vegetation density.
-            if (probability > density)
-                return BlockType.AIR;
-
-            // Select a decoration deterministically for this coordinate.
-            int seed = unchecked((int)(WORLD_SEED + x * 73856093L ^ z * 19349663L));
-            Random random = new(seed);
-
-            return surfaceDeco[random.Next(surfaceDeco.Count)];
-            
+            _voronoiSites.TryAdd(site, siteBiome);
         }
-
+        
 
         /// <summary>
         /// Retrieves the type of block at the specified global world coordinates.
@@ -269,9 +210,15 @@ namespace Vox.Genesis
             Chunk c = GetAndLoadGlobalChunkFromCoords(coords);
             Vector3i chunkRelative = GetChunkRelativeCoordinates(coords);
             
-            return (BlockType) c._blockData![chunkRelative.X, chunkRelative.Y, chunkRelative.Z];
+            return (BlockType) c.BlockData![chunkRelative.X, chunkRelative.Y, chunkRelative.Z];
         }
-
+        public BlockType GetBlockTypeAtCoords(Vector3 v)
+        {
+            Chunk c = GetAndLoadGlobalChunkFromCoords(v);
+            Vector3i chunkRelative = GetChunkRelativeCoordinates(v);
+            
+            return (BlockType) c.BlockData![chunkRelative.X, chunkRelative.Y, chunkRelative.Z];
+        }
         /// <summary>
         /// Calculates the total number of chunks currently present in all visible regions.
         /// </summary>
@@ -280,8 +227,8 @@ namespace Vox.Genesis
         public int PollChunkMemory()
         {
             int count = 0;
-            foreach (KeyValuePair<string, Region> pair in VisibleRegions)
-                count += pair.Value.chunks.Count;
+            foreach (KeyValuePair<string, Region> pair in _visibleRegions)
+                count += pair.Value.Chunks.Count;
             return count;
         }
 
@@ -291,7 +238,7 @@ namespace Vox.Genesis
         /// rendered in each cardinal direction from the player's current position.
         /// </summary>
         /// <returns>The render distance value.</returns>
-        public int GetRenderDistance() { return RENDER_DISTANCE; }
+        public int GetRenderDistance() { return _renderDistance; }
 
 
         /// <summary>
@@ -302,9 +249,9 @@ namespace Vox.Genesis
         /// <param name="rIndex">The key of the region to remove from the visible regions collection. Cannot be null.</param>
         public void LeaveRegion(string rIndex)
         {
-            Logger.Info($"Leaving {VisibleRegions[rIndex]}", ConsoleColor.Blue);
+            Logger.Info($"Leaving {_visibleRegions[rIndex]}", ConsoleColor.Blue);
             WriteRegion(rIndex);
-            VisibleRegions.Remove(rIndex);
+            _visibleRegions.Remove(rIndex);
         }
 
 
@@ -317,14 +264,14 @@ namespace Vox.Genesis
         public Region EnterRegion(string rIndex)
         {
             //If region is already visible
-            if (VisibleRegions.TryGetValue(rIndex, out Region? value))
+            if (_visibleRegions.TryGetValue(rIndex, out Region? value))
                 return value;
 
             //Gets region from filesystem if it's not visible
             Region region = TryGetRegionFromFile(rIndex);
 
-            if (!VisibleRegions.TryGetValue(rIndex, out _))
-                VisibleRegions.Add(rIndex, region);
+            if (!_visibleRegions.TryGetValue(rIndex, out _))
+                _visibleRegions.Add(rIndex, region);
 
             return region;
 
@@ -349,8 +296,8 @@ namespace Vox.Genesis
 
             else
             {
-                if (!VisibleRegions.TryGetValue(regionIdx, out _))
-                    VisibleRegions.Add(regionIdx, region);
+                if (!_visibleRegions.TryGetValue(regionIdx, out _))
+                    _visibleRegions.Add(regionIdx, region);
             }
         }
         
@@ -364,9 +311,9 @@ namespace Vox.Genesis
         /// collection.</param>
         private void WriteRegion(string rIndex)
         {
-            Region r = VisibleRegions[rIndex];
+            Region r = _visibleRegions[rIndex];
 
-            string path = Path.Combine(worldDir, "regions", $"{r.GetBounds().X}.{r.GetBounds().Y}.dat");
+            string path = Path.Combine(_worldDir, "regions", $"{r.GetBounds().X}.{r.GetBounds().Y}.dat");
 
             byte[] serializedRegion = MessagePackSerializer.Serialize(r);
 
@@ -380,7 +327,7 @@ namespace Vox.Genesis
         /// <returns>An integer value that specifies the region bounds.</returns>
         public int GetRegionBounds()
         {
-            return REGION_BOUNDS;
+            return RegionBounds;
         }
 
         /// <summary>
@@ -402,8 +349,8 @@ namespace Vox.Genesis
             //Initialize region and chunk dependancies after deserialization
             region.Initialize(this);
 
-            foreach (Chunk chunk in region.chunks.Values)
-                chunk.Initialize(_ssboManager, this, _assetLookup, chunk.xLoc, chunk.yLoc, chunk.zLoc);
+            foreach (Chunk chunk in region.Chunks.Values)
+                chunk.Initialize(_ssboManager, this, _assetLookup, chunk.XLoc, chunk.YLoc, chunk.ZLoc);
 
             return region;
 
@@ -421,10 +368,10 @@ namespace Vox.Genesis
         public Region TryGetRegionFromFile(string rIndex)
         {
             int[] index = [.. rIndex.Split('|').Select(int.Parse)];
-            string path = Path.Combine(worldDir, "regions", index[0] + "." + index[1] + ".dat");
+            string path = Path.Combine(_worldDir, "regions", index[0] + "." + index[1] + ".dat");
 
             //If region is already in memory, return it without file IO operations
-            if (VisibleRegions.TryGetValue(rIndex, out Region? r) && r != null)
+            if (_visibleRegions.TryGetValue(rIndex, out Region? r) && r != null)
                 return r;
             
             //If not found in memory, fallback to filesystem
@@ -451,9 +398,9 @@ namespace Vox.Genesis
         {
             
             string playerChunkIdx =
-                $"{Math.Floor((float)x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
-                $"{Math.Floor((float)y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
-                $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+                $"{Math.Floor((float)x / _chunkBounds) * _chunkBounds}|" +
+                $"{Math.Floor((float)y / _chunkBounds) * _chunkBounds}|" +
+                $"{Math.Floor((float)z / _chunkBounds) * _chunkBounds}";
             
             int[] chunkIdxArray = [.. playerChunkIdx.Split('|').Select(int.Parse)];
 
@@ -464,10 +411,10 @@ namespace Vox.Genesis
             
             Region r = EnterRegion(playerRegionIdx);
             
-            lock (r.chunks)
+            lock (r.Chunks)
             {
                 // Return the existing chunk if it has already been generated.
-                if (r.chunks.TryGetValue(playerChunkIdx, out Chunk? value))
+                if (r.Chunks.TryGetValue(playerChunkIdx, out Chunk? value))
                     return value;
 
                 // Otherwise, generate and cache it.
@@ -480,8 +427,12 @@ namespace Vox.Genesis
                 value = new Chunk(_ssboManager, this, _assetLookup)
                     .PopulateHeightmap(location);
 
-                r.chunks.Add(playerChunkIdx, value);
+                r.Chunks.Add(playerChunkIdx, value);
 
+                //Proces chunk site on chunk load
+                if (!value.IsSiteProcessed())
+                    value.ProcessChunkSite();
+                
                 return value;
             }
         }
@@ -492,9 +443,9 @@ namespace Vox.Genesis
             int z = (int)v.Z;
 
             string chunkIdx =
-                $"{Math.Floor((float)x / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
-                $"{Math.Floor((float)y / CHUNK_BOUNDS) * CHUNK_BOUNDS}|" +
-                $"{Math.Floor((float)z / CHUNK_BOUNDS) * CHUNK_BOUNDS}";
+                $"{Math.Floor((float)x / _chunkBounds) * _chunkBounds}|" +
+                $"{Math.Floor((float)y / _chunkBounds) * _chunkBounds}|" +
+                $"{Math.Floor((float)z / _chunkBounds) * _chunkBounds}";
 
             int[] chunkIdxArray = chunkIdx.Split('|').Select(int.Parse).ToArray();
 
@@ -505,9 +456,9 @@ namespace Vox.Genesis
 
             Region r = EnterRegion(playerRegionIdx);
             
-            lock (r.chunks)
+            lock (r.Chunks)
             {
-                if (r.chunks.TryGetValue(chunkIdx, out Chunk? value))
+                if (r.Chunks.TryGetValue(chunkIdx, out Chunk? value))
                     return value;
 
                 Vector3 location = new(
@@ -519,8 +470,12 @@ namespace Vox.Genesis
                 value = new Chunk(_ssboManager, this, _assetLookup)
                     .PopulateHeightmap(location);
 
-                r.chunks.Add(chunkIdx, value);
+                r.Chunks.Add(chunkIdx, value);
 
+                //Proces chunk site on chunk load
+                if (!value.IsSiteProcessed())
+                    value.ProcessChunkSite();
+                
                 return value;
             }
         }
@@ -537,11 +492,11 @@ namespace Vox.Genesis
         /// containing the provided chunk.</returns>
         public string GetRegionIndexFromChunkCoords(int chunkX, int chunkZ)
         {
-            int regionX = (int)Math.Floor((double)chunkX / REGION_BOUNDS)
-                          * REGION_BOUNDS;
+            int regionX = (int)Math.Floor((double)chunkX / RegionBounds)
+                          * RegionBounds;
 
-            int regionZ = (int)Math.Floor((double)chunkZ / REGION_BOUNDS)
-                          * REGION_BOUNDS;
+            int regionZ = (int)Math.Floor((double)chunkZ / RegionBounds)
+                          * RegionBounds;
             return $"{regionX}|{regionZ}";
         }
 
@@ -570,13 +525,13 @@ namespace Vox.Genesis
             Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block data in chunk 
-            actionChunk._blockData![(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
+            actionChunk.BlockData![(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
 
             /*=============================================
              * Add a single block to the SSBO for rendering
              *=============================================*/
 
-            int bounds = CHUNK_BOUNDS;
+            int bounds = _chunkBounds;
 
             int x = blockDataIndex.X;
             int y = blockDataIndex.Y;
@@ -585,63 +540,63 @@ namespace Vox.Genesis
             ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
             
             //Positive Y (UP)
-            if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
+            if (y + 1 >= bounds || actionChunk.BlockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
-                BlockFace faceDir = BlockFace.UP;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.Up);
+                BlockFace faceDir = BlockFace.Up;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
-            if (x + 1 >= bounds || actionChunk._blockData[(short)(x + 1), (short)y, (short)z] == 0)
+            if (x + 1 >= bounds || actionChunk.BlockData[(short)(x + 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
-                BlockFace faceDir = BlockFace.EAST;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.East);
+                BlockFace faceDir = BlockFace.East;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing EAST Face");
             }
 
 
             //Negative X (WEST)
-            if (x - 1 < 0 || actionChunk._blockData[(short)(x - 1), (short)y, (short)z] == 0)
+            if (x - 1 < 0 || actionChunk.BlockData[(short)(x - 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
-                BlockFace faceDir = BlockFace.WEST;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.West);
+                BlockFace faceDir = BlockFace.West;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing WEST Face");
             }
 
             //Negative Y (DOWN)
-            if (y - 1 < 0 || actionChunk._blockData[(short)x, (short)(y - 1), (short)z] == 0)
+            if (y - 1 < 0 || actionChunk.BlockData[(short)x, (short)(y - 1), (short)z] == 0)
             //If player is below the blocks Y level, render the bottom face
             // && Window.GetPlayer().GetPosition().Y < y)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
-                BlockFace faceDir = BlockFace.DOWN;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.Down);
+                BlockFace faceDir = BlockFace.Down;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
             //Positive Z (NORTH)
-            if (z + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
+            if (z + 1 >= bounds || actionChunk.BlockData[(short)x, (short)(y), (short)(z + 1)] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
-                BlockFace faceDir = BlockFace.NORTH;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.North);
+                BlockFace faceDir = BlockFace.North;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
             //Negative Z (SOUTH)
-            if (z - 1 < 0 || actionChunk._blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
+            if (z - 1 < 0 || actionChunk.BlockData[(short)x, (short)(y), (short)(z - 1)] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
-                BlockFace faceDir = BlockFace.SOUTH;
+                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.South);
+                BlockFace faceDir = BlockFace.South;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 
             //Set block emissiveness after addding faces
-            if (type == BlockType.LAMP_BLOCK)
+            if (type == BlockType.Lamp)
             {
                 //Track emissive lighting for loading and deporpagation
                 if (_lightHelper.GetLightTrackingList().ContainsKey(blockSpace))
@@ -653,12 +608,12 @@ namespace Vox.Genesis
 
                     //Set all block faces to the same light levels
                     _lightHelper.SetBlockLight(blockSpace, blockLight, actionChunk, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.UP, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.DOWN, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.EAST, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.WEST, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.NORTH, false, false);
-                    PropagateBlockLight(blockSpace, BlockFace.SOUTH, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.Up, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.Down, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.East, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.West, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.North, false, false);
+                    PropagateBlockLight(blockSpace, BlockFace.South, false, false);
                 }));
 
             }
@@ -666,26 +621,26 @@ namespace Vox.Genesis
         public Biome GetBiomeAtLocation(int x, int z)
         {
             float minDistance = float.MaxValue;
-            Biome biome = Biome.NONE;
+            Biome biome = Biome.None;
 
             const double distortionFrequency = 0.035;
             const float distortionStrength = 30f;
 
             Vector2 position = new(
                 x + OpenSimplex2.Noise2(
-                    WORLD_SEED + 3,
+                    _worldSeed + 3,
                     x * distortionFrequency,
                     z * distortionFrequency
                 ) * distortionStrength,
 
                 z + OpenSimplex2.Noise2(
-                    WORLD_SEED + 4,
+                    _worldSeed + 4,
                     x * distortionFrequency,
                     z * distortionFrequency
                 ) * distortionStrength
             );
 
-            foreach (var voronoiSite in VoronoiSites)
+            foreach (var voronoiSite in _voronoiSites)
             {
                 float distance = Vector2.Distance(voronoiSite.Key, position);
 
@@ -704,17 +659,23 @@ namespace Vox.Genesis
             const double densityFrequency = 0.5;
             const double biomeFrequency = 0.05;
 
-            Random rnd = new();
+            int seed = HashCode.Combine(
+                _worldSeed,
+                c.XLoc,
+                c.ZLoc,
+                1
+            );
+            Random rnd = new(seed);
 
-            Biome siteBiome = Biome.NONE;
-            Vector2 site = new(c.xLoc + c._siteX, c.zLoc + c._siteZ);
+            Biome siteBiome = Biome.None;
+            Vector2 site = new(c.XLoc + c.SiteX, c.ZLoc + c.SiteZ);
 
             //===================================================
             // Voronoi site rejection sampling
             //===================================================
 
             float siteNoiseSample = OpenSimplex2.Noise2(
-                WORLD_SEED + 1,
+                _worldSeed + 1,
                 site.X * densityFrequency,
                 site.Y * densityFrequency
             );
@@ -731,7 +692,7 @@ namespace Vox.Genesis
             //===================================================
 
             float noise = OpenSimplex2.Noise2(
-                WORLD_SEED + 2,
+                _worldSeed + 2,
                 site.X * biomeFrequency,
                 site.Y * biomeFrequency
             );
@@ -758,9 +719,7 @@ namespace Vox.Genesis
             //===================================================
             // Accept site
             //===================================================
-
-            if (!VoronoiSites.ContainsKey(site))
-                VoronoiSites.TryAdd(site, siteBiome);
+            AddSite(site, siteBiome);
         }
 
         /// <summary>
@@ -787,13 +746,13 @@ namespace Vox.Genesis
             Vector3i blockDataIndex = GetChunkRelativeCoordinates(blockSpace);
 
             //Update block data in chunk 
-            actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
+            actionChunk.BlockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (short)type;
 
             /*=============================================
              * Add a single block to the SSBO for rendering
              *=============================================*/
 
-            int bounds = CHUNK_BOUNDS;
+            int bounds = _chunkBounds;
 
             int x = blockDataIndex.X;
             int y = blockDataIndex.Y;
@@ -802,63 +761,63 @@ namespace Vox.Genesis
             ushort isBillboard = _assetLookup!.IsBillboard(type) ? (ushort) 1 : (ushort) 0;
 
             //Positive Y (UP)
-            if (y + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y + 1), (short)z] == 0)
+            if (y + 1 >= bounds || actionChunk.BlockData[(short)x, (short)(y + 1), (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.UP);
-                BlockFace faceDir = BlockFace.UP;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.Up);
+                BlockFace faceDir = BlockFace.Up;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing UP Face");
             }
             // Positive X (EAST)
-            if (x + 1 >= bounds || actionChunk._blockData[(short)(x + 1), (short)y, (short)z] == 0)
+            if (x + 1 >= bounds || actionChunk.BlockData[(short)(x + 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.EAST);
-                BlockFace faceDir = BlockFace.EAST;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.East);
+                BlockFace faceDir = BlockFace.East;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing EAST Face");
             }
 
 
             //Negative X (WEST)
-            if (x - 1 < 0 || actionChunk._blockData[(short)(x - 1), (short)y, (short)z] == 0)
+            if (x - 1 < 0 || actionChunk.BlockData[(short)(x - 1), (short)y, (short)z] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.WEST);
-                BlockFace faceDir = BlockFace.WEST;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.West);
+                BlockFace faceDir = BlockFace.West;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing WEST Face");
             }
 
             //Negative Y (DOWN)
-            if (y - 1 < 0 || actionChunk._blockData[(short)x, (short)(y - 1), (short)z] == 0)
+            if (y - 1 < 0 || actionChunk.BlockData[(short)x, (short)(y - 1), (short)z] == 0)
             //If player is below the blocks Y level, render the bottom face
             // && Window.GetPlayer().GetPosition().Y < y)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.DOWN);
-                BlockFace faceDir = BlockFace.DOWN;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.Down);
+                BlockFace faceDir = BlockFace.Down;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing DOWN Face");
             }
 
             //Positive Z (NORTH)
-            if (z + 1 >= bounds || actionChunk._blockData[(short)x, (short)(y), (short)(z + 1)] == 0)
+            if (z + 1 >= bounds || actionChunk.BlockData[(short)x, (short)(y), (short)(z + 1)] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.NORTH);
-                BlockFace faceDir = BlockFace.NORTH;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.North);
+                BlockFace faceDir = BlockFace.North;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing NORTH Face");
             }
 
             //Negative Z (SOUTH)
-            if (z - 1 < 0 || actionChunk._blockData[(short)x, (short)(y), (short)(z - 1)] == 0)
+            if (z - 1 < 0 || actionChunk.BlockData[(short)x, (short)(y), (short)(z - 1)] == 0)
             {
-                int texLayer = (int)_assetLookup.GetModel(type).GetTextureLayer(BlockFace.SOUTH);
-                BlockFace faceDir = BlockFace.SOUTH;
+                int texLayer = _assetLookup.GetModel(type).GetTextureLayer(BlockFace.South);
+                BlockFace faceDir = BlockFace.South;
                 actionChunk.AddOrUpdateBlockFace(blockSpace, texLayer, faceDir, isBillboard);
                 Console.WriteLine("Updaing SOUTH Face");
             }
 
             //Set block emissiveness after addding faces
-            if (type == BlockType.LAMP_BLOCK)
+            if (type == BlockType.Lamp)
             {
                 //Track emissive lighting for loading and deporpagation
                 if (_lightHelper.GetLightTrackingList().ContainsKey(blockSpace))
@@ -869,23 +828,23 @@ namespace Vox.Genesis
 
                 //Set all block faces to the same light levels
                 _lightHelper.SetBlockLight(blockSpace, blockLight, actionChunk, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.UP, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.DOWN, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.EAST, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.WEST, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.NORTH, false, colorOverride);
-                PropagateBlockLight(blockSpace, BlockFace.SOUTH, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.Up, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.Down, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.East, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.West, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.North, false, colorOverride);
+                PropagateBlockLight(blockSpace, BlockFace.South, false, colorOverride);
 
             }
         }
 
-        public long GetSeed()
+        public long GetWorlSeed()
         {
-            return WORLD_SEED;
+            return _worldSeed;
         }
         public bool IsRegionVisible(string rIndex)
         {
-            return VisibleRegions.Keys.Any(visibleIndex => visibleIndex == rIndex);
+            return _visibleRegions.Keys.Any(visibleIndex => visibleIndex == rIndex);
         }
         /// <summary>
         /// Removes the provided block from its chunk, 
@@ -910,152 +869,149 @@ namespace Vox.Genesis
             /*==================================================
             * Set face instances to BlockType.AIR in SSBO
             *=================================================*/
-            int bounds = CHUNK_BOUNDS;
+            int bounds = _chunkBounds;
 
             int x = (int)blockDataIndex.X;
             int y = (int)blockDataIndex.Y;
             int z = (int)blockDataIndex.Z;
 
 
-            if ((BlockType)actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == BlockType.LAMP_BLOCK)
+            if ((BlockType)actionChunk.BlockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] == BlockType.Lamp)
             {
                 ThreadPool.QueueUserWorkItem(new WaitCallback(delegate (object state)
                 {
                     Console.WriteLine("Remove Lamp");
 
                     _lightHelper.SetBlockLight(blockSpace, new ColorVector(0, 0, 0), actionChunk, true, false);
-                    PropagateBlockLight(blockSpace, BlockFace.UP, true, true);
-                    PropagateBlockLight(blockSpace, BlockFace.DOWN, true, true);
-                    PropagateBlockLight(blockSpace, BlockFace.EAST, true, true);
-                    PropagateBlockLight(blockSpace, BlockFace.WEST, true, true);
-                    PropagateBlockLight(blockSpace, BlockFace.NORTH, true, true);
-                    PropagateBlockLight(blockSpace, BlockFace.SOUTH, true, true);
-
-                    //Undtrack light source
-                    _lightHelper.GetLightTrackingList().Remove(blockSpace);
+                    PropagateBlockLight(blockSpace, BlockFace.Up, true, true);
+                    PropagateBlockLight(blockSpace, BlockFace.Down, true, true);
+                    PropagateBlockLight(blockSpace, BlockFace.East, true, true);
+                    PropagateBlockLight(blockSpace, BlockFace.West, true, true);
+                    PropagateBlockLight(blockSpace, BlockFace.North, true, true);
+                    PropagateBlockLight(blockSpace, BlockFace.South, true, true);
                 }));
 
             }
 
             //Update block data in chunk  
-            actionChunk._blockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.AIR;
+            actionChunk.BlockData[(short)blockDataIndex.X, (short)blockDataIndex.Y, (short)blockDataIndex.Z] = (int)BlockType.Air;
 
-            AddBlockToChunk(blockSpace, BlockType.AIR, new(0, 0, 0));
+            AddBlockToChunk(blockSpace, BlockType.Air, new(0, 0, 0));
             /*==================================================
             / Check for terrain holes after block removal
             *=================================================*/
 
             //==============================Positive Y (UP)==============================
             Vector3 u = new(blockSpace.X, (int)blockSpace.Y + 1, (int)blockSpace.Z);
-            Vector3 blockDataIndexUP = GetChunkRelativeCoordinates(u);
+            Vector3 blockDataIndexUp = GetChunkRelativeCoordinates(u);
             Chunk up = GetAndLoadGlobalChunkFromCoords(u);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexUP.Y + 1 == bounds)
+            if (blockDataIndexUp.Y + 1 == bounds)
             {
-                blockDataIndexUP.Y = 0;
+                blockDataIndexUp.Y = 0;
                 up = GetAndLoadGlobalChunkFromCoords(new Vector3(u.X, u.Y + bounds, u.Z));
             }
 
-            BlockType typeU = (BlockType)up._blockData[(short)blockDataIndexUP.X, (short)(blockDataIndexUP.Y + 1), (short)blockDataIndexUP.Z];
+            BlockType typeU = (BlockType)up.BlockData[(short)blockDataIndexUp.X, (short)(blockDataIndexUp.Y + 1), (short)blockDataIndexUp.Z];
             //Only add block if its not air
 
-            if (typeU != BlockType.AIR)
+            if (typeU != BlockType.Air)
             {
-                AddBlockToChunk(u, typeU, _lightHelper.GetBlockLight(u, BlockFace.UP, up));
+                AddBlockToChunk(u, typeU, _lightHelper.GetBlockLight(u, BlockFace.Up, up));
             }
             //==============================Negative Y (DOWN)==============================
             Vector3 d = new(blockSpace.X, (int)blockSpace.Y - 1, (int)blockSpace.Z);
-            Vector3 blockDataIndexDOWN = GetChunkRelativeCoordinates(d);
+            Vector3 blockDataIndexDown = GetChunkRelativeCoordinates(d);
             Chunk down = GetAndLoadGlobalChunkFromCoords(d);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexDOWN.Y - 1 <= 0)
+            if (blockDataIndexDown.Y - 1 <= 0)
             {
-                blockDataIndexDOWN.Y = bounds - 1;
+                blockDataIndexDown.Y = bounds - 1;
                 down = GetAndLoadGlobalChunkFromCoords(new Vector3(d.X, d.Y - bounds, d.Z));
             }
 
-            BlockType typeD = (BlockType)down._blockData[(short)blockDataIndexDOWN.X, (short)(blockDataIndexDOWN.Y - 1), (short)blockDataIndexDOWN.Z];
+            BlockType typeD = (BlockType)down.BlockData[(short)blockDataIndexDown.X, (short)(blockDataIndexDown.Y - 1), (short)blockDataIndexDown.Z];
             //Only add block if its not air
-            if (typeD != BlockType.AIR)
+            if (typeD != BlockType.Air)
             {
-                AddBlockToChunk(d, typeD, _lightHelper.GetBlockLight(d, BlockFace.DOWN, down));
+                AddBlockToChunk(d, typeD, _lightHelper.GetBlockLight(d, BlockFace.Down, down));
             }
             //==============================Positive X (EAST)==============================
             Vector3 e = new(blockSpace.X + 1, (int)blockSpace.Y, (int)blockSpace.Z);
-            Vector3 blockDataIndexEAST = GetChunkRelativeCoordinates(e);
+            Vector3 blockDataIndexEast = GetChunkRelativeCoordinates(e);
             Chunk east = GetAndLoadGlobalChunkFromCoords(e);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexEAST.X + 1 == bounds)
+            if (blockDataIndexEast.X + 1 == bounds)
             {
-                blockDataIndexEAST.X = 0;
+                blockDataIndexEast.X = 0;
                 east = GetAndLoadGlobalChunkFromCoords(new Vector3(e.X + bounds, e.Y, e.Z));
             }
 
-            BlockType typeE = (BlockType)east._blockData[(short)(blockDataIndexEAST.X + 1), (short)blockDataIndexEAST.Y, (short)blockDataIndexEAST.Z];
+            BlockType typeE = (BlockType)east.BlockData[(short)(blockDataIndexEast.X + 1), (short)blockDataIndexEast.Y, (short)blockDataIndexEast.Z];
             //Only add block if its not air
-            if (typeE != BlockType.AIR)
+            if (typeE != BlockType.Air)
             {
-                AddBlockToChunk(e, typeE, _lightHelper.GetBlockLight(e, BlockFace.EAST, east));
+                AddBlockToChunk(e, typeE, _lightHelper.GetBlockLight(e, BlockFace.East, east));
             }
 
             //==============================Negative X (WEST)==============================
             Vector3 w = new(blockSpace.X - 1, (int)blockSpace.Y, (int)blockSpace.Z);
-            Vector3 blockDataIndexWEST = GetChunkRelativeCoordinates(w);
+            Vector3 blockDataIndexWest = GetChunkRelativeCoordinates(w);
             Chunk west = GetAndLoadGlobalChunkFromCoords(w);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexWEST.X - 1 <= 0)
+            if (blockDataIndexWest.X - 1 <= 0)
             {
-                blockDataIndexWEST.X = bounds - 1;
+                blockDataIndexWest.X = bounds - 1;
                 west = GetAndLoadGlobalChunkFromCoords(new Vector3(w.X - bounds, w.Y, w.Z));
             }
 
-            BlockType typeW = (BlockType)west._blockData[(short)(blockDataIndexWEST.X - 1), (short)blockDataIndexWEST.Y, (short)blockDataIndexWEST.Z];
+            BlockType typeW = (BlockType)west.BlockData[(short)(blockDataIndexWest.X - 1), (short)blockDataIndexWest.Y, (short)blockDataIndexWest.Z];
             //Only add block if its not air
-            if (typeW != BlockType.AIR)
+            if (typeW != BlockType.Air)
             {
-                AddBlockToChunk(w, typeW, _lightHelper.GetBlockLight(w, BlockFace.WEST, west));
+                AddBlockToChunk(w, typeW, _lightHelper.GetBlockLight(w, BlockFace.West, west));
             }
 
             //==============================Positive Z (NORTH)==============================
             Vector3 n = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z + 1);
-            Vector3 blockDataIndexNORTH = GetChunkRelativeCoordinates(n);
+            Vector3 blockDataIndexNorth = GetChunkRelativeCoordinates(n);
             Chunk north = GetAndLoadGlobalChunkFromCoords(n);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexNORTH.Z + 1 == bounds)
+            if (blockDataIndexNorth.Z + 1 == bounds)
             {
-                blockDataIndexNORTH.Z = 0;
+                blockDataIndexNorth.Z = 0;
                 north = GetAndLoadGlobalChunkFromCoords(new Vector3(n.X, n.Y, n.Z + bounds));
             }
 
-            BlockType typeN = (BlockType)north._blockData[(short)blockDataIndexNORTH.X, (short)blockDataIndexNORTH.Y, (short)(blockDataIndexNORTH.Z + 1)];
+            BlockType typeN = (BlockType)north.BlockData[(short)blockDataIndexNorth.X, (short)blockDataIndexNorth.Y, (short)(blockDataIndexNorth.Z + 1)];
             //Only add block if its not air
-            if (typeN != BlockType.AIR)
+            if (typeN != BlockType.Air)
             {
-                AddBlockToChunk(n, typeN, _lightHelper.GetBlockLight(n, BlockFace.NORTH, north));
+                AddBlockToChunk(n, typeN, _lightHelper.GetBlockLight(n, BlockFace.North, north));
             }
             //==============================Negative Z (SOUTH)==============================
             Vector3 s = new(blockSpace.X, (int)blockSpace.Y, (int)blockSpace.Z - 1);
-            Vector3 blockDataIndexSOUTH = GetChunkRelativeCoordinates(s);
+            Vector3 blockDataIndexSouth = GetChunkRelativeCoordinates(s);
             Chunk south = GetAndLoadGlobalChunkFromCoords(s);
 
             //If at the edge of a chunk, wrap to the next chunk
-            if (blockDataIndexSOUTH.Z - 1 <= 0)
+            if (blockDataIndexSouth.Z - 1 <= 0)
             {
-                blockDataIndexSOUTH.Z = bounds - 1;
+                blockDataIndexSouth.Z = bounds - 1;
                 south = GetAndLoadGlobalChunkFromCoords(new Vector3(s.X, s.Y, s.Z - bounds));
             }
 
-            BlockType typeS = (BlockType)south._blockData[(short)blockDataIndexSOUTH.X, (short)blockDataIndexSOUTH.Y, (short)(blockDataIndexSOUTH.Z - 1)];
+            BlockType typeS = (BlockType)south.BlockData[(short)blockDataIndexSouth.X, (short)blockDataIndexSouth.Y, (short)(blockDataIndexSouth.Z - 1)];
 
             //Only add block if its not air
-            if (typeS != BlockType.AIR)
+            if (typeS != BlockType.Air)
             {
-                AddBlockToChunk(s, typeS, _lightHelper.GetBlockLight(s, BlockFace.SOUTH, south));
+                AddBlockToChunk(s, typeS, _lightHelper.GetBlockLight(s, BlockFace.South, south));
             }
         }
 
@@ -1065,7 +1021,7 @@ namespace Vox.Genesis
         /// <returns>A dictionary containing the visible regions.</returns>
         public Dictionary<string, Region> GetVisibleRegions()
         {
-            return VisibleRegions;
+            return _visibleRegions;
         }
         //================================================================================================
         //============================= Light Propagation and Depropagation ==============================
@@ -1124,6 +1080,7 @@ namespace Vox.Genesis
                     lightingArea.Add(light.Key, light.Value);
                 }
             }
+            
 
             // Check the light level of the current node before propagating          
             ColorVector originLightLevel = _lightHelper.GetBlockLight(location, faceDir, GetAndLoadGlobalChunkFromCoords(location));
@@ -1131,7 +1088,8 @@ namespace Vox.Genesis
             {
                 string index = $"{x}|{y}|{z}";
                 EnqueueEmissiveLightNode(new(index, GetAndLoadGlobalChunkFromCoords(location)));
-                while (!BFSEmissivePropagationQueue.IsEmpty)
+                
+                while (!_bfsEmissivePropagationQueue.IsEmpty)
                 {
                     // Get a reference to the front node.
                     LightNode node = DequeueEmissiveLightNode();
@@ -1143,8 +1101,13 @@ namespace Vox.Genesis
             {
                 string index = $"{x}|{y}|{z}";
 
+                //Untrack light when depropagating
+                lightingArea.Remove(location);
+                _lightHelper.GetLightTrackingList().Remove(location);
+                
                 EnqueueEmissiveLightNode(new(index, GetAndLoadGlobalChunkFromCoords(location)));
-                while (!BFSEmissivePropagationQueue.IsEmpty)
+                
+                while (!_bfsEmissivePropagationQueue.IsEmpty)
                 {
                     LightNode node = DequeueEmissiveLightNode();
                     string currentIdx = node.Index;
@@ -1156,10 +1119,14 @@ namespace Vox.Genesis
                     // ???? RRRR GGGG BBBB
                     ColorVector lightLevel = _lightHelper.GetBlockLight(new Vector3(xLight, yLight, zLight), faceDir, node.Chunk);
 
+                    if (_lightHelper.GetLightTrackingList().ContainsKey(location))
+                    {
+                        _lightHelper.GetLightTrackingList().Remove(location);
+                    }
                     DepropagateLightNode(lightingArea, location, faceDir, node, depropagate, colorOverride);
                 }
             }
-            visited.Clear();
+            _visited.Clear();
         }
 
 
@@ -1205,7 +1172,8 @@ namespace Vox.Genesis
         /// </item>
         /// </list>
         /// </remarks>
-        private void PropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
+        private void PropagateLightNode(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation,
+            BlockFace faceDir, LightNode node, bool depropagate, bool colorOverride)
         {
             Chunk chunk = node.Chunk;
             string currentIdx = node.Index;
@@ -1217,32 +1185,7 @@ namespace Vox.Genesis
             // ???? RRRR GGGG BBBB
             Vector3 baseLoc = new(xLight, yLight, zLight);
             ColorVector lightLevel = _lightHelper.GetBlockLight(baseLoc, faceDir, chunk);
-
-            //======================================
-            //          NEGATIVE X (WEST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc1 = new(xLight - 1, yLight, zLight);
-            Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
-            if (!chunk.Equals(xMinusOne))
-                chunk = xMinusOne;
-
-
-            PropagateLightNodeHelper(lightingArea, loc1, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
-            //======================================
-            //          POSITIVE X (EAST)
-            //======================================
-
-            //Chunk bounds check
-            Vector3 loc2 = new(xLight + 1, yLight, zLight);
-            Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
-            if (!chunk.Equals(xPlusOne))
-                chunk = xPlusOne;
-
-            PropagateLightNodeHelper(lightingArea, loc2, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
-
+            
             //======================================
             //          NEGATIVE Y (DOWN)
             //======================================
@@ -1254,7 +1197,8 @@ namespace Vox.Genesis
                 chunk = yMinusOne;
 
 
-            PropagateLightNodeHelper(lightingArea, loc3, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
+            PropagateLightNodeHelper(lightingArea, loc3, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
 
             //======================================
             //          POSITIVE Y (UP)
@@ -1266,7 +1210,35 @@ namespace Vox.Genesis
             if (!chunk.Equals(yPlusOne))
                 chunk = yPlusOne;
 
-            PropagateLightNodeHelper(lightingArea, loc4, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
+            PropagateLightNodeHelper(lightingArea, loc4, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
+            
+            //======================================
+            //          NEGATIVE X (WEST)
+            //======================================
+
+            //Chunk bounds check
+            Vector3 loc1 = new(xLight - 1, yLight, zLight);
+            Chunk xMinusOne = GetAndLoadGlobalChunkFromCoords(loc1);
+            if (!chunk.Equals(xMinusOne))
+                chunk = xMinusOne;
+
+
+            PropagateLightNodeHelper(lightingArea, loc1, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
+
+            //======================================
+            //          POSITIVE X (EAST)
+            //======================================
+
+            //Chunk bounds check
+            Vector3 loc2 = new(xLight + 1, yLight, zLight);
+            Chunk xPlusOne = GetAndLoadGlobalChunkFromCoords(loc2);
+            if (!chunk.Equals(xPlusOne))
+                chunk = xPlusOne;
+
+            PropagateLightNodeHelper(lightingArea, loc2, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
 
             //======================================
             //          NEGATIVE Z (SOUTH)
@@ -1278,7 +1250,8 @@ namespace Vox.Genesis
             if (!chunk.Equals(zMinusOne))
                 chunk = zMinusOne;
 
-            PropagateLightNodeHelper(lightingArea, loc5, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
+            PropagateLightNodeHelper(lightingArea, loc5, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
 
             //======================================
             //          POSITIVE Z (NORTH)
@@ -1290,198 +1263,11 @@ namespace Vox.Genesis
             if (!chunk.Equals(zPlusOne))
                 chunk = zPlusOne;
 
-            PropagateLightNodeHelper(lightingArea, loc6, sourceLocation, faceDir, lightLevel, chunk, depropagate, colorOverride);
+            PropagateLightNodeHelper(lightingArea, loc6, sourceLocation, faceDir, lightLevel, chunk, depropagate,
+                colorOverride);
+            
         }
-
-
-        /// <summary>
-        /// Work in progress - Helper method for processing a neighboring block during light propagation or depropagation.
-        /// </summary>
-        /// <param name="lightingArea"></param>
-        /// <param name="sourceLocation"></param>
-        /// <param name="location"></param>
-        /// <param name="faceDir"></param>
-        /// <param name="nodeLightLevel"></param>
-        /// <param name="chunk"></param>
-        /// <param name="depropagate"></param>
-        /// <param name="colorOverride"></param>
-        private void DepropagationLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 sourceLocation, Vector3 location, BlockFace faceDir,
-            ColorVector nodeLightLevel, Chunk chunk, bool depropagate, bool colorOverride)
-        {
-            bool wasUpdated = false;
-
-            // distance from the depropagation source to this neighbor
-            int distFromSource = Utils.GetVectorDistance(location, sourceLocation);
-
-            if (_lightHelper.GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location))
-            {
-                _lightHelper.SetBlueLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-            if (_lightHelper.GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location))
-            {
-                _lightHelper.SetGreenLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-            if (_lightHelper.GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location))
-            {
-                _lightHelper.SetRedLight(location, faceDir, 0, chunk, true);
-                wasUpdated = true;
-            }
-
-
-            //// if (GetBlockLight(location, faceDir, chunk).Blue > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Blue)
-            // {
-            //     Dictionary<Vector3, int> contributingBlueLightValues = [];
-            //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-            //     {
-            //         int value = Utils.GetVectorDistance(location, light.Key);
-            //         if (value <= lightSourceLevel.Blue)
-            //         {
-            //             //If block face (location) is within the range of any light source, accumulate light
-            //             contributingBlueLightValues.Add(light.Key, value);
-            //         }
-            //     }
-            //
-            //     //If more than one light source is lighting the area
-            //     if (contributingBlueLightValues.Count > 1)
-            //     {
-            //         int cumulativeLight = contributingBlueLightValues.Values.Sum() - contributingBlueLightValues[sourceLocation];
-            //
-            //         //The light source being depropagated is brighter than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         if (lightSourceLevel.Blue > cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - cumulativeLight, chunk, false);
-            //   
-            //         }
-            //         //The light source being depropagated less bright than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         else if (lightSourceLevel.Blue < cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetBlueLight(location, faceDir, lightSourceLevel.Blue - (cumulativeLight - lightSourceLevel.Blue), chunk, false);
-            //
-            //         }
-            //
-            //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-            //         else if (lightSourceLevel.Blue == cumulativeLight && contributingBlueLightValues[sourceLocation] >= lightSourceLevel.Blue)
-            //         {
-            //             SetBlueLight(location, faceDir, 0, chunk, false);
-            //            
-            //         }
-            //     }
-            //     else
-            //     {
-            //         SetBlueLight(location, faceDir, 0, chunk, colorOverride);
-            //     }
-            //     wasUpdated = true;
-            //
-            // }
-            ////
-            //// if (GetBlockLight(location, faceDir, chunk).Green > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Green)
-            // {
-            //     Dictionary<Vector3, int> contributingGreenLightValues = [];
-            //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-            //     {
-            //         int value = Utils.GetVectorDistance(location, light.Key);
-            //         if (value <= lightSourceLevel.Green)
-            //         {
-            //             //If block face (location) is within the range of any light source, accumulate light
-            //             contributingGreenLightValues.Add(light.Key, value);
-            //         }
-            //     }
-            //
-            //     //If more than one light source is lighting the area
-            //     if (contributingGreenLightValues.Count > 1)
-            //     {
-            //         int cumulativeLight = contributingGreenLightValues.Values.Sum() - contributingGreenLightValues[sourceLocation];
-            //
-            //         //The light source being depropagated is brighter than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         if (lightSourceLevel.Green > cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetGreenLight(location, faceDir, lightSourceLevel.Green - cumulativeLight, chunk, false);
-            //
-            //         }
-            //         //The light source being depropagated less bright than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         else if (lightSourceLevel.Green < cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetGreenLight(location, faceDir, lightSourceLevel.Green - (cumulativeLight - lightSourceLevel.Green), chunk, false);
-            //
-            //         }
-            //
-            //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-            //         else if (lightSourceLevel.Green == cumulativeLight && contributingGreenLightValues[sourceLocation] >= lightSourceLevel.Green)
-            //         {
-            //             SetGreenLight(location, faceDir, 0, chunk, false);
-            //
-            //         }
-            //     }
-            //     else
-            //     {
-            //         SetGreenLight(location, faceDir, 0, chunk, colorOverride);
-            //     }
-            // }
-            //
-            // if (GetBlockLight(location, faceDir, chunk).Red > 0 && !visited.Contains(location) && distFromSource <= lightSourceLevel.Red)
-            // {
-            //     Dictionary<Vector3, int> contributingRedLightValues = [];
-            //     foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
-            //     {
-            //         int value = Utils.GetVectorDistance(location, light.Key);
-            //
-            //         if (value <= lightSourceLevel.Red)
-            //         {
-            //             //If block face (location) is within the range of any light source, accumulate light
-            //             contributingRedLightValues.Add(light.Key, value);
-            //         }
-            //     }
-            //
-            //     //If more than one light source is lighting the area
-            //     if (contributingRedLightValues.Count > 1)
-            //     {
-            //         int cumulativeLight = contributingRedLightValues.Values.Sum() - contributingRedLightValues[sourceLocation];
-            //
-            //         //The light source being depropagated is brighter than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         if (lightSourceLevel.Red > cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetRedLight(location, faceDir, lightSourceLevel.Red - cumulativeLight, chunk, false);
-            //
-            //         }
-            //         //The light source being depropagated less bright than the cumulative light at the location
-            //         //Do not depropagate light source block faces
-            //         else if (lightSourceLevel.Red < cumulativeLight && !lightingArea.ContainsKey(location))
-            //         {
-            //             SetRedLight(location, faceDir, lightSourceLevel.Red - (cumulativeLight - lightSourceLevel.Red), chunk, false);
-            //
-            //         }
-            //
-            //         //Light source level is equal to accumulated light and outside the light range so they cancel out
-            //         else if (lightSourceLevel.Red == cumulativeLight && contributingRedLightValues[sourceLocation] >= lightSourceLevel.Red)
-            //         {
-            //             SetRedLight(location, faceDir, 0, chunk, false);
-            //
-            //         }
-            //     }
-            //     else 
-            //     {
-            //         SetRedLight(location, faceDir, 0, chunk, true);
-            //
-            //     }
-            // }
-
-            if (wasUpdated)
-            {
-                visited.Add(location);
-                string idx = $"{location.X}|{location.Y}|{location.Z}";
-                EnqueueEmissiveLightNode(new(idx, chunk));
-
-            }
-        }
+        
 
         /// <summary>
         /// Evaluates a neighboring block during emissive light propagation and updates its RGB light values
@@ -1539,36 +1325,149 @@ namespace Vox.Genesis
 
             ColorVector lightSourceLevel = lightingArea[sourceLocation];
 
+            ColorVector propagatedLight = new(
+                Math.Max(0, lightSourceLevel.Red - distFromSource),
+                Math.Max(0, lightSourceLevel.Green - distFromSource),
+                Math.Max(0, lightSourceLevel.Blue - distFromSource));
+            
             if ((_lightHelper.GetRedLight(location, faceDir, chunk) + 1) < lightLevel.Red)
             {
-                _lightHelper.SetRedLight(location, faceDir, lightSourceLevel.Red - distFromSource, chunk, colorOverride);
+                _lightHelper.SetRedLight(location, faceDir, propagatedLight.Red - distFromSource, chunk, colorOverride);
                 wasUpdated = true;
             }
 
             if ((_lightHelper.GetGreenLight(location, faceDir, chunk) + 1) < lightLevel.Green)
             {
-                _lightHelper.SetGreenLight(location, faceDir, lightSourceLevel.Green - distFromSource, chunk, colorOverride);
+                _lightHelper.SetGreenLight(location, faceDir, propagatedLight.Green - distFromSource, chunk, colorOverride);
                 wasUpdated = true;
             }
 
             if ((_lightHelper.GetBlueLight(location, faceDir, chunk) + 1) < lightLevel.Blue)
             {
                 // Set blue light level
-                _lightHelper.SetBlueLight(location, faceDir, lightSourceLevel.Blue - distFromSource, chunk, colorOverride);
+                _lightHelper.SetBlueLight(location, faceDir, propagatedLight.Blue - distFromSource, chunk, colorOverride);
                 wasUpdated = true;
+
             }
 
             if (wasUpdated)
             {
-                // Construct index
+                // Always enqueue the destination.
                 string idx = $"{location.X}|{location.Y}|{location.Z}";
-                // Emplace new node to queue.
-
                 EnqueueEmissiveLightNode(new(idx, chunk));
+                
+                BlockFlags flags = _assetLookup.GetBlockFlags(
+                    GetBlockTypeAtCoords(
+                        (int)location.X,
+                        (int)location.Y,
+                        (int)location.Z));
 
+                // If the destination is a passthrough, additionally enqueue its neighbor below
+                if (flags.HasFlag(BlockFlags.Passthrough | BlockFlags.Billboard))
+                {
+                    Vector3 belowLocation = new(
+                        location.X, location.Y - 1, location.Z);
+
+                    Chunk belowChunk = GetAndLoadGlobalChunkFromCoords(belowLocation);
+                    PropagateLightNodeHelper(
+                        lightingArea,
+                        belowLocation,
+                        sourceLocation,
+                        faceDir,
+                        lightLevel,
+                        belowChunk,
+                        depropagate,
+                        colorOverride);
+                }
             }
         }
 
+           /// <summary>
+        /// Work in progress - Helper method for processing a neighboring block during light propagation or depropagation.
+        /// </summary>
+        /// <param name="lightingArea"></param>
+        /// <param name="sourceLocation"></param>
+        /// <param name="location"></param>
+        /// <param name="faceDir"></param>
+        /// <param name="nodeLightLevel"></param>
+        /// <param name="chunk"></param>
+        /// <param name="depropagate"></param>
+        /// <param name="colorOverride"></param>
+        private void DepropagationLightNodeHelper(Dictionary<Vector3, ColorVector> lightingArea, Vector3 location, Vector3 sourceLocation, BlockFace faceDir,
+            ColorVector nodeLightLevel, Chunk chunk, bool depropagate, bool colorOverride)
+        {
+            bool wasUpdated = false;
+
+            ColorVector remainingLight = new(0, 0, 0);
+
+            foreach (KeyValuePair<Vector3, ColorVector> light in lightingArea)
+            {
+                int distance = Utils.GetVectorDistance(location, light.Key);
+
+                if (distance > _lightHelper.GetMaxLightSpread())
+                    continue;
+
+                remainingLight = new ColorVector(
+                    Math.Max(remainingLight.Red, light.Value.Red - distance),
+                    Math.Max(remainingLight.Green, light.Value.Green - distance),
+                    Math.Max(remainingLight.Blue, light.Value.Blue - distance));
+            }
+            
+            if (!_visited.Contains(location))
+            {
+                ColorVector currentLight = _lightHelper.GetBlockLight(location, faceDir, chunk);
+
+                if (currentLight.Red > 0 || currentLight.Green > 0 || currentLight.Blue > 0)
+                {
+                    _lightHelper.SetRedLight(location, faceDir, remainingLight.Red, chunk, true);
+                    _lightHelper.SetGreenLight(location, faceDir, remainingLight.Green, chunk, true);
+                    _lightHelper.SetBlueLight(location, faceDir, remainingLight.Blue, chunk, true);
+
+                    _visited.Add(location);
+                    wasUpdated = true;
+                }
+            }
+
+            if (wasUpdated)
+            {
+                _visited.Add(location);
+                string idx = $"{location.X}|{location.Y}|{location.Z}";
+                EnqueueEmissiveLightNode(new(idx, chunk));
+                
+                BlockFlags flags = _assetLookup.GetBlockFlags(
+                    GetBlockTypeAtCoords(
+                        (int)location.X,
+                        (int)location.Y,
+                        (int)location.Z));
+                
+                // If the destination is a passthrough, additionally enqueue its neighbor below
+                if (flags.HasFlag(BlockFlags.Passthrough | BlockFlags.Billboard))
+                {
+
+                    Vector3 belowLocation = new(
+                        location.X, location.Y - 1, location.Z);
+                    string belowIdx = $"{belowLocation.X}|{belowLocation.Y}|{belowLocation.Z}";
+
+                    Chunk belowChunk = GetAndLoadGlobalChunkFromCoords(belowLocation);
+                    
+                    ColorVector belowLight = new(
+                        Math.Max(0, remainingLight.Red - 1),
+                        Math.Max(0, remainingLight.Green - 1),
+                        Math.Max(0, remainingLight.Blue - 1));
+                    
+                    DepropagationLightNodeHelper(
+                        lightingArea,
+                        belowLocation,
+                        sourceLocation,
+                        faceDir,
+                        belowLight,
+                        belowChunk,
+                        depropagate,
+                        colorOverride);
+                    
+                }
+            }
+        }
 
         /// <summary>
         /// Processes a single light node during emissive light removal by evaluating all six adjacent block positions
@@ -1636,7 +1535,7 @@ namespace Vox.Genesis
             if (!chunk.Equals(xMinusOne))
                 chunk = xMinusOne;
 
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc1, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc1, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
 
             //======================================
             //          POSITIVE X (EAST)
@@ -1648,7 +1547,7 @@ namespace Vox.Genesis
             if (!chunk.Equals(xPlusOne))
                 chunk = xPlusOne;
 
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc2, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc2, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
 
             //======================================
             //          NEGATIVE Y (DOWN)
@@ -1660,7 +1559,7 @@ namespace Vox.Genesis
             if (!chunk.Equals(yMinusOne))
                 chunk = yMinusOne;
 
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc3, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc3, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
 
             //======================================
             //          POSITIVE Y (UP)
@@ -1672,7 +1571,7 @@ namespace Vox.Genesis
             if (!chunk.Equals(yPlusOne))
                 chunk = yPlusOne;
 
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc4, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc4, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
 
             //======================================
             //          NEGATIVE Z (SOUTH)
@@ -1684,7 +1583,7 @@ namespace Vox.Genesis
             if (!chunk.Equals(zMinusOne))
                 chunk = zMinusOne;
 
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc5, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc5, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
 
             //======================================
             //          POSITIVE Z (NORTH)
@@ -1695,7 +1594,7 @@ namespace Vox.Genesis
             Chunk zPlusOne = GetAndLoadGlobalChunkFromCoords(loc6);
             if (!chunk.Equals(zPlusOne))
                 chunk = zPlusOne;
-            DepropagationLightNodeHelper(lightingArea, sourceLocation, loc6, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
+            DepropagationLightNodeHelper(lightingArea, loc6, sourceLocation, faceDir, nodeLightLevel, chunk, depropagate, colorOverride);
         }
     }
 }

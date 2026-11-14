@@ -13,11 +13,11 @@ namespace Vox.UI.MenuLogic
         Matrix4 GetDisplayProjection();
         Matrix4 GetDisplayViewMatrix();
         Matrix4 GetDisplayModelMatrix();
-        void UpdateSSBOBlock(BlockType modelblockType);
-        int GetInventoryVAO();
-        int GetInventoryDisplayFBO();
+        void UpdateSsboBlock(BlockType modelblockType);
+        int GetInventoryVao();
+        int GetInventoryDisplayFbo();
         int GetInventoryIconAtlas();
-        int GetInventoryIconSlotFBO();
+        int GetInventoryIconSlotFbo();
         void SetHandItem(KeyValuePair<BlockType, int> slot);
         KeyValuePair<BlockType, int> GetHandItem();
         bool IsItemBeingMoved();

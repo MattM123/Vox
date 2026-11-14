@@ -40,7 +40,7 @@ namespace Vox.UI.MenuLogic
         public void FillBuffersFromSettings()
         {
             _settings!.GuiScaleBuffer = _settings!.GuiScale;
-            _settings.UIColorBuffer = _settings!.UIColor;
+            _settings.UiColorBuffer = _settings!.UiColor;
         }
 
         /// <summary>
@@ -58,10 +58,10 @@ namespace Vox.UI.MenuLogic
             _settings!.GuiScaleBuffer = guiScale;
             _settings!.GuiScale = guiScale;
         }
-        public void SetUIColor(Vector4 uiColor)
+        public void SetUiColor(Vector4 uiColor)
         {
-            _settings!.UIColorBuffer = uiColor;
-            _settings!.UIColor = uiColor;
+            _settings!.UiColorBuffer = uiColor;
+            _settings!.UiColor = uiColor;
         }
         public Settings GetSettings()
         {

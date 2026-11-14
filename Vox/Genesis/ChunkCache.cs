@@ -11,18 +11,18 @@ namespace Vox.Genesis
         private readonly IRegionManager _regionManager;
         private readonly CacheEventHandler _cacheEventHandler;
 
-        private static int renderDistance;
+        private static int _renderDistance;
         private static Chunk? _playerChunk;        
-        private static readonly Dictionary<string, Chunk> chunks = [];
-        private static readonly Dictionary<string, Region> regions = [];
-        private static readonly object chunkLock = new();
+        private static readonly Dictionary<string, Chunk> Chunks = [];
+        private static readonly Dictionary<string, Region> Regions = [];
+        private static readonly object ChunkLock = new();
 
 
-        private Vector3 MAXnegativeCorner = Vector3.Zero;
-        private Vector3 MAXpositiveCorner = Vector3.Zero;
+        private Vector3 _maXnegativeCorner = Vector3.Zero;
+        private Vector3 _maXpositiveCorner = Vector3.Zero;
 
-        private Vector3 MAXnegativeCornerOld = Vector3.Zero;
-        private Vector3 MAXpositiveCornerOld = Vector3.Zero;
+        private Vector3 _maXnegativeCornerOld = Vector3.Zero;
+        private Vector3 _maXpositiveCornerOld = Vector3.Zero;
         /**
          *
          * Updates, stores, and returns a list of in-memory
@@ -35,13 +35,13 @@ namespace Vox.Genesis
             _regionManager = regionManager;
             _cacheEventHandler = cacheEventHandler;
 
-            renderDistance = _regionManager!.GetRenderDistance();
+            _renderDistance = _regionManager!.GetRenderDistance();
             _playerChunk = playerChunk;
 
         }
         public void SetRenderDistance(int renderDistance)
         {
-            ChunkCache.renderDistance = renderDistance;
+            ChunkCache._renderDistance = renderDistance;
         }
         public void SetPlayerChunk(Chunk c)
         {
@@ -59,29 +59,29 @@ namespace Vox.Genesis
             int bounds = _regionManager.GetChunkBounds();
 
             //Check each radius layer
-            if (!chunks.ContainsKey($"{_playerChunk!.xLoc}|{_playerChunk.yLoc}|{_playerChunk.zLoc}"))
-                chunks.Add($"{_playerChunk.xLoc}|{_playerChunk.yLoc}|{_playerChunk.zLoc}", _playerChunk);
+            if (!Chunks.ContainsKey($"{_playerChunk!.XLoc}|{_playerChunk.YLoc}|{_playerChunk.ZLoc}"))
+                Chunks.Add($"{_playerChunk.XLoc}|{_playerChunk.YLoc}|{_playerChunk.ZLoc}", _playerChunk);
 
-            MAXnegativeCornerOld = MAXnegativeCorner;
-            MAXpositiveCornerOld = MAXpositiveCorner;
+            _maXnegativeCornerOld = _maXnegativeCorner;
+            _maXpositiveCornerOld = _maXpositiveCorner;
 
-            MAXnegativeCorner = new(_playerChunk.xLoc - (bounds * renderDistance), _playerChunk.yLoc - (bounds * renderDistance), _playerChunk.zLoc - (bounds * renderDistance));
-            MAXpositiveCorner = new(_playerChunk.xLoc + (bounds * renderDistance), _playerChunk.yLoc + (bounds * renderDistance), _playerChunk.zLoc + (bounds * renderDistance));
+            _maXnegativeCorner = new(_playerChunk.XLoc - (bounds * _renderDistance), _playerChunk.YLoc - (bounds * _renderDistance), _playerChunk.ZLoc - (bounds * _renderDistance));
+            _maXpositiveCorner = new(_playerChunk.XLoc + (bounds * _renderDistance), _playerChunk.YLoc + (bounds * _renderDistance), _playerChunk.ZLoc + (bounds * _renderDistance));
 
 
 
-            for (int radius = 1; radius <= renderDistance; radius++)
+            for (int radius = 1; radius <= _renderDistance; radius++)
             {
                 
                 Vector3 negativeCorner = new(
-                    _playerChunk!.xLoc - (bounds * radius),
-                    _playerChunk.yLoc - (bounds * radius),
-                    _playerChunk.zLoc - (bounds * radius));
+                    _playerChunk!.XLoc - (bounds * radius),
+                    _playerChunk.YLoc - (bounds * radius),
+                    _playerChunk.ZLoc - (bounds * radius));
 
                 Vector3 positiveCorner = new(
-                    _playerChunk.xLoc + (bounds * radius),
-                    _playerChunk.yLoc + (bounds * radius),
-                    _playerChunk.zLoc + (bounds * radius));
+                    _playerChunk.XLoc + (bounds * radius),
+                    _playerChunk.YLoc + (bounds * radius),
+                    _playerChunk.ZLoc + (bounds * radius));
                 
                 
                 //Iterates from the farthest -X point to the farthest +X
@@ -106,8 +106,8 @@ namespace Vox.Genesis
          */
         public void ClearChunkCache()
         {
-            chunks.Clear();
-            regions.Clear();
+            Chunks.Clear();
+            Regions.Clear();
         }
         private void CacheHelper(int x, int y, int z)
         {
@@ -124,30 +124,22 @@ namespace Vox.Genesis
                 _regionManager.EnterRegion(chunkRegion); //cache region in memory for future additions to chunk list
             }
 
-            lock (chunkLock)
+            lock (ChunkLock)
             {
                 Chunk c = _regionManager.GetAndLoadGlobalChunkFromCoords(x, y, z);
                 
-                if (!chunkRegion.chunks.ContainsKey($"{x}|{y}|{z}"))
-                {   
-                    if (!c.IsSiteProcessed())
-                        c.ProcessChunkSite();
-                    
-                    chunkRegion.chunks.Add($"{x}|{y}|{z}", c);
-                }
+                if (!chunkRegion.Chunks.ContainsKey($"{x}|{y}|{z}"))
+                    chunkRegion.Chunks.Add($"{x}|{y}|{z}", c);
+                
 
 
-                if (!chunks.ContainsKey($"{x}|{y}|{z}"))
-                {
-                    if (!c.IsSiteProcessed())
-                        c.ProcessChunkSite();
-                    
-                    chunks.Add($"{x}|{y}|{z}", c);
-                }
+                if (!Chunks.ContainsKey($"{x}|{y}|{z}"))
+                    Chunks.Add($"{x}|{y}|{z}", c);
+                
 
             }
-            if (!regions.ContainsKey(_regionManager.GetRegionIndexFromChunkCoords(x, z))) 
-                regions.Add(_regionManager.GetRegionIndexFromChunkCoords(x, z), chunkRegion);
+            if (!Regions.ContainsKey(_regionManager.GetRegionIndexFromChunkCoords(x, z))) 
+                Regions.Add(_regionManager.GetRegionIndexFromChunkCoords(x, z), chunkRegion);
         }
 
         /**
@@ -159,12 +151,12 @@ namespace Vox.Genesis
         {
             GetRadialChunks();
 
-            Box3 prevCache = new(MAXnegativeCornerOld, MAXpositiveCornerOld);
-            Box3 newCache = new(MAXnegativeCorner, MAXpositiveCorner);
+            Box3 prevCache = new(_maXnegativeCornerOld, _maXpositiveCornerOld);
+            Box3 newCache = new(_maXnegativeCorner, _maXpositiveCorner);
 
             foreach (var region in _regionManager.GetVisibleRegions())
             {
-                foreach (var chunk in region.Value.chunks)
+                foreach (var chunk in region.Value.Chunks)
                 { 
                     Vector3 pos = chunk.Value.GetLocation();
                     bool wasInCache = prevCache.ContainsInclusive(pos);
@@ -177,7 +169,7 @@ namespace Vox.Genesis
                 }
             }
 
-            return chunks;
+            return Chunks;
         }
 
         private void TriggerCacheEvent(Chunk chunk, bool wasInCache, bool nowInCache)
@@ -199,7 +191,7 @@ namespace Vox.Genesis
 
         public Dictionary<string, Region> GetRegions()
         {
-            return regions;
+            return Regions;
         }
 
         /**

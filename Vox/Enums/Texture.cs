@@ -2,16 +2,16 @@
 {
     public enum Texture
     {
-        AIR = 0,
-        DIRT,
-        GRASS_FULL,
-        GRASS_SIDE,
-        LAMP,
-        STONE,
-        TALL_GRASS,
-        DEAD_BUSH,
-        TARGET,
-        TEST,
+        Dirt,
+        GrassFull,
+        GrassSide,
+        Lamp,
+        Stone,
+        TallGrass,
+        DeadBush,
+        Sand,
+        Target,
+        Test,
         
     }
 }

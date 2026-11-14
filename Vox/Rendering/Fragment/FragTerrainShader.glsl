@@ -85,19 +85,44 @@ float ShadowCalculation(vec4 fragPosLightSpace)
     
     return shadow;
 }
-
+vec3 GetAmbientLighting(vec3 normal)
+{
+    vec3 skyColor = vec3(0.65, 0.75, 0.9);
+    vec3 groundColor = vec3(0.25, 0.23, 0.20);
+    
+    float hemisphere = normal.y * 0.5 + 0.5;
+    
+    return mix(groundColor, skyColor, hemisphere);
+}
+float CalculateSunVisibility(vec4 fragPosLightSpace)
+{
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    if (projCoords.z > 1.0 ||
+        projCoords.x < 0.0 || projCoords.x > 1.0 ||
+        projCoords.y < 0.0 || projCoords.y > 1.0)
+        return 1.0;
+    
+    float bias = max(
+        0.005 * (1.0 - dot(normalize(fnormal),
+        normalize(light.position - fragPos))),
+        0.0005
+    );
+    
+    return texture(
+        sunlightDepth_sampler,
+        vec3(projCoords.xy, projCoords.z - bias)
+    );
+}
 void main()
 {
-    //If air block, discard fragment
-    if (fTexLayer == 0)
-    discard;
-    
     //=========================================
     // Lighting
     //=========================================
     vec4 texColor = texture(texture_sampler, vec3(ftexCoords.xy, fTexLayer));
     vec3 texColor3 = vec3(texColor.x, texColor.y, texColor.z);
-
+        
     //If texture color is transparent, discard fragment
     if (texColor.a < 0.1)
         discard;
@@ -135,59 +160,32 @@ void main()
     vec3 reflection =  reflect(-viewDir, norm);             // Reflicttion
     
     float specColor = pow(max(dot(viewDir, reflection), 0.0), material.shininess);
-    
-    
-    Material mat = Material(
-        vec4(material.diffuse, 1.0),   // albedo (RGBA)
-        blendedColor,              // emissive
-        fragPos,                    // position
-        norm,                       // normal
-        0.0,                        // sdf (for raymarching)
-        true,                       // valid
-        vec3(1.0),                  // ior
-        0.5,                        // roughness
-        0.0,                        // metallic
-        0.5,                        // reflectance
-        1.0,                        // ambientOcclusion
-        0.0,                        // clearCoat
-        0.0                         // clearCoatRoughness
-    );
-    
-    // Populate shading data based on material and modify in place
-    ShadingData shadingData = shadingDataNew();
-    
-    shadingData.V = viewDir;
-    shadingData.L = lightDir;
-    shadingData.H = halfVec;
-    shadingDataNew(mat, shadingData);
-    float NdotL = max(dot(shadingData.N, shadingData.L), 0.0);
-    
-    float specular = specColor;
-    vec3 diffuse = diffuse(shadingData) * light.ambient * material.diffuse;
-    
-    // Basic Lambertian diffuse lighting
-    float lightAmount = max(dot(norm, lightDir), 0.0);
-    
+
+    // Directional sunlight
+    float NdotL = max(dot(norm, lightDir), 0.0);
+
+    // Shadow visibility
+    float visibility = CalculateSunVisibility(fragPosLightSpace);
+
+    // Hemisphere ambient
+    vec3 ambientLighting = GetAmbientLighting(norm) * light.ambient;
+
+    // Direct sunlight
+    vec3 directLighting = light.diffuse * NdotL * visibility;
+
+    // Combined lighting
+    vec3 finalLighting = ambientLighting + directLighting;
+        
     // calculate shadow    
     float shadow = ShadowCalculation(fragPosLightSpace);
+        
     
-    float lightIntensity = 0.5;
-    
-    // Apply shadowing
-    float shadedLight = lightAmount * (1.0 - shadow) * lightIntensity;
-    
-    vec3 ambient = light.ambient * material.ambient;
-    
-    
-    vec3 baseLighting = ((lightAmount) * vec3(1,1,1)) * (light.ambient * lightIntensity) ;
-    vec3 lightColor = (ambient + diffuse + shadingData.specularColor);
+    vec3 result = finalLighting;
     //If block is emissive, add color to lighting
-    if (blue > 0 || red > 0 || green > 0) {
-        //Add the emissive color to the blocks lighting value
-        lightColor = lightColor + blendedColor;
-    }
-    
-    vec3 result = (baseLighting + lightColor) * (baseLighting * 5) + lightColor;
+    if (blue > 0 || red > 0 || green > 0)
+        result += emissiveColor;
+        
+
     
     
     

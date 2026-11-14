@@ -9,55 +9,59 @@ namespace Vox.Assets
     {
         private readonly Dictionary<Texture, int> _textureToTextureLayer = new()
         {   
-            { Texture.AIR, 0 },
-            { Texture.TEST, 1 },
-            { Texture.STONE, 2 },
-            { Texture.DIRT, 3 },
-            { Texture.GRASS_FULL, 4 },          
-            { Texture.LAMP, 5 },
-            { Texture.GRASS_SIDE, 6 },
-            { Texture.TARGET, 7 },
-            { Texture.TALL_GRASS, 8 },
-            { Texture.DEAD_BUSH, 9 },
+            { Texture.Stone, 0 },
+            { Texture.Lamp, 1 },
+            { Texture.Dirt, 2 },
+            { Texture.GrassFull, 3 },          
+            { Texture.GrassSide, 4 },
+            { Texture.Test, 5 },
+            { Texture.Target, 6 },
+            { Texture.TallGrass, 7 },
+            { Texture.DeadBush, 8 },
+            { Texture.Sand, 9}
         };
 
+        private const float Interval = 0.03125f;
         private readonly Dictionary<BlockType, Tuple<Vector2, Vector2>?> _blockTypeToIconUv = new()
         {
-            { BlockType.DIRT_BLOCK,       new(new(0f, 0f),       new(0.03125f, 0.03125f)) },
-            { BlockType.GRASS_BLOCK,      new(new(0.03125f, 0f), new(0.0625f,  0.03125f)) },
-            { BlockType.STONE_BLOCK,      new(new(0.0625f, 0f),  new(0.09375f, 0.03125f)) },
-            { BlockType.LAMP_BLOCK,       new(new(0.09375f, 0f), new(0.12500f, 0.03125f)) },
-            { BlockType.TEST_BLOCK,       new(new(0.12500f, 0f), new(0.15625f, 0.03125f)) },
-            { BlockType.TARGET_BLOCK,     new(new(0.15625f, 0f), new(0.18750f, 0.03125f)) },
-            { BlockType.TALL_GRASS_BLOCK, new(new(0.18750f, 0f), new(0.21875f, 0.03125f)) },
-            { BlockType.DEAD_BUSH,        new(new(0.21875f, 0f), new(0.25f,    0.03125f)) },
+            { BlockType.Dirt,       new(new(0f,           0f),  new(Interval,     Interval)) },
+            { BlockType.Grass,      new(new(Interval,     0f),  new(Interval * 2, Interval)) },
+            { BlockType.Stone,      new(new(Interval * 2, 0f),  new(Interval * 3, Interval)) },
+            { BlockType.Lamp,       new(new(Interval * 3, 0f),  new(Interval * 4, Interval)) },
+            { BlockType.Test,       new(new(Interval * 4, 0f),  new(Interval * 5, Interval)) },
+            { BlockType.Target,     new(new(Interval * 5, 0f),  new(Interval * 6, Interval)) },
+            { BlockType.TallGrass,  new(new(Interval * 6, 0f),  new(Interval * 7, Interval)) },
+            { BlockType.DeadBush,   new(new(Interval * 7, 0f),  new(Interval * 8, Interval)) },
+            { BlockType.Sand,       new(new(Interval * 8, 0f),  new(Interval * 9, Interval)) },                  
         };
 
         private static readonly Dictionary<BlockType, BlockFlags> BlockFlagMapping = new()
         {
-            { BlockType.GRASS_BLOCK, BlockFlags.NATURAL },
-            { BlockType.DIRT_BLOCK, BlockFlags.NATURAL },
-            { BlockType.STONE_BLOCK, BlockFlags.NATURAL },
-            { BlockType.TALL_GRASS_BLOCK, BlockFlags.NATURAL | BlockFlags.BILLBOARD | BlockFlags.SURFACE_DECO | BlockFlags.PASSTHROUGH },
-            { BlockType.DEAD_BUSH, BlockFlags.NATURAL | BlockFlags.BILLBOARD | BlockFlags.PASSTHROUGH | BlockFlags.SURFACE_DECO},
+            { BlockType.Grass, BlockFlags.Natural },
+            { BlockType.Dirt, BlockFlags.Natural },
+            { BlockType.Stone, BlockFlags.Natural },
+            { BlockType.Sand, BlockFlags.Natural },
+            { BlockType.TallGrass, BlockFlags.Natural | BlockFlags.Billboard | BlockFlags.SurfaceDeco | BlockFlags.Passthrough },
+            { BlockType.DeadBush, BlockFlags.Natural | BlockFlags.Billboard | BlockFlags.Passthrough | BlockFlags.SurfaceDeco},
 
-            { BlockType.LAMP_BLOCK, BlockFlags.NON_NATURAL },
-            { BlockType.TEST_BLOCK, BlockFlags.NON_NATURAL },
-            { BlockType.TARGET_BLOCK, BlockFlags.NON_NATURAL },
-            { BlockType.AIR, BlockFlags.SURFACE_DECO | BlockFlags.PASSTHROUGH }
+            { BlockType.Lamp, BlockFlags.NonNatural },
+            { BlockType.Test, BlockFlags.NonNatural },
+            { BlockType.Target, BlockFlags.NonNatural },
+            { BlockType.Air, BlockFlags.SurfaceDeco | BlockFlags.Passthrough }
         };
 
-        //Indicates what biome a certain Blocktype can spawn in
-        public static readonly Dictionary<BlockType, Biome> BiomeMapping = new()
+        //Indicates what biome a certain Blocktype can generate in
+        private static readonly Dictionary<BlockType, Biome> BiomeMapping = new()
         {
-            { BlockType.DIRT_BLOCK,       Biome.GRASSLANDS },
-            { BlockType.GRASS_BLOCK,      Biome.GRASSLANDS },
-            { BlockType.STONE_BLOCK,      Biome.GRASSLANDS },
-            { BlockType.TALL_GRASS_BLOCK, Biome.GRASSLANDS },
-            { BlockType.DEAD_BUSH,        Biome.DESERT },
-            { BlockType.LAMP_BLOCK,       Biome.NONE },
-            { BlockType.TEST_BLOCK,       Biome.NONE },
-            { BlockType.TARGET_BLOCK,     Biome.NONE }
+            { BlockType.Dirt,       Biome.Grasslands },
+            { BlockType.Grass,      Biome.Grasslands },
+            { BlockType.TallGrass,  Biome.Grasslands },
+            { BlockType.Stone,      Biome.Grasslands | Biome.Desert},
+            { BlockType.Sand,       Biome.Desert },
+            { BlockType.DeadBush,   Biome.Desert },
+            { BlockType.Lamp,       Biome.None },
+            { BlockType.Test,       Biome.None },
+            { BlockType.Target,     Biome.None }
         };
 
         private readonly Dictionary<Biome, List<BlockType>> _biomeSurfaceDeco = new();
@@ -66,23 +70,23 @@ namespace Vox.Assets
         //Indicates the texture will have a generated texture layer within the texture array
         private static readonly Dictionary<Texture, TextureFlags> TextureFlagMapping = new()
         {
-            { Texture.AIR, TextureFlags.NONE },
-            { Texture.STONE, TextureFlags.HasLayer },
-            { Texture.LAMP, TextureFlags.HasLayer },
-            { Texture.DIRT, TextureFlags.HasLayer  },
-            { Texture.GRASS_FULL, TextureFlags.HasLayer },
-            { Texture.GRASS_SIDE, TextureFlags.HasLayer },
-            { Texture.TEST, TextureFlags.HasLayer },
-            { Texture.TARGET, TextureFlags.HasLayer },
-            { Texture.TALL_GRASS, TextureFlags.HasLayer},
-            { Texture.DEAD_BUSH, TextureFlags.HasLayer}
+            { Texture.Stone,     TextureFlags.HasLayer },
+            { Texture.Lamp,      TextureFlags.HasLayer },
+            { Texture.Dirt,      TextureFlags.HasLayer },
+            { Texture.GrassFull, TextureFlags.HasLayer },
+            { Texture.GrassSide, TextureFlags.HasLayer },
+            { Texture.Test,      TextureFlags.HasLayer },
+            { Texture.Target,    TextureFlags.HasLayer },
+            { Texture.TallGrass, TextureFlags.HasLayer },
+            { Texture.Sand,      TextureFlags.HasLayer },
+            { Texture.DeadBush,  TextureFlags.HasLayer }
         };
         
         private readonly Dictionary<Biome, float> _biomeWeights = new()
         {
-            { Biome.NONE,          0f    },
-            { Biome.GRASSLANDS,    0.5f },
-            { Biome.DESERT,        0.5f },
+            { Biome.None,          0f   },
+            { Biome.Grasslands,    0.5f },
+            { Biome.Desert,        0.5f },
         };
 
         private readonly List<BlockType> _naturalBlocks;
@@ -101,24 +105,25 @@ namespace Vox.Assets
                 _biomeSurfaceDeco[biome] =
                 [
                     .. BiomeMapping
-                        .Where(a => a.Value == biome &&
-                                    BlockFlagMapping[a.Key].HasFlag(BlockFlags.SURFACE_DECO))
+                        .Where(a => (a.Value & biome) != 0 &&
+                                    BlockFlagMapping[a.Key].HasFlag(BlockFlags.SurfaceDeco))
                         .Select(a => a.Key)
                 ];
             }
             
             _surfaceDecoBlocks = [.. BlockFlagMapping
                     .Where(f =>
-                    f.Value.HasFlag(BlockFlags.SURFACE_DECO))
+                    f.Value.HasFlag(BlockFlags.SurfaceDeco))
                     .Select(f => f.Key)];
            
             _naturalBlocks = [.. BlockFlagMapping
-                .Where(kvp => kvp.Value.HasFlag(BlockFlags.NATURAL))
+                .Where(kvp => kvp.Value.HasFlag(BlockFlags.Natural))
                 .Select(kvp => kvp.Key)];
 
             _texturesWithLayers = [.. TextureFlagMapping
                 .Where(kvp => kvp.Value.HasFlag(TextureFlags.HasLayer))
-                .Select(kvp => kvp.Key)];
+                .Select(kvp => kvp.Key)
+                .OrderBy(GetTextureLayerFromTexture)];
 
             LoadModels();
         }
@@ -137,8 +142,6 @@ namespace Vox.Assets
 
             if (fileModels.Length != projModels.Length)
             {
-
-
                 foreach (string sourceFile in projModels)
                 {
                     string destinationFile = Path.Combine(
@@ -154,44 +157,56 @@ namespace Vox.Assets
             }
 
             //Populate _models to store in memory
-            _models.Add(BlockType.GRASS_BLOCK,       new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "grass.json"))),      BlockType.GRASS_BLOCK,      this));
-            _models.Add(BlockType.DIRT_BLOCK,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "dirt.json"))),       BlockType.DIRT_BLOCK,       this));
-            _models.Add(BlockType.STONE_BLOCK,       new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "stone.json"))),      BlockType.STONE_BLOCK,      this));
-            _models.Add(BlockType.TEST_BLOCK,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "testblock.json"))),  BlockType.TEST_BLOCK,       this));
-            _models.Add(BlockType.TARGET_BLOCK,      new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "target.json"))),     BlockType.TARGET_BLOCK,     this));
-            _models.Add(BlockType.LAMP_BLOCK,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "lamp.json"))),       BlockType.LAMP_BLOCK,       this));
-            _models.Add(BlockType.TALL_GRASS_BLOCK,  new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "tall_grass.json"))), BlockType.TALL_GRASS_BLOCK, this));
-            _models.Add(BlockType.DEAD_BUSH,         new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "dead_bush.json"))),  BlockType.DEAD_BUSH,        this));
+            _models.Add(BlockType.Grass,       new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "grass.json"))),      BlockType.Grass,      this));
+            _models.Add(BlockType.Dirt,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "dirt.json"))),       BlockType.Dirt,       this));
+            _models.Add(BlockType.Stone,       new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "stone.json"))),      BlockType.Stone,      this));
+            _models.Add(BlockType.Test,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "testblock.json"))),  BlockType.Test,       this));
+            _models.Add(BlockType.Target,      new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "target.json"))),     BlockType.Target,     this));
+            _models.Add(BlockType.Lamp,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "lamp.json"))),       BlockType.Lamp,  this));
+            _models.Add(BlockType.TallGrass,   new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "tall_grass.json"))), BlockType.TallGrass,  this));
+            _models.Add(BlockType.DeadBush,    new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "dead_bush.json"))),  BlockType.DeadBush,   this));
+            _models.Add(BlockType.Sand,        new(JObject.Parse(File.ReadAllText(Path.Combine(assets, "BlockModels", "sand.json"))),       BlockType.Sand,   this));
         }
         public bool IsNatural(BlockType type)
-            => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.NATURAL);
+            => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.Natural);
 
         public bool IsBillboard(BlockType type)
-            => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.BILLBOARD);
+            => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.Billboard);
         
         public bool IsPassthrough(BlockType type)
-        => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.PASSTHROUGH);
+        => BlockFlagMapping.TryGetValue(type, out var f) && f.HasFlag(BlockFlags.Passthrough);
 
         public Dictionary<Biome, float> GetBiomeWeights()
         {
             return _biomeWeights;
         }
+
+        public BlockFlags GetBlockFlags(BlockType type)
+        {
+            return BlockFlagMapping[type];
+        }
         
-        public List<BlockType> GetTerrainBlocks()
-            =>
+        public List<BlockType> GetTerrainBlocks(Biome biome)
+        {
+            List<BlockType> types =
             [
-                .. BlockFlagMapping.Where(f =>
-                        f.Value.HasFlag(BlockFlags.NATURAL)
-                        && !f.Value.HasFlag(BlockFlags.SURFACE_DECO))
-                    .Select(f => f.Key)
+                .. BiomeMapping
+                    .Where(b => (b.Value & biome) != 0)
+                    .Select(b => b.Key)
+                    .Where(type =>
+                        !GetBlockFlags(type).HasFlag(BlockFlags.SurfaceDeco) &&
+                        GetBlockFlags(type).HasFlag(BlockFlags.Natural))
             ];
+            
+            return types;
+        }
 
         public List<BlockType> GetSurfaceDeco(Biome biome)
         {
             return _biomeSurfaceDeco[biome];
         }
         
-        public Tuple<Vector2, Vector2> GetUVFromBlockType(BlockType blockType)
+        public Tuple<Vector2, Vector2> GetUvFromBlockType(BlockType blockType)
         {
             if (_blockTypeToIconUv.TryGetValue(blockType, out Tuple<Vector2, Vector2>? uvs) && uvs != null)
                 return uvs;
@@ -203,7 +218,7 @@ namespace Vox.Assets
         {
             //Subtract by 1 to account for AIR texture
             if (_textureToTextureLayer.TryGetValue(texture, out int layer))
-                return layer - 1;
+                return layer;
             return 0;
         }
         
@@ -217,23 +232,7 @@ namespace Vox.Assets
 
         public BlockModel GetModel(BlockType type)
         {
-            if (type == BlockType.AIR)
-                return new(this);
-
-            if (_models.TryGetValue(type, out BlockModel? value))
-                return value;
-
-            return new(this);
-        }
-        public BlockModel GetModel(int type)
-        {
-            if ((BlockType)type == BlockType.AIR)
-                return new(this);
-
-            if (_models.TryGetValue((BlockType)type, out BlockModel? value))
-                return value;
-
-            return new(this);
+            return _models.TryGetValue(type, out BlockModel? value) ? value : new(this);
         }
     }
 }

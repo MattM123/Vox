@@ -2,6 +2,6 @@
   "parent": "cube_all",
   "transparent": true,
   "textures": {
-    "all": "target"
+    "all": "Target"
   }
 }

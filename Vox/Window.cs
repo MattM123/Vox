@@ -60,7 +60,7 @@ namespace Vox
         private AssetLookup? _assetLookup;
         private TextureLoader? _textureLoader;
         private ImGuiHelper? _imguiHelper;
-        private SSBOManager? _ssboManager;
+        private SsboManager? _ssboManager;
         private Player? _player;
         private InventoryStore? _inventoryStore;
         private RegionManager? _regionManager;   
@@ -93,7 +93,7 @@ namespace Vox
         private static readonly List<Chunk> MenuChunks = [];
         private static long _menuSeed;
         private static Vector3 _sunlightPos;
-        private static int crosshairTex;
+        private static int _crosshairTex;
 
         private static int _sunlightDepthMapFbo;
         private static int _sunlightDepthMap;
@@ -202,7 +202,7 @@ namespace Vox
 
             _settings = new SettingsStore(AppFolder);
             _assetLookup = new AssetLookup();
-            _ssboManager = new SSBOManager();
+            _ssboManager = new SsboManager();
             _lightHelper = new LightHelper(_ssboManager);
 
             _inventoryStore = new InventoryStore(_ssboManager, _assetLookup);
@@ -230,8 +230,8 @@ namespace Vox
             int maxChunksInCache = (int)Math.Pow(_regionManager.GetRenderDistance(), 3);
             _ssboTerrainSize = ((maxBlocksPerChunk * maxChunksInCache * blockFacesPerBlock) * Marshal.SizeOf<BlockFaceInstance>());
 
-            _ssboManager.AddSSBO(_ssboTerrainSize, 0, SSBO.Terrain);
-            _ssboManager.AddSSBO(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, SSBO.Inventory);
+            _ssboManager.AddSsbo(_ssboTerrainSize, 0, Ssbo.Terrain);
+            _ssboManager.AddSsbo(Marshal.SizeOf<BlockFaceInstance>() * 6, 1, Ssbo.Inventory);
 
             _imguiHelper = new ImGuiHelper(_assetLookup, _textureLoader, _ssboManager, _player, _regionManager!, _lightHelper, _chunkCache, _settings, RequestClose, _shaderManager);
             _uiController.RecreateFontDeviceTexture();
@@ -380,9 +380,7 @@ namespace Vox
 
             foreach (var c in MenuChunks)
             {
-                if (!c.IsSiteProcessed())
-                    c.ProcessChunkSite();
-                
+                _regionManager.AddSite(new(c.SiteX, c.SiteZ), Biome.Grasslands);
                 c.GenerateRenderData();
             }
 
@@ -431,7 +429,7 @@ namespace Vox
                 RenderWorld();
             }
             
-            ImGuiController.CheckGLError("End of frame");
+            ImGuiController.CheckGlError("End of frame");
 
             /*======================================
             Render new UI frame over everything
@@ -460,7 +458,7 @@ namespace Vox
             else
             {
                 _shaderManager?.GetShaderProgram("Terrain").Bind()
-                    .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureLayerFromTexture(Texture.TARGET))
+                    .SetIntFloatUniform("targetTexLayer", _assetLookup!.GetTextureLayerFromTexture(Texture.Target))
                     .SetVector3Uniform("targetVertex", GetPlayer().UpdateViewTarget(out _, out _, out _))
                     .SetVector3Uniform("playerMin", GetPlayer().GetBoundingBox().Min)
                     .SetVector3Uniform("playerMax", GetPlayer().GetBoundingBox().Max)
@@ -489,13 +487,13 @@ namespace Vox
         }
         
         
-        private KeyboardState? currentKeyboardState;
+        private KeyboardState? _currentKeyboardState;
         protected override void OnUpdateFrame(FrameEventArgs args)
         {
 
             base.OnUpdateFrame(args);
 
-            currentKeyboardState = KeyboardState.GetSnapshot();
+            _currentKeyboardState = KeyboardState.GetSnapshot();
        // Use KeyboardState for movement to handle multiple simultaneous keypresses and diagonal movements
             if (_imguiHelper?.GetCurrentMenu() != Menu.Main && _imguiHelper?.GetCurrentMenu() != Menu.Pause && _imguiHelper?.GetCurrentMenu() != Menu.Settings) { 
                 Vector3 blockedDirection = GetPlayer().GetBlockedDirection();
@@ -503,25 +501,25 @@ namespace Vox
                 Vector3 forward = GetPlayer().GetForwardDirection();
                 Vector3 right = GetPlayer().GetRightDirection();
 
-                if (currentKeyboardState != null)
+                if (_currentKeyboardState != null)
                 {
-                    if (currentKeyboardState[Keys.W])// && GetPlayer().IsPlayerGrounded())
-                        GetPlayer().QueueMovement(Direction.NORTH, 5);
+                    if (_currentKeyboardState[Keys.W])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.North, 5);
                     
-                    if (currentKeyboardState[Keys.S])// && GetPlayer().IsPlayerGrounded())
-                        GetPlayer().QueueMovement(Direction.SOUTH, 5);
+                    if (_currentKeyboardState[Keys.S])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.South, 5);
 
-                    if (currentKeyboardState[Keys.A])// && GetPlayer().IsPlayerGrounded())
-                        GetPlayer().QueueMovement(Direction.WEST, 5);
+                    if (_currentKeyboardState[Keys.A])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.West, 5);
 
-                    if (currentKeyboardState[Keys.D])// && GetPlayer().IsPlayerGrounded())
-                        GetPlayer().QueueMovement(Direction.EAST, 5);
+                    if (_currentKeyboardState[Keys.D])// && GetPlayer().IsPlayerGrounded())
+                        GetPlayer().QueueMovement(Direction.East, 5);
 
-                    if (currentKeyboardState[Keys.Space])// && GetPlayer().IsPlayerGrounded())
+                    if (_currentKeyboardState[Keys.Space])// && GetPlayer().IsPlayerGrounded())
                         GetPlayer().Jump(8);
 
-                    if ((currentKeyboardState[Keys.LeftShift]) && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
-                        GetPlayer().QueueMovement(Direction.DOWN, 5);
+                    if ((_currentKeyboardState[Keys.LeftShift]) && Math.Sign(GetPlayer().GetBlockedDirection().Y) != -1)
+                        GetPlayer().QueueMovement(Direction.Down, 5);
                 }
             }
             
@@ -636,7 +634,7 @@ namespace Vox
                 var idx = _regionManager.GetChunkRelativeCoordinates(target);
 
                 //Render color picker for light emitting blocks
-                if (e.Key == Keys.C && (BlockType)actionChunk._blockData![idx.X, idx.Y, idx.Z] == BlockType.LAMP_BLOCK)
+                if (e.Key == Keys.C && (BlockType)actionChunk.BlockData![idx.X, idx.Y, idx.Z] == BlockType.Lamp)
                 {
                     // If no menu is currently active, show the colorpicker, otherwise close the colorpicker
                     if (_imguiHelper?.GetCurrentMenu() == Menu.None)
@@ -767,7 +765,7 @@ namespace Vox
     
         private void RenderMenu()
         {
-            var terrainSsbo = _ssboManager!.GetSSBO(SSBO.Terrain);
+            var terrainSsbo = _ssboManager!.GetSsbo(Ssbo.Terrain);
             int max = terrainSsbo.Size / Marshal.SizeOf<BlockFaceInstance>();
 
             /*==========================================
@@ -833,7 +831,7 @@ namespace Vox
         
         private void RenderWorld()
         {
-            var terrainSsbo = _ssboManager!.GetSSBO(SSBO.Terrain);
+            var terrainSsbo = _ssboManager!.GetSsbo(Ssbo.Terrain);
             int max = terrainSsbo.Size / Marshal.SizeOf<BlockFaceInstance>();
 
             //Remeber to clear cache each frame 
@@ -911,8 +909,8 @@ namespace Vox
                     ThreadPool.QueueUserWorkItem(delegate
                     {
                         Chunk checkGen = _regionManager!.GetAndLoadGlobalChunkFromCoords(
-                            (int)c.Value.xLoc, (int)(c.Value.yLoc + _regionManager.GetChunkBounds()),
-                            (int)c.Value.zLoc);
+                            (int)c.Value.XLoc, (int)(c.Value.YLoc + _regionManager.GetChunkBounds()),
+                            (int)c.Value.ZLoc);
                         
                         //If the chunk above this one is generated, we don't need to generate this chunk   
                         if ((!c.Value.IsGenerated())
@@ -949,8 +947,8 @@ namespace Vox
             _shaderManager?.GetShaderProgram("Lighting").Bind();
             GL.BindVertexArray(_terrainVao);
 
-            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
-            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSSBO(SSBO.Terrain).Handle);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _ssboManager.GetSsbo(Ssbo.Terrain).Handle);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSsbo(Ssbo.Terrain).Handle);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip

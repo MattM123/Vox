@@ -2,6 +2,6 @@
   "parent": "billboard_all",
   "transparent": false,
   "textures": {
-    "all": "tall_grass"
+    "all": "TallGrass"
   }
 }

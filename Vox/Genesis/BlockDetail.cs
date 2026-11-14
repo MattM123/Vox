@@ -9,25 +9,25 @@ namespace Vox.Genesis
 {
     public class BlockDetail
     {
-        private readonly TerrainVertex[] north;
-        private readonly TerrainVertex[] south;
-        private readonly TerrainVertex[] east;
-        private readonly TerrainVertex[] west;
-        private readonly TerrainVertex[] up;
-        private readonly TerrainVertex[] down;
-        private readonly Vector3 upperCorner = Vector3.Zero;
-        private readonly Vector3 lowerCorner = Vector3.Zero;
-        private readonly List<Vector3> faceAdjacentBlocks = [];
+        private readonly TerrainVertex[] _north;
+        private readonly TerrainVertex[] _south;
+        private readonly TerrainVertex[] _east;
+        private readonly TerrainVertex[] _west;
+        private readonly TerrainVertex[] _up;
+        private readonly TerrainVertex[] _down;
+        private readonly Vector3 _upperCorner = Vector3.Zero;
+        private readonly Vector3 _lowerCorner = Vector3.Zero;
+        private readonly List<Vector3> _faceAdjacentBlocks = [];
 
         public BlockDetail() { }
         public BlockDetail(TerrainVertex[] north, TerrainVertex[] south, TerrainVertex[] up, TerrainVertex[] down, TerrainVertex[] east, TerrainVertex[] west)
         {
-            this.up = up;
-            this.down = down;
-            this.south = south;
-            this.east = east;
-            this.west = west;
-            this.north = north;
+            this._up = up;
+            this._down = down;
+            this._south = south;
+            this._east = east;
+            this._west = west;
+            this._north = north;
 
 
             //Get points shared by east and north face
@@ -41,7 +41,7 @@ namespace Vox.Genesis
                 }
             }
             //Determine upper corder of cube
-            upperCorner = sharedEastNorth[0].y > sharedEastNorth[1].y ? sharedEastNorth[0].GetVector() : sharedEastNorth[1].GetVector();
+            _upperCorner = sharedEastNorth[0].y > sharedEastNorth[1].y ? sharedEastNorth[0].GetVector() : sharedEastNorth[1].GetVector();
 
 
             //Get points shared by west and south faces
@@ -55,16 +55,16 @@ namespace Vox.Genesis
                 }
             }
             //Determine lower corder of cube
-            lowerCorner = sharedWestSouth[0].y < sharedWestSouth[1].y ? sharedWestSouth[0].GetVector() : sharedWestSouth[1].GetVector();
+            _lowerCorner = sharedWestSouth[0].y < sharedWestSouth[1].y ? sharedWestSouth[0].GetVector() : sharedWestSouth[1].GetVector();
 
             // Face-adjacent cubes
-            faceAdjacentBlocks.AddRange([
-                lowerCorner + new Vector3(1, 0, 0), upperCorner + new Vector3(1, 0, 0),             // Positive X
-                lowerCorner + new Vector3(-1, 0, 0), upperCorner + new Vector3(-1, 0, 0),           // Negative X
-                lowerCorner + new Vector3(0, 1, 0), upperCorner + new Vector3(0, 1, 0),             // Positive Y
-                lowerCorner + new Vector3(0, -1, 0), upperCorner + new Vector3(0, -1, 0),           // Negative Y
-                lowerCorner + new Vector3(0, 0, 1), upperCorner + new Vector3(0, 0, 1),             // Positive Z
-                lowerCorner + new Vector3(0, 0, -1), upperCorner + new Vector3(0, 0, -1)]           // Negative Z
+            _faceAdjacentBlocks.AddRange([
+                _lowerCorner + new Vector3(1, 0, 0), _upperCorner + new Vector3(1, 0, 0),             // Positive X
+                _lowerCorner + new Vector3(-1, 0, 0), _upperCorner + new Vector3(-1, 0, 0),           // Negative X
+                _lowerCorner + new Vector3(0, 1, 0), _upperCorner + new Vector3(0, 1, 0),             // Positive Y
+                _lowerCorner + new Vector3(0, -1, 0), _upperCorner + new Vector3(0, -1, 0),           // Negative Y
+                _lowerCorner + new Vector3(0, 0, 1), _upperCorner + new Vector3(0, 0, 1),             // Positive Z
+                _lowerCorner + new Vector3(0, 0, -1), _upperCorner + new Vector3(0, 0, -1)]           // Negative Z
             );
         }
 
@@ -80,13 +80,13 @@ namespace Vox.Genesis
 
        // public Vector3 GetUpperCorner() { return upperCorner; }
 
-        public Vector3 GetLowerCorner() { return lowerCorner; }
+        public Vector3 GetLowerCorner() { return _lowerCorner; }
         public TerrainVertex[] GetVertexData()
         {
-            if (north == null || south == null || east == null || west == null || up == null || down == null)
+            if (_north == null || _south == null || _east == null || _west == null || _up == null || _down == null)
                 return [];
 
-            return north.Concat(south).Concat(west).Concat(east).Concat(up).Concat(down).ToArray();
+            return _north.Concat(_south).Concat(_west).Concat(_east).Concat(_up).Concat(_down).ToArray();
         }
 
        // public List<Vector3> GetFaceAdjacentBlocks()

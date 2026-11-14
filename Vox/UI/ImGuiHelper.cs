@@ -21,13 +21,13 @@ namespace Vox.UI
     {
         private Menu _currentMenu;
 
-        private readonly ImFontPtr PtFont18;
-        private readonly ImFontPtr PtFont24;
-        private readonly ImFontPtr PtFont72;
+        private readonly ImFontPtr _ptFont18;
+        private readonly ImFontPtr _ptFont24;
+        private readonly ImFontPtr _ptFont72;
 
         private ITextureLoader? _textureLoader;
         private readonly IAssetLookup? _assetLookup;
-        private readonly ISSBOManager? _ssboManager;
+        private readonly IssboManager? _ssboManager;
         private readonly IPlayer? _player;
         private readonly IRegionManager? _regionManager;
         private readonly ILightHelper? _lightHelper;
@@ -35,7 +35,7 @@ namespace Vox.UI
         private readonly ISettingsStore? _settings;
         private readonly IShaderManager? _shaderManager;
         private readonly ImGuiIOPtr _ioPtr;
-        private readonly ImGuiController _UIController;
+        private readonly ImGuiController _uiController;
 
         private readonly Action _requestClose;
 
@@ -61,11 +61,11 @@ namespace Vox.UI
         private readonly float _buttonTextTint = 2.5f;
 
 
-        private BlockType selectedBlock = BlockType.AIR;
-        private static System.Numerics.Vector3 pickedColor = System.Numerics.Vector3.Zero;
-        private System.Numerics.Vector4 color = new System.Numerics.Vector4(0,0,0,0.5f);
+        private BlockType _selectedBlock = BlockType.Air;
+        private static System.Numerics.Vector3 _pickedColor = System.Numerics.Vector3.Zero;
+        private System.Numerics.Vector4 _color = new System.Numerics.Vector4(0,0,0,0.5f);
 
-        public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, ISSBOManager ssboManager, IPlayer player, IRegionManager regionManager,
+        public ImGuiHelper(IAssetLookup assetLookup, ITextureLoader textureLoader, IssboManager ssboManager, IPlayer player, IRegionManager regionManager,
             ILightHelper lightHeler, IChunkCache chunkCache, ISettingsStore settings, Action requestClose, IShaderManager shaderManager)
         {
             _textureLoader = textureLoader;
@@ -80,35 +80,35 @@ namespace Vox.UI
             _requestClose = requestClose;
             _shaderManager = shaderManager;
 
-            string _assets = Path.Combine("..", "..", "..", "Assets");
+            string assets = Path.Combine("..", "..", "..", "Assets");
 
-            PtFont18 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 18.0f);
-            PtFont24 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 24.0f);
-            PtFont72 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(_assets, "Grid Hunter.ttf"), 72.0f);
+            _ptFont18 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(assets, "Grid Hunter.ttf"), 18.0f);
+            _ptFont24 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(assets, "Grid Hunter.ttf"), 24.0f);
+            _ptFont72 = _ioPtr.Fonts.AddFontFromFileTTF(Path.Combine(assets, "Grid Hunter.ttf"), 72.0f);
 
         }
         public void CreateMainMenu()
         {
-            float _guiScale = _settings!.GetSettings().GuiScale;
-            System.Numerics.Vector4 _UIColor = _settings.GetSettings().UIColor;
-            float menuWidth = 20f * _guiScale;
-            float menuHeight = 15f * _guiScale;
+            float guiScale = _settings!.GetSettings().GuiScale;
+            System.Numerics.Vector4 uiColor = _settings.GetSettings().UiColor;
+            float menuWidth = 20f * guiScale;
+            float menuHeight = 15f * guiScale;
 
 
-            ImGui.PushFont(PtFont18);
+            ImGui.PushFont(_ptFont18);
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(_UIColor.X * _buttonTextTint, _UIColor.Y * _buttonTextTint, _UIColor.Z * _buttonTextTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(uiColor.X * _buttonTextTint, uiColor.Y * _buttonTextTint, uiColor.Z * _buttonTextTint, 1f));
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, _frameBorderSize - 1);
-            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(_UIColor.X * _frameBorderColorTint, _UIColor.Y * _frameBorderColorTint, _UIColor.Z * _frameBorderColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(_UIColor.X * _buttonHoverColorTint, _UIColor.Y * _buttonHoverColorTint, _UIColor.Z * _buttonHoverColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(_UIColor.X, _UIColor.Y, _UIColor.Z, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(uiColor.X * _frameBorderColorTint, uiColor.Y * _frameBorderColorTint, uiColor.Z * _frameBorderColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(uiColor.X * _buttonHoverColorTint, uiColor.Y * _buttonHoverColorTint, uiColor.Z * _buttonHoverColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(uiColor.X, uiColor.Y, uiColor.Z, 1f));
 
             float horizontalMenuScale = 3.5f;
             ImGui.Begin("World List", ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
 
             //Set menu style
-            ImGui.PushStyleColor(ImGuiCol.ChildBg, _settings.GetSettings().UIColor);
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, _settings.GetSettings().UiColor);
 
             ImGui.Text("Choose a World");
 
@@ -232,7 +232,7 @@ namespace Vox.UI
         }
         public void CreateDebugMenu()
         {
-            ImGui.PushFont(PtFont18);
+            ImGui.PushFont(_ptFont18);
 
             /*=====================================
              Debug Display
@@ -242,7 +242,7 @@ namespace Vox.UI
             ImGui.SetWindowSize(new System.Numerics.Vector2(Window.SreenWidth / 4.0f, Window.ScreenHeight / 2.0f));
 
             // Menu styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UiColor);
 
             ImGui.Begin("Debug");
 
@@ -299,24 +299,24 @@ namespace Vox.UI
         }
         public void CreateBlockColorPicker(Vector3 blockspace)
         {
-            float _guiScale = _settings!.GetSettings().GuiScale;
-            float menuWidth = 9.3f * _guiScale;
-            float menuHeight = 7.2f * _guiScale;
+            float guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 9.3f * guiScale;
+            float menuHeight = 7.2f * guiScale;
 
             //Menu sizing
             ImGui.SetNextWindowPos(new(Window.SreenWidth / 2, Window.ScreenHeight / 2), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new System.Numerics.Vector2(_guiScale * 2.8f, _guiScale * 2.8f));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(guiScale * 2.8f, guiScale * 2.8f));
 
             //Menu styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UiColor);
 
             if (ImGui.BeginPopup("ColorPicker"))
             {
 
-                ImGui.PushFont(PtFont18);
+                ImGui.PushFont(_ptFont18);
 
-                ImGui.PushItemWidth(_guiScale * 2.5f);
-                if (ImGui.ColorPicker3($"Red: {Math.Round(pickedColor.X * 15)} Green: {Math.Round(pickedColor.Y * 15)} Blue: {Math.Round(pickedColor.Z * 15)}", ref pickedColor,
+                ImGui.PushItemWidth(guiScale * 2.5f);
+                if (ImGui.ColorPicker3($"Red: {Math.Round(_pickedColor.X * 15)} Green: {Math.Round(_pickedColor.Y * 15)} Blue: {Math.Round(_pickedColor.Z * 15)}", ref _pickedColor,
                     ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.PickerHueWheel | ImGuiColorEditFlags.NoSidePreview | ImGuiColorEditFlags.NoLabel | ImGuiColorEditFlags.DisplayRGB))
                 {
                     Chunk blockChunk = _regionManager!.GetAndLoadGlobalChunkFromCoords(blockspace);
@@ -327,21 +327,21 @@ namespace Vox.UI
                     {
 
                         _lightHelper!.SetBlockLight(blockspace, new ColorVector(0, 0, 0), blockChunk, true, false);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.UP, true, true);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.DOWN, true, true);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.EAST, true, true);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.WEST, true, true);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.NORTH, true, true);
-                        _regionManager.PropagateBlockLight(blockspace, BlockFace.SOUTH, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.Up, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.Down, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.East, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.West, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.North, true, true);
+                        _regionManager.PropagateBlockLight(blockspace, BlockFace.South, true, true);
                         _lightHelper.GetLightTrackingList().Remove(blockspace);
 
                         _regionManager.AddBlockToChunk(
                             blockspace,
-                            BlockType.LAMP_BLOCK,
+                            BlockType.Lamp,
                             new ColorVector(
-                                (int)Math.Round(pickedColor.X * 15),
-                                (int)Math.Round(pickedColor.Y * 15),
-                                (int)Math.Round(pickedColor.Z * 15)
+                                (int)Math.Round(_pickedColor.X * 15),
+                                (int)Math.Round(_pickedColor.Y * 15),
+                                (int)Math.Round(_pickedColor.Z * 15)
                             ), false
                         );
                         countdown.Signal();
@@ -360,17 +360,17 @@ namespace Vox.UI
             InventoryStore inventoryStore = _player!.GetInventory();
             KeyValuePair<BlockType, int> handItem = inventoryStore.GetHandItem();
 
-            ImGui.PushFont(PtFont18);
+            ImGui.PushFont(_ptFont18);
             IntPtr textureToUse = IntPtr.Zero;
             int topFillerPadding = 5;
             int slotPadding = 5;
-            float _guiScale = _settings!.GetSettings().GuiScale;
-            float menuWidth = 9.3f * _guiScale;
-            float menuHeight = 7.2f * _guiScale;
+            float guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 9.3f * guiScale;
+            float menuHeight = 7.2f * guiScale;
             float slotSize = (menuWidth + slotPadding) / 9;
-            float hotbarSpacing = _guiScale / 3.5f;
+            float hotbarSpacing = guiScale / 3.5f;
             System.Numerics.Vector2 inventorySlotSize = new(slotSize - (slotPadding * 3f), slotSize - (slotPadding * 3.5f));
-            System.Numerics.Vector4 _UIColor = _settings.GetSettings().UIColor;
+            System.Numerics.Vector4 uiColor = _settings.GetSettings().UiColor;
 
             //Main window sizing and position
             System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
@@ -378,33 +378,33 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UiColor);
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new System.Numerics.Vector2(slotPadding, slotPadding));
 
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, _frameBorderSize);
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(_UIColor.X * _buttonTextTint, _UIColor.Y * _buttonTextTint, _UIColor.Z * _buttonTextTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(_UIColor.X * _frameBorderColorTint, _UIColor.Y * _frameBorderColorTint, _UIColor.Z * _frameBorderColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(_UIColor.X * _buttonHoverColorTint, _UIColor.Y * _buttonHoverColorTint, _UIColor.Z * _buttonHoverColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(_UIColor.X, _UIColor.Y, _UIColor.Z, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(_UIColor.X * _frameColorTint, _UIColor.Y * _frameColorTint, _UIColor.Z * _frameColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new System.Numerics.Vector4(_UIColor.X * _frameColorHoverTint, _UIColor.Y * _frameColorHoverTint, _UIColor.Z * _frameColorHoverTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new System.Numerics.Vector4(_UIColor.X * _frameColorActiveTint, _UIColor.Y * _frameColorActiveTint, _UIColor.Z * _frameColorActiveTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(uiColor.X * _buttonTextTint, uiColor.Y * _buttonTextTint, uiColor.Z * _buttonTextTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(uiColor.X * _frameBorderColorTint, uiColor.Y * _frameBorderColorTint, uiColor.Z * _frameBorderColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(uiColor.X * _buttonHoverColorTint, uiColor.Y * _buttonHoverColorTint, uiColor.Z * _buttonHoverColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(uiColor.X, uiColor.Y, uiColor.Z, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(uiColor.X * _frameColorTint, uiColor.Y * _frameColorTint, uiColor.Z * _frameColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new System.Numerics.Vector4(uiColor.X * _frameColorHoverTint, uiColor.Y * _frameColorHoverTint, uiColor.Z * _frameColorHoverTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new System.Numerics.Vector4(uiColor.X * _frameColorActiveTint, uiColor.Y * _frameColorActiveTint, uiColor.Z * _frameColorActiveTint, 1f));
 
             ImGui.Begin("PlayerInventory", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
 
-            System.Numerics.Vector2 inventoryFillerSize = new((menuWidth / 3) - (topFillerPadding * 3.5f), _guiScale * 2.5f);
-                ImGui.BeginChild("InventoryTop", new System.Numerics.Vector2(menuWidth, 2.7f * _guiScale));
+            System.Numerics.Vector2 inventoryFillerSize = new((menuWidth / 3) - (topFillerPadding * 3.5f), guiScale * 2.5f);
+                ImGui.BeginChild("InventoryTop", new System.Numerics.Vector2(menuWidth, 2.7f * guiScale));
                 ImGui.ImageButton("TopFiller", 0, inventoryFillerSize);
                 ImGui.SameLine();
                 ImGui.ImageButton("TopFiller", 0, inventoryFillerSize);
                 ImGui.SameLine();
 
-                if (selectedBlock != BlockType.AIR && inventoryStore.GetHandItem().Key == BlockType.AIR)
+                if (_selectedBlock != BlockType.Air && inventoryStore.GetHandItem().Key == BlockType.Air)
                 {
                     // Render block model for current slot
                     InventoryStore inventory = _player!.GetInventory();
 
-                    inventory.UpdateSSBOBlock(selectedBlock);
+                    inventory.UpdateSsboBlock(_selectedBlock);
 
                     RenderInventoryAnimation(256, 256);
                     ImGui.ImageButton("Info Panel", inventoryStore.GetInventoryDisplayTexture(), inventoryFillerSize);
@@ -414,7 +414,7 @@ namespace Vox.UI
                     //Create empty inventory slot
                     System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
                     System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
-                    ImGui.ImageButton("##Empty", inventoryStore.GetInventoryDisplayFBO(), inventoryFillerSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                    ImGui.ImageButton("##Empty", inventoryStore.GetInventoryDisplayFbo(), inventoryFillerSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                 }
 
                 ImGui.EndChild();
@@ -440,22 +440,22 @@ namespace Vox.UI
          
                 ImDrawListPtr drawList = ImGui.GetWindowDrawList();
 
-                Tuple<System.Numerics.Vector2, System.Numerics.Vector2> slotIconUV = _assetLookup!.GetUVFromBlockType(inventorySlots[i].Key);
+                Tuple<System.Numerics.Vector2, System.Numerics.Vector2> slotIconUv = _assetLookup!.GetUvFromBlockType(inventorySlots[i].Key);
             
 
                 // Show animation on hover and set tooltip
                 if (isHovered && !inventoryStore.IsItemBeingMoved())
                 {
-                    selectedBlock = inventorySlots[i].Key;
+                    _selectedBlock = inventorySlots[i].Key;
 
-                    if (currentSlotType != BlockType.AIR)
+                    if (currentSlotType != BlockType.Air)
                     {
-                        ImGui.SetTooltip($"{selectedBlock}\nQuantity: {currentSlotQuantity}");
+                        ImGui.SetTooltip($"{_selectedBlock}\nQuantity: {currentSlotQuantity}");
 
-                        if (inventoryStore.GetHandItem().Key == BlockType.AIR)
+                        if (inventoryStore.GetHandItem().Key == BlockType.Air)
                             ImGui.ImageButton("##" + i, inventoryStore.GetInventoryDisplayTexture(), inventorySlotSize);
                         else
-                            ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, slotIconUV.Item1, slotIconUV.Item2);
+                            ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, slotIconUv.Item1, slotIconUv.Item2);
 
                         if (ImGui.IsItemHovered())
                             inventoryStore.SetHoveredSlotIndex(i);
@@ -465,7 +465,7 @@ namespace Vox.UI
                         //Create empty inventory slot
                         System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
                         System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
-                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFbo(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
 
                         Utils.DetectItemMove(inventoryStore, inventorySlotSize, drawList, i, currentSlotType, currentSlotQuantity);
 
@@ -475,9 +475,9 @@ namespace Vox.UI
                 else
                 {
 
-                    if (currentSlotType != BlockType.AIR)
+                    if (currentSlotType != BlockType.Air)
                     {
-                        ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, slotIconUV.Item1, slotIconUV.Item2);
+                        ImGui.ImageButton("##SlotIcon" + i, inventoryStore.GetInventoryIconAtlas(), inventorySlotSize, slotIconUv.Item1, slotIconUv.Item2);
                     }
 
                     //Render an empty slot if theres no item
@@ -486,7 +486,7 @@ namespace Vox.UI
                         //Create empty inventory slot
                         System.Numerics.Vector4 tintCol = new(0, 0, 0, 0);
                         System.Numerics.Vector4 bgCol = new(0, 0, 0, 0);
-                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFBO(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
+                        ImGui.ImageButton("##Empty" + i, inventoryStore.GetInventoryDisplayFbo(), inventorySlotSize, new System.Numerics.Vector2(0, 0), new System.Numerics.Vector2(1, 1), bgCol, tintCol);
                         Utils.DetectItemMove(inventoryStore, inventorySlotSize, drawList, i, currentSlotType, currentSlotQuantity);
                     }
                     if (ImGui.IsItemHovered())
@@ -496,13 +496,13 @@ namespace Vox.UI
                 // Draw item quantity
                 System.Numerics.Vector2 min = ImGui.GetItemRectMin();
 
-                uint color = isHovered ? ImGui.GetColorU32(new System.Numerics.Vector4(_UIColor.X / _frameColorHoverTint, _UIColor.Y / _frameColorHoverTint, _UIColor.Z / _frameColorHoverTint, 1)) // if hovered
-                                     : ImGui.GetColorU32(new System.Numerics.Vector4(_UIColor.X * _buttonHoverColorTint, _UIColor.Y * _buttonHoverColorTint, _UIColor.Z * _buttonHoverColorTint, 1)); // if not hovered
+                uint color = isHovered ? ImGui.GetColorU32(new System.Numerics.Vector4(uiColor.X / _frameColorHoverTint, uiColor.Y / _frameColorHoverTint, uiColor.Z / _frameColorHoverTint, 1)) // if hovered
+                                     : ImGui.GetColorU32(new System.Numerics.Vector4(uiColor.X * _buttonHoverColorTint, uiColor.Y * _buttonHoverColorTint, uiColor.Z * _buttonHoverColorTint, 1)); // if not hovered
 
                 // Show item quantity in top left corner
                 if (inventorySlots[i].Value > 0)
                 {
-                    drawList.AddText(ImGui.GetFont(), 0.2f * _guiScale, min + new System.Numerics.Vector2(5, 5), color,
+                    drawList.AddText(ImGui.GetFont(), 0.2f * guiScale, min + new System.Numerics.Vector2(5, 5), color,
                         currentSlotQuantity.ToString());
                 }
 
@@ -527,11 +527,11 @@ namespace Vox.UI
         public void CreatePauseMenu()
         {
             //Set menu sizing
-            float _guiScale = _settings!.GetSettings().GuiScale;
-            float menuWidth = 9.3f * _guiScale;
-            float menuHeight = 7.2f * _guiScale;
+            float guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 9.3f * guiScale;
+            float menuHeight = 7.2f * guiScale;
 
-            System.Numerics.Vector4 _UIColor = _settings!.GetSettings().UIColor;
+            System.Numerics.Vector4 uiColor = _settings!.GetSettings().UiColor;
 
             //Main window sizing and position
             System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
@@ -539,37 +539,37 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, _UIColor);
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(_UIColor.X * _buttonTextTint, _UIColor.Y * _buttonTextTint, _UIColor.Z * _buttonTextTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, uiColor);
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(uiColor.X * _buttonTextTint, uiColor.Y * _buttonTextTint, uiColor.Z * _buttonTextTint, 1f));
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, _frameBorderSize);
-            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(_UIColor.X * _frameBorderColorTint, _UIColor.Y * _frameBorderColorTint, _UIColor.Z * _frameBorderColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(_UIColor.X * _buttonHoverColorTint, _UIColor.Y * _buttonHoverColorTint, _UIColor.Z * _buttonHoverColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(_UIColor.X, _UIColor.Y, _UIColor.Z, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(uiColor.X * _frameBorderColorTint, uiColor.Y * _frameBorderColorTint, uiColor.Z * _frameBorderColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(uiColor.X * _buttonHoverColorTint, uiColor.Y * _buttonHoverColorTint, uiColor.Z * _buttonHoverColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(uiColor.X, uiColor.Y, uiColor.Z, 1f));
 
             // Menu creation
             ImGui.Begin("Paused", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
 
             // Menu title
-            ImGui.PushFont(PtFont72);
+            ImGui.PushFont(_ptFont72);
             Utils.CreateCenteredText("Paused");
             ImGui.PopFont();
 
-            ImGui.PushFont(PtFont24);
+            ImGui.PushFont(_ptFont24);
 
             // Menu filler
             ImGui.BeginChild("Filler", new(menuWidth, menuHeight / 10));
             ImGui.EndChild();
 
-            if (Utils.ButtonCentered("Settings", _guiScale / 2, _guiScale / 6))
+            if (Utils.ButtonCentered("Settings", guiScale / 2, guiScale / 6))
             {
                 _settings.FillBuffersFromSettings();
                 SetCurrentMenu(Menu.Settings);
             }
-            if (Utils.ButtonCentered("Back To Game", _guiScale / 2, _guiScale / 6))
+            if (Utils.ButtonCentered("Back To Game", guiScale / 2, guiScale / 6))
             {
                 SetCurrentMenu(Menu.None);
             }
-            if (Utils.ButtonCentered("Back to Main Menu", _guiScale / 2, _guiScale / 6))
+            if (Utils.ButtonCentered("Back to Main Menu", guiScale / 2, guiScale / 6))
             {
                 SetCurrentMenu(Menu.Main);
                 Window.DisplayMainMenuScreen(true);
@@ -586,11 +586,11 @@ namespace Vox.UI
         {
 
             //Set menu sizing
-            float _guiScale = _settings!.GetSettings().GuiScale;
-            float menuWidth = 9.3f * _guiScale;
-            float menuHeight = 7.2f * _guiScale;
+            float guiScale = _settings!.GetSettings().GuiScale;
+            float menuWidth = 9.3f * guiScale;
+            float menuHeight = 7.2f * guiScale;
 
-            System.Numerics.Vector4 _UIColor = _settings!.GetSettings().UIColor;
+            System.Numerics.Vector4 uiColor = _settings!.GetSettings().UiColor;
 
             //Main window sizing and position
             System.Numerics.Vector2 center = ImGui.GetMainViewport().GetCenter();
@@ -598,26 +598,26 @@ namespace Vox.UI
             ImGui.SetNextWindowSize(new(menuWidth, menuHeight));
 
             // Main window UI styling
-            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UIColor);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, _settings.GetSettings().UiColor);
 
             ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, _frameBorderSize);
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(_UIColor.X * _buttonTextTint, _UIColor.Y * _buttonTextTint, _UIColor.Z * _buttonTextTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(_UIColor.X * _frameBorderColorTint, _UIColor.Y * _frameBorderColorTint, _UIColor.Z * _frameBorderColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(_UIColor.X * _buttonHoverColorTint, _UIColor.Y * _buttonHoverColorTint, _UIColor.Z * _buttonHoverColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(_UIColor.X, _UIColor.Y, _UIColor.Z, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(_UIColor.X * _frameColorTint, _UIColor.Y * _frameColorTint, _UIColor.Z * _frameColorTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new System.Numerics.Vector4(_UIColor.X * _frameColorHoverTint, _UIColor.Y * _frameColorHoverTint, _UIColor.Z * _frameColorHoverTint, 1f));
-            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new System.Numerics.Vector4(_UIColor.X * _frameColorActiveTint, _UIColor.Y * _frameColorActiveTint, _UIColor.Z * _frameColorActiveTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(uiColor.X * _buttonTextTint, uiColor.Y * _buttonTextTint, uiColor.Z * _buttonTextTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Border, new System.Numerics.Vector4(uiColor.X * _frameBorderColorTint, uiColor.Y * _frameBorderColorTint, uiColor.Z * _frameBorderColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(uiColor.X * _buttonHoverColorTint, uiColor.Y * _buttonHoverColorTint, uiColor.Z * _buttonHoverColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(uiColor.X, uiColor.Y, uiColor.Z, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBg, new System.Numerics.Vector4(uiColor.X * _frameColorTint, uiColor.Y * _frameColorTint, uiColor.Z * _frameColorTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgHovered, new System.Numerics.Vector4(uiColor.X * _frameColorHoverTint, uiColor.Y * _frameColorHoverTint, uiColor.Z * _frameColorHoverTint, 1f));
+            ImGui.PushStyleColor(ImGuiCol.FrameBgActive, new System.Numerics.Vector4(uiColor.X * _frameColorActiveTint, uiColor.Y * _frameColorActiveTint, uiColor.Z * _frameColorActiveTint, 1f));
 
             // Menu creation
             ImGui.Begin("Settings", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
 
             // Menu title
-            ImGui.PushFont(PtFont72);
+            ImGui.PushFont(_ptFont72);
             Utils.CreateCenteredText("Settings");
             ImGui.PopFont();
 
-            ImGui.PushFont(PtFont24);
+            ImGui.PushFont(_ptFont24);
 
             // Menu filler
             ImGui.BeginChild("Filler", new(menuWidth, menuHeight / 10));
@@ -629,22 +629,22 @@ namespace Vox.UI
                 _settings.GetSettings().GuiScaleBuffer = val;
             }
 
-            ImGui.Dummy(new(_guiScale / 2, _guiScale / 2));
+            ImGui.Dummy(new(guiScale / 2, guiScale / 2));
 
-            ImGui.PushItemWidth(_guiScale * 2.5f);
-            if (ImGui.ColorPicker4("UI Color", ref color, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.PickerHueWheel | ImGuiColorEditFlags.DisplayRGB | ImGuiColorEditFlags.NoAlpha)) 
+            ImGui.PushItemWidth(guiScale * 2.5f);
+            if (ImGui.ColorPicker4("UI Color", ref _color, ImGuiColorEditFlags.InputRGB | ImGuiColorEditFlags.PickerHueWheel | ImGuiColorEditFlags.DisplayRGB | ImGuiColorEditFlags.NoAlpha)) 
             {
-                _settings.GetSettings().UIColorBuffer = new System.Numerics.Vector4(color.X, color.Y, color.Z, 0.6f);
+                _settings.GetSettings().UiColorBuffer = new System.Numerics.Vector4(_color.X, _color.Y, _color.Z, 0.6f);
             }
             ImGui.PopItemWidth();
 
-            if (Utils.ButtonCentered("Apply Settings", _guiScale / 2, _guiScale / 6))
+            if (Utils.ButtonCentered("Apply Settings", guiScale / 2, guiScale / 6))
             {
                 _settings.SetGuiScale(_settings.GetSettings().GuiScaleBuffer);
-                _settings.SetUIColor(_settings.GetSettings().UIColorBuffer);
+                _settings.SetUiColor(_settings.GetSettings().UiColorBuffer);
                 _settings.SaveSettingsToFile();
             }
-            if (Utils.ButtonCentered("Back", _guiScale / 2, _guiScale / 6))
+            if (Utils.ButtonCentered("Back", guiScale / 2, guiScale / 6))
             {
                 SetCurrentMenu(Menu.Pause);
             }
@@ -661,14 +661,14 @@ namespace Vox.UI
             InventoryStore inventoryStore = _player!.GetInventory();
 
             //Save current state
-            int prevFBO = GL.GetInteger(GetPName.FramebufferBinding);
+            int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
-            int prevVAO = GL.GetInteger(GetPName.VertexArrayBinding);
+            int prevVao = GL.GetInteger(GetPName.VertexArrayBinding);
             int[] prevViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, prevViewport);
 
             //FBO setup first, before viewport
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, inventoryStore.GetInventoryDisplayFBO());
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, inventoryStore.GetInventoryDisplayFbo());
 
             FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if (status != FramebufferErrorCode.FramebufferComplete)
@@ -677,7 +677,7 @@ namespace Vox.UI
                 return;
             }
 
-            GL.BindVertexArray(inventoryStore.GetInventoryVAO());
+            GL.BindVertexArray(inventoryStore.GetInventoryVao());
             GL.Viewport(0, 0, sizeX, sizeY);
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -694,9 +694,9 @@ namespace Vox.UI
 
 
             //Restore state
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, prevFbo);
             GL.UseProgram(prevProgram);
-            GL.BindVertexArray(prevVAO);
+            GL.BindVertexArray(prevVao);
             GL.Viewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 
         }

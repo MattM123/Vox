@@ -7,12 +7,12 @@ using Vox.Model;
 
 namespace Vox.Rendering
 {
-    public class SSBOManager : ISSBOManager
+    public class SsboManager : IssboManager
     {
         private readonly Dictionary<string, StorageBufferObject> _ssboList = new();
-        public SSBOManager() { }
+        public SsboManager() { }
 
-        public StorageBufferObject AddSSBO(int size, int bindingIndex, SSBO type)
+        public StorageBufferObject AddSsbo(int size, int bindingIndex, Ssbo type)
         {
             string name = type.ToString();
 
@@ -31,7 +31,7 @@ namespace Vox.Rendering
             return newBuffer;
         }
 
-        public StorageBufferObject GetSSBO(SSBO type)
+        public StorageBufferObject GetSsbo(Ssbo type)
         {
             if (!_ssboList.TryGetValue(type.ToString(), out StorageBufferObject? ssbo))
             {

@@ -13,46 +13,46 @@ namespace Vox.UI.MenuLogic
 
     public class InventoryStore : IInventoryStore
     {
-        private readonly Dictionary<int, KeyValuePair<BlockType, int>> slots = new(36);
-        private readonly ISSBOManager? _ssboManager;
+        private readonly Dictionary<int, KeyValuePair<BlockType, int>> _slots = new(36);
+        private readonly IssboManager? _ssboManager;
         private readonly IAssetLookup? _assetLookup;
 
-        private readonly int _inventoryVAO;
-        private readonly int _inventoryDisplayFBO;
+        private readonly int _inventoryVao;
+        private readonly int _inventoryDisplayFbo;
         private readonly int _inventoryDisplayTexture;
 
-        private readonly int _inventoryIconSlotFBO;
+        private readonly int _inventoryIconSlotFbo;
         private readonly int _inventoryIconAtlas;
 
-        private KeyValuePair<BlockType, int> movedSlot = new(BlockType.AIR, 0);
-        private bool isMoving = false;
-        private int hoveredSlotIndex = -1;
-        private bool pickupToggle = false;
+        private KeyValuePair<BlockType, int> _movedSlot = new(BlockType.Air, 0);
+        private bool _isMoving = false;
+        private int _hoveredSlotIndex = -1;
+        private bool _pickupToggle = false;
 
         /// <summary>
         /// Initializes a new instance of the InventoryStore class with the specified SSBO manager.
         /// </summary>
         /// <param displayName="ssboManager">The inventory SSBO manager used to manage block icon rendering for inventory slots.</param>
-        public InventoryStore(ISSBOManager ssboManager, IAssetLookup assetLookup)
+        public InventoryStore(IssboManager ssboManager, IAssetLookup assetLookup)
         {
             _ssboManager = ssboManager;
             _assetLookup = assetLookup;
-            _inventoryVAO = GL.GenVertexArray();
+            _inventoryVao = GL.GenVertexArray();
 
             for (int i = 0; i < 36; i++)
-                slots.Add(i, new(BlockType.AIR, 0));
+                _slots.Add(i, new(BlockType.Air, 0));
 
             //------------------------Inventory Block Display---------------------------------
             //Inventory animation framebuffer
-            _inventoryDisplayFBO = GL.GenFramebuffer();
+            _inventoryDisplayFbo = GL.GenFramebuffer();
             _inventoryDisplayTexture = GL.GenTexture();
 
             string displayName = "FrameBuffer: Inventory Display";
-            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryDisplayFBO, displayName.Length, displayName);
+            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryDisplayFbo, displayName.Length, displayName);
             string displayTexture = "Texture: Inventory Display";
             GL.ObjectLabel(ObjectLabelIdentifier.Texture, _inventoryDisplayTexture, displayTexture.Length, displayTexture);
 
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFbo);
 
             GL.BindTexture(TextureTarget.Texture2D, _inventoryDisplayTexture);
             GL.TexImage2D(
@@ -72,7 +72,7 @@ namespace Vox.UI.MenuLogic
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach color texture to frame buffer
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFbo);
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer,
                 FramebufferAttachment.ColorAttachment0,
@@ -85,16 +85,16 @@ namespace Vox.UI.MenuLogic
 
             //------------------------Inventory Icon Display---------------------------------
             //Inventory icon framebuffer
-            _inventoryIconSlotFBO = GL.GenFramebuffer();
+            _inventoryIconSlotFbo = GL.GenFramebuffer();
             _inventoryIconAtlas = GL.GenTexture();
 
-            string iconSlotFBOName = "FrameBuffer: Inventory Icon";
-            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryIconSlotFBO, iconSlotFBOName.Length, iconSlotFBOName);
+            string iconSlotFboName = "FrameBuffer: Inventory Icon";
+            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryIconSlotFbo, iconSlotFboName.Length, iconSlotFboName);
 
             string iconAtlasName = "Texture: Icon Atlas";
             GL.ObjectLabel(ObjectLabelIdentifier.Texture, _inventoryIconAtlas, iconAtlasName.Length, iconAtlasName);
 
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFbo);
 
             GL.BindTexture(TextureTarget.Texture2D, _inventoryIconAtlas);
             GL.TexImage2D(
@@ -114,7 +114,7 @@ namespace Vox.UI.MenuLogic
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach color texture to frame buffer
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFBO);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFbo);
             GL.FramebufferTexture2D(
                 FramebufferTarget.Framebuffer,
                 FramebufferAttachment.ColorAttachment0,
@@ -136,7 +136,7 @@ namespace Vox.UI.MenuLogic
             if (quantity < 0)
                 quantity = 0;
 
-            slots[index] = new(blockType, quantity);
+            _slots[index] = new(blockType, quantity);
         }
 
         /// <summary>
@@ -146,7 +146,7 @@ namespace Vox.UI.MenuLogic
         /// count of that block _type in the slot.</returns>
         public Dictionary<int, KeyValuePair<BlockType, int>> GetSlots()
         {
-            return slots;
+            return _slots;
         }
 
         /// <summary>
@@ -156,11 +156,11 @@ namespace Vox.UI.MenuLogic
         /// <param displayName="slot">The zero-based index of the slot whose quantity will be incremented.</param>
         public void IncrementSlotQuantity(int increment, int slot)
         {
-            BlockType blocktype = slots[slot].Key;
-            int quantity = slots[slot].Value;
+            BlockType blocktype = _slots[slot].Key;
+            int quantity = _slots[slot].Value;
 
             if (increment > 0)
-                slots[slot] = new(blocktype, quantity + increment);
+                _slots[slot] = new(blocktype, quantity + increment);
         }
 
         /// <summary>
@@ -170,11 +170,11 @@ namespace Vox.UI.MenuLogic
         /// <param displayName="slot">The zero-based index of the slot whose quantity will be decremented.</param>
         public void DecrementSlotQuantity(int decrement, int slot)
         {
-            BlockType blocktype = slots[slot].Key;
-            int quantity = slots[slot].Value;
+            BlockType blocktype = _slots[slot].Key;
+            int quantity = _slots[slot].Value;
 
             if (decrement > 0)
-                slots[slot] = new(blocktype, quantity - decrement);
+                _slots[slot] = new(blocktype, quantity - decrement);
         }
 
         /// <summary>
@@ -236,13 +236,13 @@ namespace Vox.UI.MenuLogic
             unsafe
             {
                 int offset = face.index * Marshal.SizeOf<BlockFaceInstance>();
-                byte* basePtr = (byte*)_ssboManager!.GetSSBO(SSBO.Inventory).Pointer;
+                byte* basePtr = (byte*)_ssboManager!.GetSsbo(Ssbo.Inventory).Pointer;
 
                 BlockFaceInstance* instancePtr = (BlockFaceInstance*)(basePtr + offset);
 
                 int instanceSize = Marshal.SizeOf<BlockFaceInstance>();
 
-                if (offset + instanceSize > _ssboManager!.GetSSBO(SSBO.Inventory).Size)
+                if (offset + instanceSize > _ssboManager!.GetSsbo(Ssbo.Inventory).Size)
                     throw new InvalidOperationException("SSBO overflow");
 
                 *instancePtr = face;
@@ -254,7 +254,7 @@ namespace Vox.UI.MenuLogic
         /// This method retrieves the block model from the asset lookup for the given block type.
         /// </summary>
         /// <param displayName="modelblockType">The <see cref="BlockType"> to update the SSBO with</see></param>
-        public void UpdateSSBOBlock(BlockType modelblockType)
+        public void UpdateSsboBlock(BlockType modelblockType)
         {
             BlockModel model = _assetLookup!.GetModel(modelblockType);
             string modelElements = model.GetElements().ElementAt(0).ToString();
@@ -276,8 +276,8 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 0,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.NORTH),
-                    faceDirection = (int)BlockFace.NORTH
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.North),
+                    faceDirection = (int)BlockFace.North
                 });
             AddOrUpdateFaceInMemory(
                 new BlockFaceInstance
@@ -285,8 +285,8 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 1,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.SOUTH),
-                    faceDirection = (int)BlockFace.SOUTH
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.South),
+                    faceDirection = (int)BlockFace.South
                 });
             AddOrUpdateFaceInMemory(
                 new BlockFaceInstance
@@ -294,8 +294,8 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 2,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.EAST),
-                    faceDirection = (int)BlockFace.EAST
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.East),
+                    faceDirection = (int)BlockFace.East
                 });
             AddOrUpdateFaceInMemory(
                 new BlockFaceInstance
@@ -303,8 +303,8 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 3,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.WEST),
-                    faceDirection = (int)BlockFace.WEST
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.West),
+                    faceDirection = (int)BlockFace.West
                 });
             AddOrUpdateFaceInMemory(
                 new BlockFaceInstance
@@ -312,8 +312,8 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 4,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.UP),
-                    faceDirection = (int)BlockFace.UP
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.Up),
+                    faceDirection = (int)BlockFace.Up
                 });
             AddOrUpdateFaceInMemory(
                 new BlockFaceInstance
@@ -321,18 +321,18 @@ namespace Vox.UI.MenuLogic
                     facePosition = new Vector3(x, y, z),
                     index = 5,
                     lighting = 56149,
-                    textureLayer = (int)model.GetTextureLayer(BlockFace.DOWN),
-                    faceDirection = (int)BlockFace.DOWN
+                    textureLayer = (int)model.GetTextureLayer(BlockFace.Down),
+                    faceDirection = (int)BlockFace.Down
                 });
         }
 
-        public int GetInventoryVAO()
+        public int GetInventoryVao()
         {
-            return _inventoryVAO;
+            return _inventoryVao;
         }
-        public int GetInventoryDisplayFBO()
+        public int GetInventoryDisplayFbo()
         {
-            return _inventoryDisplayFBO;
+            return _inventoryDisplayFbo;
         }
         public int GetInventoryDisplayTexture()
         {
@@ -342,41 +342,41 @@ namespace Vox.UI.MenuLogic
         {
             return _inventoryIconAtlas;
         }
-        public int GetInventoryIconSlotFBO()
+        public int GetInventoryIconSlotFbo()
         {
-            return _inventoryIconSlotFBO;
+            return _inventoryIconSlotFbo;
         }
         public KeyValuePair<BlockType, int> GetHandItem()
         {
-            return movedSlot;
+            return _movedSlot;
         }
         public bool IsItemBeingMoved()
         {
-            return isMoving;
+            return _isMoving;
         }
         public void SetHandItem(KeyValuePair<BlockType, int> slot)
         {
-            movedSlot = slot;
+            _movedSlot = slot;
         }
         public void SetIsItemBeingMoved(bool isBeingMoved)
         {
-            isMoving = isBeingMoved;
+            _isMoving = isBeingMoved;
         }
         public int GetHoveredSlotIndex()
         {
-            return hoveredSlotIndex;
+            return _hoveredSlotIndex;
         }
         public void SetHoveredSlotIndex(int index)
         {
-            hoveredSlotIndex = index;
+            _hoveredSlotIndex = index;
         }
         public bool GetPickupToggle()
         {
-            return pickupToggle;
+            return _pickupToggle;
         }
         public void SetPickupToggle(bool toggle)
         {
-            pickupToggle = toggle;
+            _pickupToggle = toggle;
         }
     }
 }

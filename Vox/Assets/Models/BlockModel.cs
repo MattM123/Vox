@@ -14,10 +14,10 @@ namespace Vox.Assets.Models
 
         private readonly Dictionary<string, BlockFace> _placeholders = new()
         {
-            { "#all", BlockFace.ALL },
-            { "#top", BlockFace.TOP },
-            { "#bottom", BlockFace.BOTTOM },
-            { "#side", BlockFace.SIDE }
+            { "#all", BlockFace.All },
+            { "#top", BlockFace.Top },
+            { "#bottom", BlockFace.Bottom },
+            { "#side", BlockFace.Side }
         };
 
         public BlockModel(IAssetLookup assetLookup) {
@@ -110,6 +110,16 @@ namespace Vox.Assets.Models
             {
                 if (Enum.TryParse(value, true, out Texture texture))
                     return _assetLookup.GetTextureLayerFromTexture(texture);
+            }
+            return 0;
+        }
+        public Texture GetTexture(BlockFace side)
+        {
+            //Subtract by 1 to account for AIR texture
+            if (_textures.TryGetValue(side, out string? value))
+            {
+                if (Enum.TryParse(value, true, out Texture texture))
+                    return texture;
             }
             return 0;
         }

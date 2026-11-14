@@ -2,6 +2,6 @@
   "parent": "billboard_all",
   "transparent": false,
   "textures": {
-    "all": "dead_bush"
+    "all": "DeadBush"
   }
 }

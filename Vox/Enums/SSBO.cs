@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Vox.Enums
 {
-    public enum SSBO
+    public enum Ssbo
     {
         Inventory,
         Terrain

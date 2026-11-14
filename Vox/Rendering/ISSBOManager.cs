@@ -3,9 +3,9 @@ using Vox.Model;
 
 namespace Vox.Rendering
 {
-    public interface ISSBOManager
+    public interface IssboManager
     {
-        StorageBufferObject AddSSBO(int size, int bindingIndex, SSBO type);
-        StorageBufferObject GetSSBO(SSBO type);
+        StorageBufferObject AddSsbo(int size, int bindingIndex, Ssbo type);
+        StorageBufferObject GetSsbo(Ssbo type);
     }
 }

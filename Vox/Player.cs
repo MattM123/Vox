@@ -17,41 +17,41 @@ namespace Vox
     public class Player : IPlayer
     {
         private readonly IInventoryStore? _inventoryStore;
-        private readonly ISSBOManager? _ssboManager;
+        private readonly IssboManager? _ssboManager;
         private readonly IRegionManager? _regionManager;
         private readonly IChunkCache? _chunkCache;
         private readonly IShaderManager? _shaderManager;
         private readonly IAssetLookup? _assetLookup;
         
         private static Vector3 _position = Vector3.Zero;
-        private static float yaw = 0f;
-        private static float pitch = 0f;
+        private static float _yaw = 0f;
+        private static float _pitch = 0f;
         private const float PlayerHalfWidth = 0.5f;
         private const float PlayerHalfDepth = 0.5f;
         private const float PlayerHeight = 2f;
-        private static Vector3 prevPos = Vector3.Zero;
+        private static Vector3 _prevPos = Vector3.Zero;
 
-        private static Vector3 velocity = Vector3.Zero;
-        public readonly float moveSpeed = 15.0f;
-        private Vector3 desiredMovement = Vector3.Zero;
-        private float forward = 0f;
-        private float right = 0f;
-        private Vector3 lastDesiredMovement = Vector3.Zero;
-        private Vector3 blockedDirection = Vector3.Zero;
-        public readonly float reachDistance = 60;
-        public TerrainVertex[] viewTarget = [];
-        private Box3 playerAabb;
-        private readonly BlockType playerSelectedBlock = BlockType.LAMP_BLOCK;
+        private static Vector3 _velocity = Vector3.Zero;
+        public readonly float MoveSpeed = 15.0f;
+        private Vector3 _desiredMovement = Vector3.Zero;
+        private float _forward = 0f;
+        private float _right = 0f;
+        private Vector3 _lastDesiredMovement = Vector3.Zero;
+        private Vector3 _blockedDirection = Vector3.Zero;
+        public readonly float ReachDistance = 60;
+        public TerrainVertex[] ViewTarget = [];
+        private Box3 _playerAabb;
+        private readonly BlockType _playerSelectedBlock = BlockType.Lamp;
         private const float CollisionSkin = 0.01f;
         private const float CollisionEpsilon = 0.0001f;
 
-        private static readonly float gravity = 0f;//9.8f;      // Gravity constant
-        private static readonly float terminalVelocity = -40f;  // Maximum falling speed (Y velocity)
+        private static readonly float Gravity = 0f;//9.8f;      // Gravity constant
+        private static readonly float TerminalVelocity = -40f;  // Maximum falling speed (Y velocity)
         /**
          * Default player object is initialized at a position of 0,0,0 within
          * Region 0,0.
          */
-        public Player(ISSBOManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache, IShaderManager shaderManager, IAssetLookup assetLookup)
+        public Player(IssboManager ssboManager, IInventoryStore inventoryStore, IRegionManager regionManager, IChunkCache chunkCache, IShaderManager shaderManager, IAssetLookup assetLookup)
         {
             _ssboManager = ssboManager;
             _inventoryStore = inventoryStore;
@@ -62,24 +62,24 @@ namespace Vox
 
 
             // Test / debug values for inventory, can be removed later
-            _inventoryStore.SetSlot(0, BlockType.LAMP_BLOCK, 5);
-            _inventoryStore.SetSlot(1, BlockType.DIRT_BLOCK, 3);
-            _inventoryStore.SetSlot(2, BlockType.GRASS_BLOCK, 16);
-            _inventoryStore.SetSlot(3, BlockType.TEST_BLOCK, 55);
-            _inventoryStore.SetSlot(4, BlockType.TARGET_BLOCK, 64);
-            _inventoryStore.SetSlot(5, BlockType.STONE_BLOCK, 10);
+            _inventoryStore.SetSlot(0, BlockType.Lamp, 5);
+            _inventoryStore.SetSlot(1, BlockType.Dirt, 3);
+            _inventoryStore.SetSlot(2, BlockType.Grass, 16);
+            _inventoryStore.SetSlot(3, BlockType.Test, 55);
+            _inventoryStore.SetSlot(4, BlockType.Target, 64);
+            _inventoryStore.SetSlot(5, BlockType.Stone, 10);
 
             _chunkCache.SetPlayerChunk(GetChunkWithPlayer());      
             
             _position = new(0, _regionManager.GetGlobalHeightMapValue((int)_position.X, (int)_position.Z) + 1, 0);
-            prevPos = _position;
+            _prevPos = _position;
 
             UpdateBoundingBox();
         }
 
         public TerrainVertex[] GetViewTargetForRendering()
         {
-            return viewTarget;
+            return ViewTarget;
         }
 
         /// <summary>
@@ -105,12 +105,12 @@ namespace Vox
             out Vector3 blockFace,
             out Vector3 blockSpace)
         {
-            playerFacing = BlockFace.ALL;
+            playerFacing = BlockFace.All;
             blockFace = Vector3.Zero;
             blockSpace = Vector3.Zero;
 
             float stepSize = 0.2f;
-            float maxDistance = reachDistance;
+            float maxDistance = ReachDistance;
 
             // Start the ray near the player's eyes, not at their feet.
             Vector3 rayOrigin = _position
@@ -142,12 +142,12 @@ namespace Vox
                     Vector3 blockDataIndex =
                         _regionManager.GetChunkRelativeCoordinates(target);
 
-                    int blockType = actionChunk._blockData[
+                    int blockType = actionChunk.BlockData[
                         (short)blockDataIndex.X,
                         (short)blockDataIndex.Y,
                         (short)blockDataIndex.Z];
 
-                    if (blockType == (int)BlockType.AIR)
+                    if (blockType == (int)BlockType.Air)
                     {
                         previousBlock = target;
                         hasPreviousAirBlock = true;
@@ -170,20 +170,20 @@ namespace Vox
                         absDirection.X >= absDirection.Z)
                     {
                         playerFacing = rayDirection.X > 0
-                            ? BlockFace.EAST
-                            : BlockFace.WEST;
+                            ? BlockFace.East
+                            : BlockFace.West;
                     }
                     else if (absDirection.Y >= absDirection.Z)
                     {
                         playerFacing = rayDirection.Y > 0
-                            ? BlockFace.UP
-                            : BlockFace.DOWN;
+                            ? BlockFace.Up
+                            : BlockFace.Down;
                     }
                     else
                     {
                         playerFacing = rayDirection.Z > 0
-                            ? BlockFace.NORTH
-                            : BlockFace.SOUTH;
+                            ? BlockFace.North
+                            : BlockFace.South;
                     }
 
                     // Keep the original block-face calculation.
@@ -229,7 +229,7 @@ namespace Vox
             if (!foundTarget)
             {
                 target = Vector3.Zero;
-                playerFacing = BlockFace.ALL;
+                playerFacing = BlockFace.All;
                 blockFace = Vector3.Zero;
                 blockSpace = Vector3.Zero;
             }
@@ -254,7 +254,7 @@ namespace Vox
 
         public BlockType GetPlayerBlockType()
         {
-            return playerSelectedBlock;
+            return _playerSelectedBlock;
         }
 
         /// <summary>
@@ -272,13 +272,13 @@ namespace Vox
             List<Vector3> candidates = [];
             const float boundaryEpsilon = 0.0001f;
 
-            int minX = (int)MathF.Floor(playerAabb.Min.X);
-            int minY = (int)MathF.Floor(playerAabb.Min.Y);
-            int minZ = (int)MathF.Floor(playerAabb.Min.Z);
+            int minX = (int)MathF.Floor(_playerAabb.Min.X);
+            int minY = (int)MathF.Floor(_playerAabb.Min.Y);
+            int minZ = (int)MathF.Floor(_playerAabb.Min.Z);
             
-            int maxX = (int)MathF.Floor(playerAabb.Max.X - boundaryEpsilon);
-            int maxY = (int)MathF.Floor(playerAabb.Max.Y - boundaryEpsilon);
-            int maxZ = (int)MathF.Floor(playerAabb.Max.Z - boundaryEpsilon);
+            int maxX = (int)MathF.Floor(_playerAabb.Max.X - boundaryEpsilon);
+            int maxY = (int)MathF.Floor(_playerAabb.Max.Y - boundaryEpsilon);
+            int maxZ = (int)MathF.Floor(_playerAabb.Max.Z - boundaryEpsilon);
 
             for (int x = minX; x <= maxX; x++)
             {
@@ -299,20 +299,20 @@ namespace Vox
         {
             
             // Don't consider the player grounded while jumping upward.
-            if (velocity.Y > 0)
+            if (_velocity.Y > 0)
                 return false;
             
             const float groundProbe = 0.05f;
 
-            Vector3 probeMin = playerAabb.Min -
+            Vector3 probeMin = _playerAabb.Min -
                                new Vector3(0, groundProbe, 0);
 
-            Vector3 probeMax = playerAabb.Min;
+            Vector3 probeMax = _playerAabb.Min;
 
             int minX = (int)MathF.Floor(probeMin.X);
-            int maxX = (int)MathF.Floor(playerAabb.Max.X - CollisionEpsilon);
+            int maxX = (int)MathF.Floor(_playerAabb.Max.X - CollisionEpsilon);
             int minZ = (int)MathF.Floor(probeMin.Z);
-            int maxZ = (int)MathF.Floor(playerAabb.Max.Z - CollisionEpsilon);
+            int maxZ = (int)MathF.Floor(_playerAabb.Max.Z - CollisionEpsilon);
             int y = (int)MathF.Floor(probeMin.Y);
 
             for (int x = minX; x <= maxX; x++)
@@ -338,37 +338,37 @@ namespace Vox
             // -----------------------------
             // Gravity 
             // -----------------------------
-            if (!IsPlayerGrounded() && velocity.Y > terminalVelocity)// Prevent exceeding terminal velocity
+            if (!IsPlayerGrounded() && _velocity.Y > TerminalVelocity)// Prevent exceeding terminal velocity
             { 
-                velocity.Y -= gravity * deltaTime; // Apply gravity
+                _velocity.Y -= Gravity * deltaTime; // Apply gravity
             } 
-            else if (velocity.Y < 0)
+            else if (_velocity.Y < 0)
             {
-                velocity.Y = 0;
+                _velocity.Y = 0;
             }
             // -----------------------------
             // Horizontal movement
             // -----------------------------
-            if (desiredMovement.LengthSquared > float.Epsilon && desiredMovement != Vector3.Zero)
+            if (_desiredMovement.LengthSquared > float.Epsilon && _desiredMovement != Vector3.Zero)
             { 
-                Vector3 movement = desiredMovement.Normalized() * moveSpeed; 
-                velocity.Xz = movement.Xz;
+                Vector3 movement = _desiredMovement.Normalized() * MoveSpeed; 
+                _velocity.Xz = movement.Xz;
                 
             }
             
             // -----------------------------
             // Vertical movement
             // -----------------------------
-            if (desiredMovement.Y > 0)
-                velocity.Y += desiredMovement.Y;
+            if (_desiredMovement.Y > 0)
+                _velocity.Y += _desiredMovement.Y;
             
-            desiredMovement = Vector3.Zero; 
+            _desiredMovement = Vector3.Zero; 
             
             
             // ---------------------------------
             // Check collision
             // ---------------------------------
-            Vector3 displacement = velocity * deltaTime;
+            Vector3 displacement = _velocity * deltaTime;
 
             const float maxStepDistance = 0.2f;
 
@@ -381,7 +381,7 @@ namespace Vox
 
             for (int i = 0; i < steps; i++)
             {
-                Vector3 step = velocity * stepDeltaTime;
+                Vector3 step = _velocity * stepDeltaTime;
 
                 // Resolve each axis independently.
                 MoveAndCollide(step.X, step.Y, step.Z);
@@ -401,7 +401,7 @@ namespace Vox
 
         public Vector2 GetRotation()
         {
-            return new Vector2(yaw, pitch);
+            return new Vector2(_yaw, _pitch);
         }
 
         public InventoryStore GetInventory()
@@ -427,7 +427,7 @@ namespace Vox
         private void ApplyFriction(float deltaTime)
         {
             float friction = 0.5f;
-            velocity *= (1 - friction * deltaTime);
+            _velocity *= (1 - friction * deltaTime);
         }
 
         /// <summary>
@@ -442,50 +442,50 @@ namespace Vox
         {
             switch (direction)
             {
-                case Direction.NORTH:
+                case Direction.North:
                 {
-                    forward += inc;
+                    _forward += inc;
 
                     //Remove vertical movement
                     Vector3 forwardDirection = GetForwardDirection();
                     forwardDirection.Y = 0;
                     forwardDirection = forwardDirection.Normalized();
 
-                    desiredMovement += forwardDirection * inc;
+                    _desiredMovement += forwardDirection * inc;
                     break;
                 }
-                case Direction.SOUTH:
+                case Direction.South:
                 {
-                    forward -= inc;
+                    _forward -= inc;
 
                     //Remove vertical movement
                     Vector3 forwardDirection = GetForwardDirection();
                     forwardDirection.Y = 0;
                     forwardDirection = forwardDirection.Normalized();
 
-                    desiredMovement -= forwardDirection * inc;
+                    _desiredMovement -= forwardDirection * inc;
                     break;
                 }
-                case Direction.WEST:
+                case Direction.West:
                 {
-                    right += -inc;
-                    desiredMovement += GetRightDirection() * -inc;
+                    _right += -inc;
+                    _desiredMovement += GetRightDirection() * -inc;
                     break;
                 }
-                case Direction.EAST:
+                case Direction.East:
                 {
-                    right += inc;
-                    desiredMovement += GetRightDirection() * inc;
+                    _right += inc;
+                    _desiredMovement += GetRightDirection() * inc;
                     break;
                 }
-                case Direction.DOWN:
+                case Direction.Down:
                 {
-                    desiredMovement.Y += -inc;
+                    _desiredMovement.Y += -inc;
                     break;
                 }
-                case Direction.UP:
+                case Direction.Up:
                 {
-                    desiredMovement.Y += inc;
+                    _desiredMovement.Y += inc;
                     break;
                 }
             }
@@ -501,7 +501,7 @@ namespace Vox
         {
             if (IsPlayerGrounded())
             {
-                desiredMovement.Y += inc;
+                _desiredMovement.Y += inc;
             }
         }
 
@@ -535,13 +535,13 @@ namespace Vox
 
         public void SetLookDir(float x, float y)
         {
-            yaw = -x;
-            pitch = -y;
+            _yaw = -x;
+            _pitch = -y;
         }
 
         public Vector2 GetLookDir()
         {
-            return new Vector2(yaw, pitch);
+            return new Vector2(_yaw, _pitch);
         }
 
         public Vector3 GetRightDirection()
@@ -566,12 +566,12 @@ namespace Vox
                 _position.Z + PlayerHalfDepth
             );
 
-            playerAabb = new Box3(playerMin, playerMax);
+            _playerAabb = new Box3(playerMin, playerMax);
         }
 
         public Box3 GetBoundingBox()
         {
-            return playerAabb;
+            return _playerAabb;
         }
         private void GetTransformationMatrix(out Matrix4 matrix)
         {
@@ -644,7 +644,7 @@ namespace Vox
 
         public Vector3 GetBlockedDirection()
         { 
-            return blockedDirection; 
+            return _blockedDirection; 
         }
 
         public override string ToString()
@@ -701,16 +701,16 @@ namespace Vox
                     Box3 blockBox = new(block, block + Vector3.One);
 
                     bool overlapY =
-                        playerAabb.Max.Y > blockBox.Min.Y + CollisionEpsilon &&
-                        playerAabb.Min.Y < blockBox.Max.Y - CollisionEpsilon;
+                        _playerAabb.Max.Y > blockBox.Min.Y + CollisionEpsilon &&
+                        _playerAabb.Min.Y < blockBox.Max.Y - CollisionEpsilon;
 
                     bool overlapZ =
-                        playerAabb.Max.Z > blockBox.Min.Z + CollisionEpsilon &&
-                        playerAabb.Min.Z < blockBox.Max.Z - CollisionEpsilon;
+                        _playerAabb.Max.Z > blockBox.Min.Z + CollisionEpsilon &&
+                        _playerAabb.Min.Z < blockBox.Max.Z - CollisionEpsilon;
 
                     bool overlapX =
-                        playerAabb.Max.X > blockBox.Min.X &&
-                        playerAabb.Min.X < blockBox.Max.X;
+                        _playerAabb.Max.X > blockBox.Min.X &&
+                        _playerAabb.Min.X < blockBox.Max.X;
 
                     if (!overlapX || !overlapY || !overlapZ)
                         continue;
@@ -728,7 +728,7 @@ namespace Vox
                             blockBox.Max.X + PlayerHalfWidth + CollisionSkin);
                     }
 
-                    velocity.X = 0f;
+                    _velocity.X = 0f;
                     UpdateBoundingBox();
 
                     foundCollision = true;
@@ -764,16 +764,16 @@ namespace Vox
                     Box3 blockBox = new(block, block + Vector3.One);
 
                     bool overlapY =
-                        playerAabb.Max.Y > blockBox.Min.Y + CollisionEpsilon &&
-                        playerAabb.Min.Y < blockBox.Max.Y - CollisionEpsilon;
+                        _playerAabb.Max.Y > blockBox.Min.Y + CollisionEpsilon &&
+                        _playerAabb.Min.Y < blockBox.Max.Y - CollisionEpsilon;
 
                     bool overlapX =
-                        playerAabb.Max.X > blockBox.Min.X + CollisionEpsilon &&
-                        playerAabb.Min.X < blockBox.Max.X - CollisionEpsilon;
+                        _playerAabb.Max.X > blockBox.Min.X + CollisionEpsilon &&
+                        _playerAabb.Min.X < blockBox.Max.X - CollisionEpsilon;
 
                     bool overlapZ =
-                        playerAabb.Max.Z > blockBox.Min.Z &&
-                        playerAabb.Min.Z < blockBox.Max.Z;
+                        _playerAabb.Max.Z > blockBox.Min.Z &&
+                        _playerAabb.Min.Z < blockBox.Max.Z;
 
                     if (!overlapX || !overlapY || !overlapZ)
                         continue;
@@ -791,7 +791,7 @@ namespace Vox
                             blockBox.Max.Z + PlayerHalfDepth + CollisionSkin);
                     }
 
-                    velocity.Z = 0f;
+                    _velocity.Z = 0f;
                     UpdateBoundingBox();
 
                     foundCollision = true;
@@ -823,10 +823,10 @@ namespace Vox
             _position.Y = newBottom;
             UpdateBoundingBox();
 
-            int minX = (int)MathF.Floor(playerAabb.Min.X);
-            int maxX = (int)MathF.Floor(playerAabb.Max.X - CollisionEpsilon);
-            int minZ = (int)MathF.Floor(playerAabb.Min.Z);
-            int maxZ = (int)MathF.Floor(playerAabb.Max.Z - CollisionEpsilon);
+            int minX = (int)MathF.Floor(_playerAabb.Min.X);
+            int maxX = (int)MathF.Floor(_playerAabb.Max.X - CollisionEpsilon);
+            int minZ = (int)MathF.Floor(_playerAabb.Min.Z);
+            int maxZ = (int)MathF.Floor(_playerAabb.Max.Z - CollisionEpsilon);
 
             int minY = (int)MathF.Floor(
                 MathF.Min(oldBottom, newBottom));
@@ -864,7 +864,7 @@ namespace Vox
                 {
                     
                     _position.Y = landingY + CollisionSkin;
-                    velocity.Y = 0f;
+                    _velocity.Y = 0f;
 
                     UpdateBoundingBox();
 
@@ -900,7 +900,7 @@ namespace Vox
                 if (!float.IsPositiveInfinity(ceilingY))
                 {
                     _position.Y = ceilingY - PlayerHeight - CollisionSkin;
-                    velocity.Y = 0f;
+                    _velocity.Y = 0f;
                 }
             }
 

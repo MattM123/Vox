@@ -9,9 +9,9 @@ namespace Vox.Model
         public readonly int Size;
         public readonly int Handle;
         public readonly int BindingIndex;
-        private readonly List<int> freeIndices = [];
-        private int nextIndex = 0;
-        public int FreeIndexCount => freeIndices.Count;
+        private readonly List<int> _freeIndices = [];
+        private int _nextIndex = 0;
+        public int FreeIndexCount => _freeIndices.Count;
         private readonly object _lock = new();
 
         public StorageBufferObject(int sizeInBytes, int bindingIndex, int ssboHandle)
@@ -56,22 +56,23 @@ namespace Vox.Model
 
                 // Get and reuse first free index if one exists,
                 // else allocate a new index
-                if (freeIndices.Count > 0)
+
+                if (_freeIndices.Count > 0)
                 {
-                    int last = freeIndices[^1];
-                    freeIndices.RemoveAt(freeIndices.Count - 1);
+                    int last = _freeIndices[^1];
+                    _freeIndices.RemoveAt(_freeIndices.Count - 1);
                     return last;
                 }
 
-                if (nextIndex >= max)
-                    throw new InvalidOperationException($"Max: {max} CRASH INDEX: {nextIndex}");
+                if (_nextIndex >= max)
+                    throw new InvalidOperationException($"Max: {max} CRASH INDEX: {_nextIndex}");
 
-                return nextIndex++;
+                return _nextIndex++;
             }
         }
         public void FreeIndex(int index)
         {
-            freeIndices.Add(index);
+            _freeIndices.Add(index);
         }
     }
 }

@@ -10,44 +10,44 @@ namespace Vox.Rendering
 {
     public class ShaderProgram
     {
-        private int programId;
-        private int vertexShaderId;
-        private int fragmentShaderId;
-        private int geometryShaderId;
-        private Dictionary<string, int> uniforms;
-        private Dictionary<int, string> shaderIdentity = [];
+        private int _programId;
+        private int _vertexShaderId;
+        private int _fragmentShaderId;
+        private int _geometryShaderId;
+        private Dictionary<string, int> _uniforms;
+        private Dictionary<int, string> _shaderIdentity = [];
 
         public ShaderProgram()
         {
-            GenerateProgramID();
-            uniforms = [];
+            GenerateProgramId();
+            _uniforms = [];
         }
 
-        public void GenerateProgramID()
+        public void GenerateProgramId()
         {
-            programId = GL.CreateProgram();
+            _programId = GL.CreateProgram();
         }
         public int GetProgramId()
         {
-            return programId;
+            return _programId;
         }
         public ShaderProgram CreateVertexShader(string filename, string vertexShaderCode)
         {
-            vertexShaderId = CreateShader(filename, vertexShaderCode, ShaderType.VertexShader);
-            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, vertexShaderId, $"Shader: {filename}");
+            _vertexShaderId = CreateShader(filename, vertexShaderCode, ShaderType.VertexShader);
+            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, _vertexShaderId, $"Shader: {filename}");
             return this;
         }
 
         public ShaderProgram CreateFragmentShader(string filename, string fragmentShaderCode)
         {
-            fragmentShaderId = CreateShader(filename, fragmentShaderCode, ShaderType.FragmentShader);
-            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, fragmentShaderId, $"Shader: {filename}");
+            _fragmentShaderId = CreateShader(filename, fragmentShaderCode, ShaderType.FragmentShader);
+            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, _fragmentShaderId, $"Shader: {filename}");
             return this;
         }
 
         public void CreateGeometryShader(string filename, string geoShaderCode)
         {
-            geometryShaderId = CreateShader(filename, geoShaderCode, ShaderType.GeometryShader);
+            _geometryShaderId = CreateShader(filename, geoShaderCode, ShaderType.GeometryShader);
         }
 
         /**
@@ -55,10 +55,10 @@ namespace Vox.Rendering
          * @param varName Name of texture
          * @param slot Texture unit to use
          */
-        public ShaderProgram UploadAndBindTexture(string varName, int slot, int textureID, TextureTarget target)
+        public ShaderProgram UploadAndBindTexture(string varName, int slot, int textureId, TextureTarget target)
         {
             GL.ActiveTexture(TextureUnit.Texture0 + slot);
-            GL.BindTexture(target, textureID);
+            GL.BindTexture(target, textureId);
             int varLocation = GL.GetUniformLocation(GetProgramId(), varName);
             GL.Uniform1(varLocation, slot);
             return this;
@@ -68,9 +68,9 @@ namespace Vox.Rendering
         public ShaderProgram CreateUniform(string uniformName)
         {
            
-            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
             if (uniformLocation < 0)
-                uniforms.Add(uniformName, uniformLocation);
+                _uniforms.Add(uniformName, uniformLocation);
            
             return this;
         }
@@ -89,26 +89,26 @@ namespace Vox.Rendering
         }
         public ShaderProgram SetMatrixUniform(string uniformName, Matrix4 matrix)
         {
-            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
             GL.UniformMatrix4(uniformLocation, true, ref matrix);
             return this;
         }
         public ShaderProgram SetIntFloatUniform(string uniformName, int value)
         {
-            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
             GL.Uniform1(uniformLocation, value);
             return this;
         }
         public ShaderProgram SetIntFloatUniform(string uniformName, float value)
         {
-            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
             GL.Uniform1(uniformLocation, value);
             return this;
         }
 
         public ShaderProgram SetVector3Uniform(string uniformName, Vector3 value)
         {
-            int uniformLocation = GL.GetUniformLocation(programId, uniformName);
+            int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
             GL.Uniform3(uniformLocation, value);
             return this;
         }
@@ -117,11 +117,11 @@ namespace Vox.Rendering
             int[] maxlen = new int[1];
             // string log;
 
-            GL.GetProgram(programId, GetProgramParameterName.InfoLogLength, maxlen);
-            GL.GetProgramInfoLog(programId);//, maxlen[0], out int len, out log);
+            GL.GetProgram(_programId, GetProgramParameterName.InfoLogLength, maxlen);
+            GL.GetProgramInfoLog(_programId);//, maxlen[0], out int len, out log);
 
 
-            return "Log Length: " + maxlen[0] + "\n" + GL.GetProgramInfoLog(programId);
+            return "Log Length: " + maxlen[0] + "\n" + GL.GetProgramInfoLog(_programId);
 
         }
         private int CreateShader(string filename, string shaderCode, ShaderType shaderType)
@@ -131,18 +131,18 @@ namespace Vox.Rendering
             GL.ShaderSource(shaderId, shaderCode);
             GL.CompileShader(shaderId);
 
-            shaderIdentity.Add(shaderId, filename);
+            _shaderIdentity.Add(shaderId, filename);
 
             int status;
             GL.GetShader(shaderId, ShaderParameter.CompileStatus, out status);
 
             // Check for compilation errors
             if (status != (int)All.True)
-                Logger.Error(new Exception($"ShaderProgram.CreateShader - Failed to compile {shaderType} shader for {shaderIdentity[shaderId]}: {GL.GetShaderInfoLog(shaderId)}"), ConsoleColor.Red);
+                Logger.Error(new Exception($"ShaderProgram.CreateShader - Failed to compile {shaderType} shader for {_shaderIdentity[shaderId]}: {GL.GetShaderInfoLog(shaderId)}"), ConsoleColor.Red);
             else
-                Logger.Success($"ShaderProgram.CreateShader - Successfully compiled {shaderType} {shaderIdentity[shaderId]}", ConsoleColor.Green);
+                Logger.Success($"ShaderProgram.CreateShader - Successfully compiled {shaderType} {_shaderIdentity[shaderId]}", ConsoleColor.Green);
 
-            GL.AttachShader(programId, shaderId);
+            GL.AttachShader(_programId, shaderId);
 
             return shaderId;
         }
@@ -151,19 +151,19 @@ namespace Vox.Rendering
         {
             try
             {
-                GL.LinkProgram(programId);
+                GL.LinkProgram(_programId);
 
                 int[] linkStatus = new int[1]; // Create an array to store the result
-                GL.GetProgram(programId, GetProgramParameterName.LinkStatus, linkStatus);
+                GL.GetProgram(_programId, GetProgramParameterName.LinkStatus, linkStatus);
                 int status = linkStatus[0]; // Access the value from the array
                 
                 // If linking was unsuccessful
                 if (status != (int)All.True)
                 {
-                    if (vertexShaderId != 0)
+                    if (_vertexShaderId != 0)
                     {
-                        GL.DetachShader(programId, vertexShaderId);
-                        GL.DeleteShader(vertexShaderId);
+                        GL.DetachShader(_programId, _vertexShaderId);
+                        GL.DeleteShader(_vertexShaderId);
                         Logger.Success("Successfully linked vertex shader with status " + status);
                     }
                     else
@@ -175,10 +175,10 @@ namespace Vox.Rendering
                         Logger.Error(GetProgramLog());             
                     }
 
-                    if (fragmentShaderId != 0)
+                    if (_fragmentShaderId != 0)
                     {
-                        GL.DetachShader(programId, fragmentShaderId);
-                        GL.DeleteShader(fragmentShaderId);
+                        GL.DetachShader(_programId, _fragmentShaderId);
+                        GL.DeleteShader(_fragmentShaderId);
                         Logger.Success("Successfully linked fragment shader with status " + status);
                     }
                     else
@@ -196,20 +196,20 @@ namespace Vox.Rendering
                     Logger.Error(new ShaderException("Failed to link program with status " + status + "\nError Code: " + GL.GetError()));
                     Logger.Error(GetProgramLog());
 
-                    Logger.Error(new ShaderException($"Shader program with ID of {programId} and shaders {shaderIdentity[vertexShaderId]} " +
-                        $"and {shaderIdentity[fragmentShaderId]} failed to link properly"));
+                    Logger.Error(new ShaderException($"Shader program with ID of {_programId} and shaders {_shaderIdentity[_vertexShaderId]} " +
+                        $"and {_shaderIdentity[_fragmentShaderId]} failed to link properly"));
 
                     return;
                 }
                 // Linking succeeded
-                Logger.Success($"Shader program with ID of {programId} linked successfully.");
+                Logger.Success($"Shader program with ID of {_programId} linked successfully.");
 
                 // Validate the shader program
-                GL.ValidateProgram(programId);
+                GL.ValidateProgram(_programId);
 
                 // Check if validation was successful
                 int[] validStatus = new int[1]; // Create an array to store the result
-                GL.GetProgram(programId, GetProgramParameterName.ValidateStatus, validStatus);
+                GL.GetProgram(_programId, GetProgramParameterName.ValidateStatus, validStatus);
                 int vStatus = validStatus[0]; // Access the value from the array
 
                 if (vStatus != (int)All.True)
@@ -229,7 +229,7 @@ namespace Vox.Rendering
 
         public ShaderProgram Bind()
         {
-            GL.UseProgram(programId);
+            GL.UseProgram(_programId);
             GL.GetInteger((GetPName)All.CurrentProgram, out int currentProgram);
             return this;
         }
@@ -242,9 +242,9 @@ namespace Vox.Rendering
         public void Cleanup()
         {
             Unbind();
-            if (programId != 0)
+            if (_programId != 0)
             {
-                GL.DeleteProgram(programId);
+                GL.DeleteProgram(_programId);
             }
         }
     }

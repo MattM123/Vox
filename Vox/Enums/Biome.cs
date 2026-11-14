@@ -3,7 +3,7 @@ namespace Vox.Enums;
 [Flags]
 public enum Biome
 {
-    NONE = 0,
-    GRASSLANDS,
-    DESERT
+    None = 0,
+    Grasslands,
+    Desert
 }

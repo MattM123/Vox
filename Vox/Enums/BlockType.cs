@@ -2,14 +2,15 @@
 {
     public enum BlockType
     {
-        AIR,
-        GRASS_BLOCK = 2,
-        DIRT_BLOCK = 1,
-        STONE_BLOCK = 3,
-        LAMP_BLOCK,
-        TALL_GRASS_BLOCK,
-        TEST_BLOCK,
-        TARGET_BLOCK,
-        DEAD_BUSH,
+        Air = 0,
+        Grass = 2,
+        Dirt = 1,
+        Stone = 3,
+        Lamp,
+        TallGrass,
+        Sand,
+        DeadBush,
+        Test,
+        Target,
     }
 }

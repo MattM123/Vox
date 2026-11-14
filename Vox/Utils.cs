@@ -13,8 +13,8 @@ namespace Vox
 {
     public class Utils()
     {
-        private const float SQRT2_MINUS_1 = 0.41421356f;
-        private const float SQRT3_MINUS_SQRT2 = 0.31783724f;
+        private const float Sqrt2Minus1 = 0.41421356f;
+        private const float Sqrt3MinusSqrt2 = 0.31783724f;
 
         public static int FloatCompare(float a, float b)
         {
@@ -140,7 +140,7 @@ namespace Vox
             // mid approximated as (sum - max - min) but computed implicitly:
             float mid = dx + dy + dz - max - min;
             
-            return (int)(max + SQRT2_MINUS_1 * mid + SQRT3_MINUS_SQRT2 * min);
+            return (int)(max + Sqrt2Minus1 * mid + Sqrt3MinusSqrt2 * min);
 
         }
         public static void CreateCenteredText(string text)
@@ -182,7 +182,7 @@ namespace Vox
             // Pick up item 
             if (ImGui.IsItemClicked(ImGuiMouseButton.Left) 
                
-                && inventoryStore.GetSlots()[slot].Key != BlockType.AIR)
+                && inventoryStore.GetSlots()[slot].Key != BlockType.Air)
             {
       //          inventoryStore.SetPickupToggle(!inventoryStore.GetPickupToggle());
                 bool toggle = inventoryStore.GetPickupToggle();
@@ -191,37 +191,37 @@ namespace Vox
                 {
                     inventoryStore.SetIsItemBeingMoved(true);
                     inventoryStore.SetHandItem(new(slotType, slotQuantity));
-                    inventoryStore.SetSlot(hoveredSlot, BlockType.AIR, 0);  
+                    inventoryStore.SetSlot(hoveredSlot, BlockType.Air, 0);  
                    // inventoryStore.SetPickupToggle(true);
                 }
                 //drop
                 else if (inventoryStore.GetPickupToggle()
-                    && inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.AIR 
-                    && cursorItem.Key != BlockType.AIR)
+                    && inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.Air 
+                    && cursorItem.Key != BlockType.Air)
                 {
                     inventoryStore.SetIsItemBeingMoved(false);
                     inventoryStore.SetSlot(hoveredSlot, slotType, slotQuantity);
-                    inventoryStore.SetHandItem(new(BlockType.AIR, 0));
+                    inventoryStore.SetHandItem(new(BlockType.Air, 0));
                    // inventoryStore.SetPickupToggle(false);
                 }
             }
 
             // Draw the icon on item pickup
-            if (inventoryStore.GetHandItem().Key != BlockType.AIR)
+            if (inventoryStore.GetHandItem().Key != BlockType.Air)
                 drawList.AddImage(inventoryStore.GetInventoryDisplayTexture(), imagePosMin, imagePosMax);
 
             // Move the item to another slot if dragged or clicked and released on another slot
             if (ImGui.IsMouseReleased(ImGuiMouseButton.Left) 
                 && hoveredSlot != -1 
-                && cursorItem.Key != BlockType.AIR
+                && cursorItem.Key != BlockType.Air
                 && !inventoryStore.GetPickupToggle())
             {
 
                 // Make sure the slot does not alreay have an item in it
-                if (inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.AIR)
+                if (inventoryStore.GetSlots()[hoveredSlot].Key == BlockType.Air)
                 {                 
                     inventoryStore.SetSlot(hoveredSlot, cursorItem.Key, cursorItem.Value);
-                    inventoryStore.SetHandItem(new(BlockType.AIR, 0));
+                    inventoryStore.SetHandItem(new(BlockType.Air, 0));
                     inventoryStore.SetIsItemBeingMoved(false);
 
                 }

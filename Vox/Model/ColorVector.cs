@@ -14,14 +14,19 @@ namespace Vox.Model
             return $"({Red}, {Green}, {Blue})";
         }
 
-        public override readonly bool Equals([NotNullWhen(true)] object? obj)
+        public readonly override bool Equals([NotNullWhen(true)] object? obj)
         {
             if (obj is ColorVector other)
                 return Red == other.Red && Green == other.Green && Blue == other.Blue;
             else
                 return false;
         }
-        public override readonly int GetHashCode()
+
+        public int Sum()
+        {
+            return Red + Green + Blue;
+        }
+        public readonly override int GetHashCode()
         {
             return base.GetHashCode();
         }

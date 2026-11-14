@@ -12,7 +12,6 @@ namespace Vox.Genesis
         void AddBlockToChunk(Vector3 blockSpace, BlockType type, ColorVector blockLight, bool colorOverride);
         short GetGlobalHeightMapValue(int x, int z);
         BlockType GetGeneratedBlockType(int x, int y, int z);
-        BlockType GetSurfaceDecoration(int x, int z, Biome biome);
         int PollChunkMemory();
         int GetRenderDistance();
         public Chunk GetAndLoadGlobalChunkFromCoords(Vector3 v);
@@ -29,8 +28,10 @@ namespace Vox.Genesis
         void LeaveRegion(string rIndex);
         void RemoveBlockFromChunk(Vector3 blockSpace);
         void ProcessChunkSite(Chunk c);
-        long GetSeed();
+        long GetWorlSeed();
         void PropagateBlockLight(Vector3 location, BlockFace faceDir, bool depropagate, bool colorOverride);
+        BlockType GetBlockTypeAtCoords(Vector3 v);
+        void AddSite(Vector2 site, Biome siteBiome);
         Vector3i GetChunkRelativeCoordinates(Vector3 v);
         int GetRegionBounds();
         void ClearVisibleRegions();

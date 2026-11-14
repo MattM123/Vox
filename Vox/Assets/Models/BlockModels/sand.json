@@ -1,0 +1,7 @@
+{
+  "parent": "cube_all",
+  "transparent": false,
+  "textures": {
+      "all": "Sand"
+  }
+}
