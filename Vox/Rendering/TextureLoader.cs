@@ -1,15 +1,10 @@
 ﻿
-using System.IO;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
-using OpenTK.Graphics.OpenGL4;
+
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using StbiSharp;
 using Vox.Assets;
 using Vox.Enums;
-using Vox.Exceptions;
-using Vox.Model;
 using Vox.UI.MenuLogic;
 using Buffer = System.Buffer;
 namespace Vox.Rendering
@@ -59,15 +54,15 @@ namespace Vox.Rendering
 
             GL.ActiveTexture(TextureUnit.Texture4);
             GL.BindTexture(TextureTarget.Texture2DArray, textureArray);
-            GL.TexStorage3D(TextureTarget3d.Texture2DArray, 1, SizedInternalFormat.Rgba8, _textureSize, _textureSize, _numberOfTextures);
+            GL.TexStorage3D(TextureTarget.Texture2DArray, 1, SizedInternalFormat.Rgba8, _textureSize, _textureSize, _numberOfTextures);
 
             // Setting texture parameters
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMaxLevel, 0);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
-            GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+            GL.TexParameteri(TextureTarget.Texture2DArray, TextureParameterName.TextureMaxLevel, 0);
+            GL.TexParameteri(TextureTarget.Texture2DArray, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.LinearMipmapLinear);
+            GL.TexParameteri(TextureTarget.Texture2DArray, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameteri(TextureTarget.Texture2DArray, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.PixelStorei(PixelStoreParameter.UnpackAlignment, 1);
 
             byte[] layerBuffer = new byte[
                 _numberOfTextures *
@@ -147,7 +142,7 @@ namespace Vox.Rendering
                 GL.TexImage2D(
                     TextureTarget.Texture2D,
                     0,
-                    PixelInternalFormat.Rgba,
+                    InternalFormat.Rgba,
                     image.Width, image.Height,
                     0,
                     PixelFormat.Rgba,
@@ -163,15 +158,15 @@ namespace Vox.Rendering
             // You could also use (amongst other options) Nearest, which just grabs the nearest pixel, which makes the texture look pixelated if scaled too far.
             // NOTE: The default settings for both of these are LinearMipmap. If you leave these as default but don't generate mipmaps,
             // your image will fail to render at all (usually resulting in pure black instead).
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
 
             // Now, set the wrapping mode. S is for the X axis, and T is for the Y axis.
             // We set this to Repeat so that textures will repeat when wrapped. Not demonstrated here since the texture coordinates exactly match
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
 
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.GenerateMipmap(TextureTarget.Texture2D);
 
             _textureIDs.Add(texId);
             return texId;
@@ -221,7 +216,7 @@ namespace Vox.Rendering
 
             //Save current state
             int prevTex = GL.GetInteger(GetPName.TextureBinding2D);
-            int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+            int prevFbo = GL.GetInteger(GetPName.DrawFramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
             int prevVao = GL.GetInteger(GetPName.VertexArrayBinding);
             int[] prevViewport = new int[4];
@@ -231,8 +226,8 @@ namespace Vox.Rendering
             int texId = _inventoryStore!.GetInventoryIconAtlas();
 
             GL.BindTexture(TextureTarget.Texture2D, texId);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
 
             // 
             Matrix4 modelMatrix = Matrix4.Identity *                                                                                  // Standard Identity
@@ -257,8 +252,8 @@ namespace Vox.Rendering
             // Bind frame buffer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryStore!.GetInventoryIconSlotFbo());
 
-            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            if (status != FramebufferErrorCode.FramebufferComplete)
+            FramebufferStatus status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferStatus.FramebufferComplete)
             {
                 Logger.Error($"Icon Atlas Framebuffer error: {status}");
             } else

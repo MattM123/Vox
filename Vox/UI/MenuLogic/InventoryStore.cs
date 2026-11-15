@@ -1,6 +1,6 @@
 ﻿
 using System.Runtime.InteropServices;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using Vox.Assets;
 using Vox.Assets.Models;
@@ -48,9 +48,9 @@ namespace Vox.UI.MenuLogic
             _inventoryDisplayTexture = GL.GenTexture();
 
             string displayName = "FrameBuffer: Inventory Display";
-            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryDisplayFbo, displayName.Length, displayName);
+            GL.ObjectLabel(ObjectIdentifier.Framebuffer, _inventoryDisplayFbo, displayName.Length, displayName);
             string displayTexture = "Texture: Inventory Display";
-            GL.ObjectLabel(ObjectLabelIdentifier.Texture, _inventoryDisplayTexture, displayTexture.Length, displayTexture);
+            GL.ObjectLabel(ObjectIdentifier.Texture, _inventoryDisplayTexture, displayTexture.Length, displayTexture);
 
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFbo);
 
@@ -58,7 +58,7 @@ namespace Vox.UI.MenuLogic
             GL.TexImage2D(
                 TextureTarget.Texture2D,
                 0,
-                PixelInternalFormat.Rgba,
+                InternalFormat.Rgba,
                 256, 256,
                 0,
                 PixelFormat.Rgba,
@@ -66,10 +66,10 @@ namespace Vox.UI.MenuLogic
                 IntPtr.Zero
             );
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach color texture to frame buffer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryDisplayFbo);
@@ -89,10 +89,10 @@ namespace Vox.UI.MenuLogic
             _inventoryIconAtlas = GL.GenTexture();
 
             string iconSlotFboName = "FrameBuffer: Inventory Icon";
-            GL.ObjectLabel(ObjectLabelIdentifier.Framebuffer, _inventoryIconSlotFbo, iconSlotFboName.Length, iconSlotFboName);
+            GL.ObjectLabel(ObjectIdentifier.Framebuffer, _inventoryIconSlotFbo, iconSlotFboName.Length, iconSlotFboName);
 
             string iconAtlasName = "Texture: Icon Atlas";
-            GL.ObjectLabel(ObjectLabelIdentifier.Texture, _inventoryIconAtlas, iconAtlasName.Length, iconAtlasName);
+            GL.ObjectLabel(ObjectIdentifier.Texture, _inventoryIconAtlas, iconAtlasName.Length, iconAtlasName);
 
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFbo);
 
@@ -100,7 +100,7 @@ namespace Vox.UI.MenuLogic
             GL.TexImage2D(
                 TextureTarget.Texture2D,
                 0,
-                PixelInternalFormat.Rgba,
+                InternalFormat.Rgba,
                 4096, 4096,
                 0,
                 PixelFormat.Rgba,
@@ -108,10 +108,10 @@ namespace Vox.UI.MenuLogic
                 IntPtr.Zero
             );
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach color texture to frame buffer
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _inventoryIconSlotFbo);

@@ -2,7 +2,6 @@
 using System.Drawing;
 using MessagePack;
 using OpenTK.Mathematics;
-using OpenTK.Platform.Windows;
 using Vox.Exceptions;
 using Vox.Rendering;
 

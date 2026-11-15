@@ -1,5 +1,5 @@
 ﻿using System.Runtime.InteropServices;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 
 namespace Vox.Model
 {
@@ -8,13 +8,13 @@ namespace Vox.Model
         public readonly IntPtr Pointer;
         public readonly int Size;
         public readonly int Handle;
-        public readonly int BindingIndex;
+        public readonly uint BindingIndex;
         private readonly List<int> _freeIndices = [];
         private int _nextIndex = 0;
         public int FreeIndexCount => _freeIndices.Count;
         private readonly object _lock = new();
 
-        public StorageBufferObject(int sizeInBytes, int bindingIndex, int ssboHandle)
+        public StorageBufferObject(int sizeInBytes, uint bindingIndex, int ssboHandle)
         {
             Size = sizeInBytes;
             Handle = ssboHandle;
@@ -25,20 +25,30 @@ namespace Vox.Model
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, ssboHandle);
 
             //Creates ssbo buffer
-            GL.BufferStorage(BufferTarget.ShaderStorageBuffer, sizeInBytes, IntPtr.Zero, BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapCoherentBit | BufferStorageFlags.MapWriteBit);
+            GL.BufferStorage(
+                BufferStorageTarget.ShaderStorageBuffer, 
+                sizeInBytes, 
+                IntPtr.Zero, 
+                BufferStorageMask.MapPersistentBit | 
+                BufferStorageMask.MapCoherentBit | 
+                BufferStorageMask.MapWriteBit
+            );
 
             //Map binding for shader to use
-            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, ssboHandle);
+            GL.BindBufferBase(BufferTarget.ShaderStorageBuffer, bindingIndex, ssboHandle);
 
             //Creates pointer to SSBO buffer
-            Pointer = GL.MapBufferRange(
-                BufferTarget.ShaderStorageBuffer,
-                IntPtr.Zero,
-                sizeInBytes,
-                BufferAccessMask.MapWriteBit |
-                BufferAccessMask.MapPersistentBit |
-                BufferAccessMask.MapCoherentBit
-            );
+            unsafe
+            {
+                Pointer = (nint) GL.MapBufferRange(
+                    BufferTarget.ShaderStorageBuffer,
+                    IntPtr.Zero,
+                    sizeInBytes,
+                    MapBufferAccessMask.MapWriteBit |
+                    MapBufferAccessMask.MapPersistentBit |
+                    MapBufferAccessMask.MapCoherentBit
+                );
+            }
         }
 
         /// <summary>

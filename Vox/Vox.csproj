@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnforceCodeStyleInBuild>False</EnforceCodeStyleInBuild>
+    <LangVersion>latestmajor</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,13 +30,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ImGui.NET" Version="1.91.0.1" />
-    <PackageReference Include="MessagePack" Version="3.1.7" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="OpenTK" Version="4.8.2" />
-    <PackageReference Include="StbiSharp" Version="1.2.1" />
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.8" />
-    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
+    <PackageReference Include="ImGui.NET" Version="1.91.6.1" />
+    <PackageReference Include="MessagePack" Version="4.0.0-rc.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="14.0.1-beta2" />
+    <PackageReference Include="OpenTK" Version="5.0.0-pre.16" />
+    <PackageReference Include="StbiSharp" Version="1.2.3" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="11.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -65,7 +66,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>

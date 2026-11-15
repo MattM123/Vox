@@ -1,4 +1,4 @@
-﻿using OpenTK.Graphics.OpenGL4;
+﻿using OpenTK.Graphics.OpenGL;
 using Vox.Exceptions;
 using Vox.UI;
 
@@ -24,7 +24,7 @@ namespace Vox.Rendering
 
         public ShaderProgram AddShaderProgram(string name, ShaderProgram shader)
         {
-            ImGuiController.LabelObject(ObjectLabelIdentifier.Program, shader.GetProgramId(), $"Program: {name}");
+            ImGuiController.LabelObject(ObjectIdentifier.Program, shader.GetProgramId(), $"Program: {name}");
 
             if (_shaders.TryAdd(name, shader))
             {

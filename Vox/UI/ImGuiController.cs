@@ -1,11 +1,11 @@
 ﻿using ImGuiNET;
 using System.Runtime.CompilerServices;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
-using ErrorCode = OpenTK.Graphics.OpenGL4.ErrorCode;
 using Vox.Exceptions;
+using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 
 namespace Vox.UI
 {
@@ -65,8 +65,8 @@ namespace Vox.UI
 
             SetPerFrameImGuiData(1f / 60f);
 
-            ImGui.NewFrame();
-            _frameBegun = true;
+          //  ImGui.NewFrame();
+           // _frameBegun = true;
         }
 
         public void WindowResized(int width, int height)
@@ -90,17 +90,17 @@ namespace Vox.UI
 
             _vertexArray = GL.GenVertexArray();
             GL.BindVertexArray(_vertexArray);
-            LabelObject(ObjectLabelIdentifier.VertexArray, _vertexArray, "ImGui");
+            LabelObject(ObjectIdentifier.VertexArray, _vertexArray, "ImGui");
 
             _vertexBuffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.ArrayBuffer, _vertexBuffer);
-            LabelObject(ObjectLabelIdentifier.Buffer, _vertexBuffer, "VBO: ImGui");
-            GL.BufferData(BufferTarget.ArrayBuffer, _vertexBufferSize, nint.Zero, BufferUsageHint.DynamicDraw);
+            LabelObject(ObjectIdentifier.Buffer, _vertexBuffer, "VBO: ImGui");
+            GL.BufferData(BufferTarget.ArrayBuffer, _vertexBufferSize, nint.Zero, BufferUsage.DynamicDraw);
 
             _indexBuffer = GL.GenBuffer();
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, _indexBuffer);
-            LabelObject(ObjectLabelIdentifier.Buffer, _indexBuffer, "EBO: ImGui");
-            GL.BufferData(BufferTarget.ElementArrayBuffer, _indexBufferSize, nint.Zero, BufferUsageHint.DynamicDraw);
+            LabelObject(ObjectIdentifier.Buffer, _indexBuffer, "EBO: ImGui");
+            GL.BufferData(BufferTarget.ElementArrayBuffer, _indexBufferSize, nint.Zero, BufferUsage.DynamicDraw);
 
             RecreateFontDeviceTexture();
 
@@ -171,20 +171,20 @@ namespace Vox.UI
 
             _fontTexture = GL.GenTexture();
             GL.BindTexture(TextureTarget.Texture2D, _fontTexture);
-            GL.TexStorage2D(TextureTarget2d.Texture2D, mips, SizedInternalFormat.Rgba8, width, height);
-            LabelObject(ObjectLabelIdentifier.Texture, _fontTexture, "ImGui Text Atlas");
+            GL.TexStorage2D(TextureTarget.Texture2D, mips, SizedInternalFormat.Rgba8, width, height);
+            LabelObject(ObjectIdentifier.Texture, _fontTexture, "ImGui Text Atlas");
 
             GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte, pixels);
 
-            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.GenerateMipmap(TextureTarget.Texture2D);
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mips - 1);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mips - 1);
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
 
             // Restore state
             GL.BindTexture(TextureTarget.Texture2D, prevTexture2D);
@@ -321,27 +321,14 @@ namespace Vox.UI
             {
                 fixed (int* iptr = &prevScissorBox[0])
                 {
-                    GL.GetInteger(GetPName.ScissorBox, iptr);
+                    int[] scissorBox = new int[4];
+                    GL.GetInteger(GetPName.ScissorBox, scissorBox);
                 }
             }
-            Span<int> prevPolygonMode = stackalloc int[2];
-            unsafe
-            {
-                fixed (int* iptr = &prevPolygonMode[0])
-                {
-                    GL.GetInteger(GetPName.PolygonMode, iptr);
-                }
-            }
+            int[] prevPolygonMode = new int[2];
+            GL.GetInteger(GetPName.PolygonMode, prevPolygonMode);
 
-            if (_glVersion <= 310 || _compatibilityProfile)
-            {
-                GL.PolygonMode(MaterialFace.Front, PolygonMode.Fill);
-                GL.PolygonMode(MaterialFace.Back, PolygonMode.Fill);
-            }
-            else
-            {
-                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
-            }
+            GL.PolygonMode(TriangleFace.FrontAndBack, PolygonMode.Fill);
 
             // Bind the element buffer (thru the VAO) so that we can resize it.
             GL.BindVertexArray(_vertexArray);
@@ -356,7 +343,7 @@ namespace Vox.UI
                 {
                     int newSize = (int)Math.Max(_vertexBufferSize * 1.5f, vertexSize);
 
-                    GL.BufferData(BufferTarget.ArrayBuffer, newSize, nint.Zero, BufferUsageHint.DynamicDraw);
+                    GL.BufferData(BufferTarget.ArrayBuffer, newSize, nint.Zero, BufferUsage.DynamicDraw);
                     _vertexBufferSize = newSize;
 
                   //  Console.WriteLine($"Resized dear imgui vertex buffer to new size {_vertexBufferSize}");
@@ -366,7 +353,7 @@ namespace Vox.UI
                 if (indexSize > _indexBufferSize)
                 {
                     int newSize = (int)Math.Max(_indexBufferSize * 1.5f, indexSize);
-                    GL.BufferData(BufferTarget.ElementArrayBuffer, newSize, nint.Zero, BufferUsageHint.DynamicDraw);
+                    GL.BufferData(BufferTarget.ElementArrayBuffer, newSize, nint.Zero, BufferUsage.DynamicDraw);
                     _indexBufferSize = newSize;
 
                  //   Console.WriteLine($"Resized dear imgui index buffer to new size {_indexBufferSize}");
@@ -384,8 +371,9 @@ namespace Vox.UI
                 1.0f);
 
             GL.UseProgram(_shader);
-            GL.UniformMatrix4(_shaderProjectionMatrixLocation, false, ref mvp);
-            GL.Uniform1(_shaderFontTextureLocation, 0);
+            unsafe { GL.UniformMatrix4fv(_shaderProjectionMatrixLocation, 1, false,  (float*)&mvp); }
+
+            GL.Uniform1i(_shaderFontTextureLocation, 0);
             CheckGlError("Projection");
 
             GL.BindVertexArray(_vertexArray);
@@ -435,7 +423,7 @@ namespace Vox.UI
                         }
                         else
                         {
-                            GL.DrawElements(BeginMode.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (int)pcmd.IdxOffset * sizeof(ushort));
+                            GL.DrawElements(PrimitiveType.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (int)pcmd.IdxOffset * sizeof(ushort));
                         }
                         CheckGlError("Draw");
                     }
@@ -454,22 +442,23 @@ namespace Vox.UI
             GL.BindBuffer(BufferTarget.ArrayBuffer, prevArrayBuffer);
             GL.BlendEquationSeparate((BlendEquationMode)prevBlendEquationRgb, (BlendEquationMode)prevBlendEquationAlpha);
             GL.BlendFuncSeparate(
-                (BlendingFactorSrc)prevBlendFuncSrcRgb,
-                (BlendingFactorDest)prevBlendFuncDstRgb,
-                (BlendingFactorSrc)prevBlendFuncSrcAlpha,
-                (BlendingFactorDest)prevBlendFuncDstAlpha);
+                (BlendingFactor)prevBlendFuncSrcRgb,
+                (BlendingFactor)prevBlendFuncDstRgb,
+                (BlendingFactor)prevBlendFuncSrcAlpha,
+                (BlendingFactor)prevBlendFuncDstAlpha);
             if (prevBlendEnabled) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
             if (prevDepthTestEnabled) GL.Enable(EnableCap.DepthTest); else GL.Disable(EnableCap.DepthTest);
             if (prevCullFaceEnabled) GL.Enable(EnableCap.CullFace); else GL.Disable(EnableCap.CullFace);
             if (prevScissorTestEnabled) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
+
             if (_glVersion <= 310 || _compatibilityProfile)
             {
-                GL.PolygonMode(MaterialFace.Front, (PolygonMode)prevPolygonMode[0]);
-                GL.PolygonMode(MaterialFace.Back, (PolygonMode)prevPolygonMode[1]);
+                GL.PolygonMode(TriangleFace.Front, (PolygonMode)prevPolygonMode[0]);
+                GL.PolygonMode(TriangleFace.Back, (PolygonMode)prevPolygonMode[1]);
             }
             else
             {
-                GL.PolygonMode(MaterialFace.FrontAndBack, (PolygonMode)prevPolygonMode[0]);
+                GL.PolygonMode(TriangleFace.FrontAndBack, (PolygonMode)prevPolygonMode[0]);
             }
         }
 
@@ -486,7 +475,7 @@ namespace Vox.UI
             GL.DeleteProgram(_shader);
         }
 
-        public static void LabelObject(ObjectLabelIdentifier objLabelIdent, int glObject, string name)
+        public static void LabelObject(ObjectIdentifier objLabelIdent, int glObject, string name)
         {
             if (_khrDebugAvailable)
                 GL.ObjectLabel(objLabelIdent, glObject, name.Length, name);
@@ -497,7 +486,7 @@ namespace Vox.UI
             int n = GL.GetInteger(GetPName.NumExtensions);
             for (int i = 0; i < n; i++)
             {
-                string extension = GL.GetString(StringNameIndexed.Extensions, i);
+                string? extension = GL.GetStringi(StringName.Extensions, (uint) i);
                 if (extension == name) return true;
             }
 
@@ -507,7 +496,7 @@ namespace Vox.UI
         public static int CreateProgram(string name, string vertexSource, string fragmentSoruce)
         {
             int program = GL.CreateProgram();
-            LabelObject(ObjectLabelIdentifier.Program, program, $"Program: {name}");
+            LabelObject(ObjectIdentifier.Program, program, $"Program: {name}");
 
             int vertex = CompileShader(name, ShaderType.VertexShader, vertexSource);
             int fragment = CompileShader(name, ShaderType.FragmentShader, fragmentSoruce);
@@ -517,7 +506,7 @@ namespace Vox.UI
 
             GL.LinkProgram(program);
 
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int success);
+            GL.GetProgrami(program, ProgramProperty.LinkStatus, out int success);
             if (success == 0)
             {
                 string info = GL.GetProgramInfoLog(program);
@@ -536,12 +525,12 @@ namespace Vox.UI
         private static int CompileShader(string name, ShaderType type, string source)
         {
             int shader = GL.CreateShader(type);
-            LabelObject(ObjectLabelIdentifier.Shader, shader, $"Shader: {name}");
+            LabelObject(ObjectIdentifier.Shader, shader, $"Shader: {name}");
 
             GL.ShaderSource(shader, source);
             GL.CompileShader(shader);
 
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
+            GL.GetShaderi(shader, ShaderParameterName.CompileStatus, out int success);
             if (success == 0)
             {
                 string info = GL.GetShaderInfoLog(shader);

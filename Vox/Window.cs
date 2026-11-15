@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using ImGuiNET;
-using OpenTK.Graphics.OpenGL4;
+using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 using OpenTK.Windowing.Desktop;
@@ -17,35 +17,33 @@ using Vox.Model;
 using Vox.Rendering;
 using Vox.UI;
 using Vox.UI.MenuLogic;
-using BlendingFactor = OpenTK.Graphics.OpenGL4.BlendingFactor;
-using BufferTarget = OpenTK.Graphics.OpenGL4.BufferTarget;
-using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
-using DebugProc = OpenTK.Graphics.OpenGL4.DebugProc;
-using DebugSeverity = OpenTK.Graphics.OpenGL4.DebugSeverity;
-using DebugSource = OpenTK.Graphics.OpenGL4.DebugSource;
-using DebugType = OpenTK.Graphics.OpenGL4.DebugType;
-using DepthFunction = OpenTK.Graphics.OpenGL4.DepthFunction;
-using DrawBufferMode = OpenTK.Graphics.OpenGL4.DrawBufferMode;
-using EnableCap = OpenTK.Graphics.OpenGL4.EnableCap;
-using FramebufferAttachment = OpenTK.Graphics.OpenGL4.FramebufferAttachment;
-using FramebufferErrorCode = OpenTK.Graphics.OpenGL4.FramebufferErrorCode;
-using FramebufferTarget = OpenTK.Graphics.OpenGL4.FramebufferTarget;
-using GL = OpenTK.Graphics.OpenGL4.GL;
-using HintMode = OpenTK.Graphics.OpenGL4.HintMode;
-using HintTarget = OpenTK.Graphics.OpenGL4.HintTarget;
-using PixelFormat = OpenTK.Graphics.OpenGL4.PixelFormat;
-using PixelInternalFormat = OpenTK.Graphics.OpenGL4.PixelInternalFormat;
-using PixelType = OpenTK.Graphics.OpenGL4.PixelType;
-using PrimitiveType = OpenTK.Graphics.OpenGL4.PrimitiveType;
-using ReadBufferMode = OpenTK.Graphics.OpenGL4.ReadBufferMode;
-using StringName = OpenTK.Graphics.OpenGL4.StringName;
-using TextureCompareMode = OpenTK.Graphics.OpenGL4.TextureCompareMode;
-using TextureMagFilter = OpenTK.Graphics.OpenGL4.TextureMagFilter;
-using TextureMinFilter = OpenTK.Graphics.OpenGL4.TextureMinFilter;
-using TextureParameterName = OpenTK.Graphics.OpenGL4.TextureParameterName;
-using TextureTarget = OpenTK.Graphics.OpenGL4.TextureTarget;
-using TextureUnit = OpenTK.Graphics.OpenGL4.TextureUnit;
-using TextureWrapMode = OpenTK.Graphics.OpenGL4.TextureWrapMode;
+using BlendingFactor = OpenTK.Graphics.OpenGL.BlendingFactor;
+using BufferTarget = OpenTK.Graphics.OpenGL.BufferTarget;
+using ClearBufferMask = OpenTK.Graphics.OpenGL.ClearBufferMask;
+using DebugSeverity = OpenTK.Graphics.OpenGL.DebugSeverity;
+using DebugSource = OpenTK.Graphics.OpenGL.DebugSource;
+using DebugType = OpenTK.Graphics.OpenGL.DebugType;
+using DepthFunction = OpenTK.Graphics.OpenGL.DepthFunction;
+using DrawBufferMode = OpenTK.Graphics.OpenGL.DrawBufferMode;
+using EnableCap = OpenTK.Graphics.OpenGL.EnableCap;
+using FramebufferAttachment = OpenTK.Graphics.OpenGL.FramebufferAttachment;
+using FramebufferTarget = OpenTK.Graphics.OpenGL.FramebufferTarget;
+using GL = OpenTK.Graphics.OpenGL.GL;
+using HintMode = OpenTK.Graphics.OpenGL.HintMode;
+using HintTarget = OpenTK.Graphics.OpenGL.HintTarget;
+using PixelFormat = OpenTK.Graphics.OpenGL.PixelFormat;
+using PixelInternalFormat = OpenTK.Graphics.OpenGL.InternalFormat;
+using PixelType = OpenTK.Graphics.OpenGL.PixelType;
+using PrimitiveType = OpenTK.Graphics.OpenGL.PrimitiveType;
+using ReadBufferMode = OpenTK.Graphics.OpenGL.ReadBufferMode;
+using StringName = OpenTK.Graphics.OpenGL.StringName;
+using TextureCompareMode = OpenTK.Graphics.OpenGL.TextureCompareMode;
+using TextureMagFilter = OpenTK.Graphics.OpenGL.TextureMagFilter;
+using TextureMinFilter = OpenTK.Graphics.OpenGL.TextureMinFilter;
+using TextureParameterName = OpenTK.Graphics.OpenGL.TextureParameterName;
+using TextureTarget = OpenTK.Graphics.OpenGL.TextureTarget;
+using TextureUnit = OpenTK.Graphics.OpenGL.TextureUnit;
+using TextureWrapMode = OpenTK.Graphics.OpenGL.TextureWrapMode;
 using Vector3 = OpenTK.Mathematics.Vector3;
 
 
@@ -192,7 +190,7 @@ namespace Vox
                 .CreateFragmentShader("FragInventoryShader", fragInventorySource)
                 .Link();
             
-            GL.ObjectLabel(ObjectLabelIdentifier.Program, _shaderManager.GetShaderProgram("Inventory").GetProgramId(), "Shader Program: Inventory".Length, "Shader Program: Inventory");
+            GL.ObjectLabel(ObjectIdentifier.Program, _shaderManager.GetShaderProgram("Inventory").GetProgramId(), "Shader Program: Inventory".Length, "Shader Program: Inventory");
             //------------------------Inventory shaders---------------------------------
 
             _terrainVao = GL.GenVertexArray();
@@ -260,9 +258,14 @@ namespace Vox
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             GL.Enable(EnableCap.Blend);
 
-            GL.DebugMessageCallback(DebugMessageDelegate, IntPtr.Zero);
-            GL.Enable(EnableCap.DebugOutput);
-
+       
+            unsafe
+            {
+                GL.DebugMessageCallback(
+                    Marshal.GetFunctionPointerForDelegate(DebugMessageDelegate),
+                    null);
+                GL.Enable(EnableCap.DebugOutput);
+            }
 
             //Sunlight frame buffer for shadow map
             _sunlightDepthMapFbo = GL.GenFramebuffer();
@@ -281,12 +284,12 @@ namespace Vox
                 IntPtr.Zero
             );
 
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Less);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureCompareFunc, (int)DepthFunction.Less);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureCompareMode, (int)TextureCompareMode.CompareRefToTexture);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameteri(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
 
             //Attach depth texture to frame buffer         
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _sunlightDepthMapFbo);
@@ -779,8 +782,8 @@ namespace Vox
 
 
             //Check FBO
-            var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            if (status != FramebufferErrorCode.FramebufferComplete)
+            FramebufferStatus status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferStatus.FramebufferComplete)
             {
                 Logger.Error($"Framebuffer error: {status}");
             }
@@ -939,8 +942,8 @@ namespace Vox
 
 
             //Check FBO
-            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            if (status != FramebufferErrorCode.FramebufferComplete)
+            FramebufferStatus status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferStatus.FramebufferComplete)
             {
                 Logger.Error($"Framebuffer error: {status}");
             }
@@ -948,7 +951,7 @@ namespace Vox
             GL.BindVertexArray(_terrainVao);
 
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, _ssboManager.GetSsbo(Ssbo.Terrain).Handle);
-            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, _ssboManager.GetSsbo(Ssbo.Terrain).Handle);
+            GL.BindBufferBase(BufferTarget.ShaderStorageBuffer, 0, _ssboManager.GetSsbo(Ssbo.Terrain).Handle);
 
             GL.DrawArraysInstanced(
                 PrimitiveType.TriangleStrip,        // Drawing a triangle strip
@@ -1123,7 +1126,17 @@ namespace Vox
             return _ssboTerrainSize;
         }
         //GL Debugger delegate
-        private static readonly DebugProc DebugMessageDelegate = OnDebugMessage;
+        private static readonly DebugCallback DebugMessageDelegate = OnDebugMessage;
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        private delegate void DebugCallback(
+            DebugSource source,
+            DebugType type,
+            int id,
+            DebugSeverity severity,
+            int length,
+            IntPtr pMessage,
+            IntPtr pUserParam);
+        
         private static void OnDebugMessage(
             DebugSource source,         // Source of the debugging message.
             DebugType type,             // Type of the debugging message.

@@ -51,9 +51,6 @@ namespace Vox.Assets.Models
             _elements = new List<Element>(parentModel._elements);
             bool transparent = jsonObject.Value<bool>("transparent");
             
-            //TODO: transparent block detection
-            if(transparent) { }
-
             if (jsonTextures != null)
             {
                 foreach (var texture in jsonTextures)

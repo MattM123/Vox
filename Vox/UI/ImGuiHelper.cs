@@ -8,12 +8,7 @@ using Vox.Genesis;
 using Vox.Model;
 using Vox.Rendering;
 using Vox.UI.MenuLogic;
-using ClearBufferMask = OpenTK.Graphics.OpenGL4.ClearBufferMask;
-using FramebufferErrorCode = OpenTK.Graphics.OpenGL4.FramebufferErrorCode;
-using FramebufferTarget = OpenTK.Graphics.OpenGL4.FramebufferTarget;
-using GetPName = OpenTK.Graphics.OpenGL4.GetPName;
-using GL = OpenTK.Graphics.OpenGL4.GL;
-using PrimitiveType = OpenTK.Graphics.OpenGL4.PrimitiveType;
+using OpenTK.Graphics.OpenGL;
 
 namespace Vox.UI
 {
@@ -113,7 +108,7 @@ namespace Vox.UI
             ImGui.Text("Choose a World");
 
                 ImGui.BeginChild("World List Pane", new System.Numerics.Vector2(Window.SreenWidth / horizontalMenuScale, menuHeight / 2.5f),
-                    ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize);
+                    ImGuiChildFlags.AlwaysUseWindowPadding | ImGuiChildFlags.AlwaysAutoResize | ImGuiChildFlags.AutoResizeX | ImGuiChildFlags.AutoResizeY);
 
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new System.Numerics.Vector2(20f, 2f));
                 ImGui.PushStyleVar(ImGuiStyleVar.SeparatorTextPadding, new System.Numerics.Vector2(20f, 2f));
@@ -194,9 +189,9 @@ namespace Vox.UI
                     _requestClose();
                 }
 
-
-                ImGui.EndChild();
                 ImGui.PopStyleVar(3);
+                ImGui.EndChild();
+
 
             ImGui.PushItemWidth(Window.SreenWidth / horizontalMenuScale);
 
@@ -205,19 +200,19 @@ namespace Vox.UI
 
             ImGui.InputText(" ", buffer, 30);
 
-            buffer = [.. buffer.Reverse()];
+            Array.Reverse(buffer);
             buffer = [.. buffer.SkipWhile(x => x == 0)];
             string worldName = Encoding.Default.GetString(buffer);
 
             ImGui.PopItemWidth();
 
 
-            ImGui.Button("Create New World: " + Encoding.Default.GetString([.. buffer.Reverse()]));
+            ImGui.Button("Create New World: " + Encoding.Default.GetString(buffer));
             if (ImGui.IsItemClicked())
             {
                 try
                 {
-                    Directory.CreateDirectory(Path.Combine(Window.GetAppFolder(), "worlds", Encoding.Default.GetString([.. buffer.Reverse()])));
+                    Directory.CreateDirectory(Path.Combine(Window.GetAppFolder(), "worlds", Encoding.Default.GetString(buffer)));
                 }
                 catch (Exception e)
                 {
@@ -225,8 +220,9 @@ namespace Vox.UI
                     Logger.Debug(Path.Combine( Window.GetAppFolder(), "worlds", worldName));
                 }
             }
-
-            ImGui.PopStyleColor(4);
+            
+            ImGui.PopStyleVar();
+            ImGui.PopStyleColor(5);
             ImGui.PopFont();
             ImGui.End();
         }
@@ -661,7 +657,7 @@ namespace Vox.UI
             InventoryStore inventoryStore = _player!.GetInventory();
 
             //Save current state
-            int prevFbo = GL.GetInteger(GetPName.FramebufferBinding);
+            int prevFbo = GL.GetInteger(GetPName.DrawFramebufferBinding);
             int prevProgram = GL.GetInteger(GetPName.CurrentProgram);
             int prevVao = GL.GetInteger(GetPName.VertexArrayBinding);
             int[] prevViewport = new int[4];
@@ -670,8 +666,8 @@ namespace Vox.UI
             //FBO setup first, before viewport
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, inventoryStore.GetInventoryDisplayFbo());
 
-            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-            if (status != FramebufferErrorCode.FramebufferComplete)
+            FramebufferStatus status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferStatus.FramebufferComplete)
             {
                 Console.WriteLine($"Framebuffer error: {status}");
                 return;

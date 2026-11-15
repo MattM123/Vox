@@ -34,14 +34,14 @@ namespace Vox.Rendering
         public ShaderProgram CreateVertexShader(string filename, string vertexShaderCode)
         {
             _vertexShaderId = CreateShader(filename, vertexShaderCode, ShaderType.VertexShader);
-            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, _vertexShaderId, $"Shader: {filename}");
+            ImGuiController.LabelObject(ObjectIdentifier.Shader, _vertexShaderId, $"Shader: {filename}");
             return this;
         }
 
         public ShaderProgram CreateFragmentShader(string filename, string fragmentShaderCode)
         {
             _fragmentShaderId = CreateShader(filename, fragmentShaderCode, ShaderType.FragmentShader);
-            ImGuiController.LabelObject((OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier)ObjectLabelIdentifier.Shader, _fragmentShaderId, $"Shader: {filename}");
+            ImGuiController.LabelObject(ObjectIdentifier.Shader, _fragmentShaderId, $"Shader: {filename}");
             return this;
         }
 
@@ -57,10 +57,10 @@ namespace Vox.Rendering
          */
         public ShaderProgram UploadAndBindTexture(string varName, int slot, int textureId, TextureTarget target)
         {
-            GL.ActiveTexture(TextureUnit.Texture0 + slot);
+            GL.ActiveTexture((TextureUnit)((int)TextureUnit.Texture0 + slot));
             GL.BindTexture(target, textureId);
             int varLocation = GL.GetUniformLocation(GetProgramId(), varName);
-            GL.Uniform1(varLocation, slot);
+            GL.Uniform1i(varLocation, slot);
             return this;
         }
 
@@ -90,26 +90,26 @@ namespace Vox.Rendering
         public ShaderProgram SetMatrixUniform(string uniformName, Matrix4 matrix)
         {
             int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
-            GL.UniformMatrix4(uniformLocation, true, ref matrix);
+            GL.UniformMatrix4f(uniformLocation, 1, true, ref matrix);
             return this;
         }
         public ShaderProgram SetIntFloatUniform(string uniformName, int value)
         {
             int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
-            GL.Uniform1(uniformLocation, value);
+            GL.Uniform1i(uniformLocation, value);
             return this;
         }
         public ShaderProgram SetIntFloatUniform(string uniformName, float value)
         {
             int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
-            GL.Uniform1(uniformLocation, value);
+            GL.Uniform1f(uniformLocation, value);
             return this;
         }
 
         public ShaderProgram SetVector3Uniform(string uniformName, Vector3 value)
         {
             int uniformLocation = GL.GetUniformLocation(_programId, uniformName);
-            GL.Uniform3(uniformLocation, value);
+            GL.Uniform3f(uniformLocation, value.X, value.Y, value.Z);
             return this;
         }
         public string GetProgramLog()
@@ -117,8 +117,9 @@ namespace Vox.Rendering
             int[] maxlen = new int[1];
             // string log;
 
-            GL.GetProgram(_programId, GetProgramParameterName.InfoLogLength, maxlen);
+            GL.GetProgrami(_programId, ProgramProperty.InfoLogLength, maxlen);
             GL.GetProgramInfoLog(_programId);//, maxlen[0], out int len, out log);
+    
 
 
             return "Log Length: " + maxlen[0] + "\n" + GL.GetProgramInfoLog(_programId);
@@ -134,7 +135,7 @@ namespace Vox.Rendering
             _shaderIdentity.Add(shaderId, filename);
 
             int status;
-            GL.GetShader(shaderId, ShaderParameter.CompileStatus, out status);
+            GL.GetShaderi(shaderId, ShaderParameterName.CompileStatus, out status);
 
             // Check for compilation errors
             if (status != (int)All.True)
@@ -154,7 +155,7 @@ namespace Vox.Rendering
                 GL.LinkProgram(_programId);
 
                 int[] linkStatus = new int[1]; // Create an array to store the result
-                GL.GetProgram(_programId, GetProgramParameterName.LinkStatus, linkStatus);
+                GL.GetProgrami(_programId, ProgramProperty.LinkStatus, linkStatus);
                 int status = linkStatus[0]; // Access the value from the array
                 
                 // If linking was unsuccessful
@@ -209,7 +210,7 @@ namespace Vox.Rendering
 
                 // Check if validation was successful
                 int[] validStatus = new int[1]; // Create an array to store the result
-                GL.GetProgram(_programId, GetProgramParameterName.ValidateStatus, validStatus);
+                GL.GetProgrami(_programId, ProgramProperty.ValidateStatus, validStatus);
                 int vStatus = validStatus[0]; // Access the value from the array
 
                 if (vStatus != (int)All.True)

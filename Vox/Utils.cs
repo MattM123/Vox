@@ -1,12 +1,8 @@
 ﻿
-
-using System;
 using System.Diagnostics;
 using ImGuiNET;
-using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using Vox.Enums;
-using Vox.Genesis;
 using Vox.UI.MenuLogic;
 
 namespace Vox
